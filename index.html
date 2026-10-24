@@ -19,6 +19,14 @@ h1{font-size:1.1rem} h2{font-size:1.05rem} h3{font-size:.95rem}
 p{margin:0 0 .7rem}
 a{color:var(--brand)}
 small,.muted{color:var(--muted)}
+/* SPLASH */
+#splash{position:fixed;inset:0;background:radial-gradient(1200px 600px at 8% -10%,rgba(18,163,127,.35),transparent),radial-gradient(900px 500px at 110% 8%,rgba(11,107,83,.45),transparent),linear-gradient(160deg,#0b6b53 0%,#063a2c 100%);display:grid;place-items:center;z-index:99999;transition:opacity .25s}
+#splash.hide{opacity:0;pointer-events:none}
+.spinner{width:56px;height:56px;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.splash-text{color:#fff;font-weight:600;font-size:.9rem;text-align:center;letter-spacing:.02em}
+.splash-sub{color:rgba(255,255,255,.7);font-size:.75rem;margin-top:6px}
+/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;border:1px solid var(--line);background:#fff;color:var(--ink);padding:.55rem .9rem;border-radius:10px;font-size:.88rem;font-weight:600;cursor:pointer;transition:.15s;text-decoration:none;font-family:inherit}
 .btn:hover{border-color:#c3d4ce;background:#f7faf9}
 .btn-primary{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -28,6 +36,7 @@ small,.muted{color:var(--muted)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-block{width:100%;padding:.9rem;font-size:1rem;font-weight:700}
 .iconbtn{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
+/* LOGIN */
 .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(1200px 600px at 8% -10%,rgba(18,163,127,.35),transparent),radial-gradient(900px 500px at 110% 8%,rgba(11,107,83,.45),transparent),linear-gradient(160deg,#0b6b53 0%,#063a2c 100%)}
 .login-card{width:min(430px,100%);background:#fff;border-radius:20px;padding:30px 28px;box-shadow:0 30px 70px rgba(0,0,0,.3);position:relative}
 .login-lang{position:absolute;top:14px;right:14px}
@@ -48,6 +57,7 @@ small,.muted{color:var(--muted)}
 .input:focus,.select:focus,.textarea:focus{outline:2px solid var(--brand-3);border-color:var(--brand-2)}
 .textarea{min-height:76px;resize:vertical}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+/* SHELL */
 .shell{display:flex;min-height:100vh}
 .sidebar{width:264px;flex:0 0 auto;background:#0b3b2f;color:#dff0ea;display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh}
 .sidebar .brand{display:flex;gap:10px;align-items:center;padding:0 6px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
@@ -254,21 +264,31 @@ tbody tr:hover{background:#f9fcfb}
 
 <script>
 /* =========================================================
-   🔗 GOOGLE DRIVE BACKEND CONFIG — URL BAHARU
+   🔗 GOOGLE DRIVE BACKEND CONFIG
    ========================================================= */
 const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzCF9SJjZupQ5KVs6hmx42PJs3El7mJbu7Lh3JHZb-R8PrrfS1c0AuZrmA-uv7Us9N6/exec';
-const DRIVE_API_KEY = ''; // kosongkan jika tak set API key di Code.gs
+const DRIVE_API_KEY = '';
+const DRIVE_TIMEOUT_MS = 15000;
 
 async function driveAPI(action, data) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
-  const res = await fetch(DRIVE_API_URL, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    redirect: 'follow'
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const ctl = new AbortController();
+  const tid = setTimeout(() => ctl.abort(), DRIVE_TIMEOUT_MS);
+  try {
+    const res = await fetch(DRIVE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow',
+      signal: ctl.signal
+    });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  } catch (e) {
+    clearTimeout(tid);
+    throw e;
+  }
 }
 
 function fileToBase64(file) {
@@ -281,7 +301,7 @@ function fileToBase64(file) {
 }
 
 /* =========================================================
-   i18n — Malay (ms) & English (en)
+   i18n
    ========================================================= */
 const I18N = {
   ms: {
@@ -292,184 +312,73 @@ const I18N = {
     lang_toggle: 'EN',
     lang_tooltip: 'Tukar ke Bahasa Inggeris',
 
-    nav_dashboard: 'Dashboard',
-    nav_modules: 'Pengurusan Modul',
-    nav_modules_own: 'Modul Saya',
-    nav_programs: 'Program Latihan',
-    nav_activities: 'Aktiviti',
-    nav_activities_own: 'Aktiviti Saya',
-    nav_grading: 'Penilaian',
-    nav_rubrik: 'Rubrik',
-    nav_bank: 'Bank Soalan',
-    nav_users: 'Pengguna',
-    nav_audit: 'Audit Trail',
-    nav_reports: 'Laporan PDF',
-    nav_sijil: 'Sijil',
-    nav_final: 'Peperiksaan Akhir',
+    nav_dashboard: 'Dashboard', nav_modules: 'Pengurusan Modul', nav_modules_own: 'Modul Saya',
+    nav_programs: 'Program Latihan', nav_activities: 'Aktiviti', nav_activities_own: 'Aktiviti Saya',
+    nav_grading: 'Penilaian', nav_rubrik: 'Rubrik', nav_bank: 'Bank Soalan', nav_users: 'Pengguna',
+    nav_audit: 'Audit Trail', nav_reports: 'Laporan PDF', nav_sijil: 'Sijil', nav_final: 'Peperiksaan Akhir',
     nav_profile: 'Profil Saya',
-    title_sijil: 'Pengurusan Sijil',
-    title_final: 'Peperiksaan Akhir',
-    title_profile: 'Profil Saya',
+    title_sijil: 'Pengurusan Sijil', title_final: 'Peperiksaan Akhir', title_profile: 'Profil Saya',
+    title_dashboard: 'Dashboard', title_modules: 'Pengurusan Modul', title_module: 'Butiran Modul',
+    title_programs: 'Program Latihan', title_activities: 'Pengurusan Aktiviti', title_activities_mine: 'Aktiviti Saya',
+    title_activity: 'Butiran Aktiviti', title_grading: 'Penilaian', title_rubrik: 'Rubrik',
+    title_bank: 'Bank Soalan', title_users: 'Pengguna', title_audit: 'Audit Trail', title_reports: 'Laporan PDF',
 
-    title_dashboard: 'Dashboard',
-    title_modules: 'Pengurusan Modul',
-    title_module: 'Butiran Modul',
-    title_programs: 'Program Latihan',
-    title_activities: 'Pengurusan Aktiviti',
-    title_activities_mine: 'Aktiviti Saya',
-    title_activity: 'Butiran Aktiviti',
-    title_grading: 'Penilaian',
-    title_rubrik: 'Rubrik',
-    title_bank: 'Bank Soalan',
-    title_users: 'Pengguna',
-    title_audit: 'Audit Trail',
-    title_reports: 'Laporan PDF',
-
-    role_admin: 'Pentadbir',
-    role_trainer: 'Jurulatih',
-    role_participant: 'Peserta',
-
-    login: 'Log Masuk',
-    logout: 'Log Keluar',
-    email: 'E-mel',
-    password: 'Kata Laluan',
-    email_or_username: 'Nama Pengguna / E-mel',
-    demo_accounts: 'Akaun Demo',
-
-    register: 'Daftar',
-    register_title: 'Daftar Akaun Baharu',
+    role_admin: 'Pentadbir', role_trainer: 'Jurulatih', role_participant: 'Peserta',
+    login: 'Log Masuk', logout: 'Log Keluar', email: 'E-mel', password: 'Kata Laluan',
+    email_or_username: 'Nama Pengguna / E-mel', demo_accounts: 'Akaun Demo',
+    register: 'Daftar', register_title: 'Daftar Akaun Baharu',
     register_success: 'Akaun berjaya dicipta. Selamat datang!',
-    already_have_account: 'Sudah ada akaun?',
-    no_account: 'Belum ada akaun?',
-    confirm_password: 'Sahkan Kata Laluan',
-    password_mismatch: 'Kata laluan tidak sepadan.',
+    already_have_account: 'Sudah ada akaun?', no_account: 'Belum ada akaun?',
+    confirm_password: 'Sahkan Kata Laluan', password_mismatch: 'Kata laluan tidak sepadan.',
     password_too_short: 'Kata laluan mesti sekurang-kurangnya 6 aksara.',
-    username: 'Nama Pengguna',
-    username_taken: 'Nama pengguna telah digunakan.',
+    username: 'Nama Pengguna', username_taken: 'Nama pengguna telah digunakan.',
     username_invalid: 'Nama pengguna mesti 3+ aksara (huruf, nombor, garis bawah).',
     full_name: 'Nama penuh',
+    profile_title: 'Profil Saya', profile_member_since: 'Ahli Sejak', profile_updated: 'Profil dikemas kini.',
+    change_password: 'Tukar Kata Laluan', current_password: 'Kata Laluan Semasa',
+    new_password: 'Kata Laluan Baharu', confirm_new_password: 'Sahkan Kata Laluan Baharu',
+    current_password_wrong: 'Kata laluan semasa tidak betul.', password_changed: 'Kata laluan berjaya ditukar.',
+    phone: 'No. Telefon', personal_info: 'Maklumat Peribadi', account_security: 'Keselamatan Akaun',
 
-    profile_title: 'Profil Saya',
-    profile_member_since: 'Ahli Sejak',
-    profile_updated: 'Profil dikemas kini.',
-    change_password: 'Tukar Kata Laluan',
-    current_password: 'Kata Laluan Semasa',
-    new_password: 'Kata Laluan Baharu',
-    confirm_new_password: 'Sahkan Kata Laluan Baharu',
-    current_password_wrong: 'Kata laluan semasa tidak betul.',
-    password_changed: 'Kata laluan berjaya ditukar.',
-    phone: 'No. Telefon',
-    personal_info: 'Maklumat Peribadi',
-    account_security: 'Keselamatan Akaun',
+    btn_save: 'Simpan', btn_cancel: 'Batal', btn_close: 'Tutup', btn_delete: 'Padam',
+    btn_edit: 'Edit', btn_add: 'Tambah', btn_back: 'Kembali', btn_submit: 'Hantar', btn_view: 'Lihat',
+    btn_open: 'Buka', btn_close_tab: 'Tutup Tab', btn_retake: 'Ambil Semula', btn_publish: 'Terbitkan',
+    btn_unpublish: 'Nyahterbit', btn_enroll: 'Daftar', btn_unenroll: 'Keluarkan',
+    btn_upload: 'Muat Naik', btn_download: 'Muat Turun',
 
-    btn_save: 'Simpan',
-    btn_cancel: 'Batal',
-    btn_close: 'Tutup',
-    btn_delete: 'Padam',
-    btn_edit: 'Edit',
-    btn_add: 'Tambah',
-    btn_back: 'Kembali',
-    btn_submit: 'Hantar',
-    btn_view: 'Lihat',
-    btn_open: 'Buka',
-    btn_close_tab: 'Tutup Tab',
-    btn_retake: 'Ambil Semula',
-    btn_publish: 'Terbitkan',
-    btn_unpublish: 'Nyahterbit',
-    btn_enroll: 'Daftar',
-    btn_unenroll: 'Keluarkan',
-    btn_upload: 'Muat Naik',
-    btn_download: 'Muat Turun',
+    lbl_name: 'Nama', lbl_email: 'E-mel', lbl_password: 'Kata Laluan', lbl_role: 'Peranan',
+    lbl_org: 'Organisasi', lbl_ic: 'No. KP', lbl_date: 'Tarikh', lbl_duration: 'Tempoh',
+    lbl_status: 'Status', lbl_quiz: 'Kuiz', lbl_rubric: 'Rubrik', lbl_materials: 'Bahan',
+    lbl_objectives: 'Objektif', lbl_instructions: 'Arahan', lbl_method: 'Kaedah', lbl_score: 'Skor',
+    lbl_remarks: 'Catatan', lbl_title: 'Tajuk', lbl_description: 'Penerangan', lbl_trainer: 'Jurulatih',
+    lbl_module: 'Modul', lbl_activity: 'Aktiviti', lbl_participants: 'Peserta', lbl_enrollment: 'Enrollmen',
+    lbl_attendance: 'Kehadiran', lbl_practical: 'Praktikal', lbl_actions: 'Aksi', lbl_questions: 'soalan',
+    lbl_activities: 'Aktiviti', lbl_draft: 'Draf', lbl_published: 'Terbit', lbl_active: 'Aktif',
+    lbl_inactive: 'Nyahaktif', lbl_enrolled: 'Berdaftar', lbl_available: 'Tersedia',
+    lbl_weight: 'Berat', lbl_criteria: 'Kriteria', lbl_hours: 'jam', lbl_minutes: 'minit',
+    lbl_no_deadline: 'Tanpa had', lbl_best: 'terbaik',
 
-    lbl_name: 'Nama',
-    lbl_email: 'E-mel',
-    lbl_password: 'Kata Laluan',
-    lbl_role: 'Peranan',
-    lbl_org: 'Organisasi',
-    lbl_ic: 'No. KP',
-    lbl_date: 'Tarikh',
-    lbl_duration: 'Tempoh',
-    lbl_status: 'Status',
-    lbl_quiz: 'Kuiz',
-    lbl_rubric: 'Rubrik',
-    lbl_materials: 'Bahan',
-    lbl_objectives: 'Objektif',
-    lbl_instructions: 'Arahan',
-    lbl_method: 'Kaedah',
-    lbl_score: 'Skor',
-    lbl_remarks: 'Catatan',
-    lbl_title: 'Tajuk',
-    lbl_description: 'Penerangan',
-    lbl_trainer: 'Jurulatih',
-    lbl_module: 'Modul',
-    lbl_activity: 'Aktiviti',
-    lbl_participants: 'Peserta',
-    lbl_enrollment: 'Enrollmen',
-    lbl_attendance: 'Kehadiran',
-    lbl_practical: 'Praktikal',
-    lbl_actions: 'Aksi',
-    lbl_questions: 'soalan',
-    lbl_activities: 'Aktiviti',
-    lbl_draft: 'Draf',
-    lbl_published: 'Terbit',
-    lbl_active: 'Aktif',
-    lbl_inactive: 'Nyahaktif',
-    lbl_enrolled: 'Berdaftar',
-    lbl_available: 'Tersedia',
-    lbl_weight: 'Berat',
-    lbl_criteria: 'Kriteria',
-    lbl_hours: 'jam',
-    lbl_minutes: 'minit',
-    lbl_no_deadline: 'Tanpa had',
-    lbl_best: 'terbaik',
+    stat_programs_enrolled: 'Program Didaftar', stat_activities: 'Aktiviti', stat_avg_score: 'Purata Markah',
+    stat_competent: 'Kompeten', stat_users: 'Pengguna', stat_modules: 'Modul',
+    stat_modules_active: '{0} aktif', stat_enrollment: 'Enrollmen', stat_materials: 'Bahan Modul',
+    stat_more_available: '{0} lagi tersedia', stat_published_drafts: '{0} terbit · {1} draf',
 
-    stat_programs_enrolled: 'Program Didaftar',
-    stat_activities: 'Aktiviti',
-    stat_avg_score: 'Purata Markah',
-    stat_competent: 'Kompeten',
-    stat_users: 'Pengguna',
-    stat_modules: 'Modul',
-    stat_modules_active: '{0} aktif',
-    stat_enrollment: 'Enrollmen',
-    stat_materials: 'Bahan Modul',
-    stat_more_available: '{0} lagi tersedia',
-    stat_published_drafts: '{0} terbit · {1} draf',
+    status_excellent: 'Cemerlang', status_competent: 'Kompeten',
+    status_needs_improvement: 'Perlu Penambahbaikan', status_not_assessed: 'Belum Dinilai',
+    status_pending: 'Menunggu', status_open: 'Terbuka', status_closed: 'Ditutup',
+    status_not_open: 'Belum Dibuka', status_waiting: 'Menunggu', status_available_quiz: 'Tersedia',
 
-    status_excellent: 'Cemerlang',
-    status_competent: 'Kompeten',
-    status_needs_improvement: 'Perlu Penambahbaikan',
-    status_not_assessed: 'Belum Dinilai',
-    status_pending: 'Menunggu',
-    status_open: 'Terbuka',
-    status_closed: 'Ditutup',
-    status_not_open: 'Belum Dibuka',
-    status_waiting: 'Menunggu',
-    status_available_quiz: 'Tersedia',
-
-    quiz_open_now: 'DIBUKA SEKARANG',
-    quiz_not_open: 'BELUM DIBUKA',
-    quiz_closed: 'DITUTUP',
-    quiz_no_schedule: 'TIADA JADUAL',
-    quiz_time: 'Masa',
-    quiz_open_at: 'Dibuka',
-    quiz_close_at: 'Ditutup',
-    quiz_duration: 'Tempoh',
-    quiz_timed: 'Kuiz Bertempoh',
+    quiz_open_now: 'DIBUKA SEKARANG', quiz_not_open: 'BELUM DIBUKA', quiz_closed: 'DITUTUP',
+    quiz_no_schedule: 'TIADA JADUAL', quiz_time: 'Masa', quiz_open_at: 'Dibuka',
+    quiz_close_at: 'Ditutup', quiz_duration: 'Tempoh', quiz_timed: 'Kuiz Bertempoh',
     quiz_ready: 'Kuiz Sedia Dijawab',
     quiz_ready_body: 'Pilih satu jawapan untuk setiap soalan. Markah akan dipaparkan serta-merta selepas hantar.',
     quiz_timed_body: 'Anda mempunyai {0} minit untuk menjawab. Kuiz akan dihantar secara automatik apabila masa tamat.',
-    quiz_close_hint: '🕐 Kuiz ditutup pada: {0}',
-    quiz_completed: 'Kuiz Selesai',
-    quiz_open_new_tab: 'Buka Kuiz dalam Tab Baharu',
-    quiz_view_tab: 'Lihat Semula dalam Tab',
-    quiz_take: 'Ambil Kuiz',
-    quiz_view: 'Lihat',
-    quiz_countdown: 'Masa Berbaki',
-    quiz_preview: 'Paparan Pratonton',
-    quiz_link: 'Pautan untuk dikongsi dengan peserta',
-    quiz_copy: 'Salin',
-    quiz_copied: 'URL disalin.',
-    quiz_copy_fail: 'Gagal salin.',
+    quiz_close_hint: '🕐 Kuiz ditutup pada: {0}', quiz_completed: 'Kuiz Selesai',
+    quiz_open_new_tab: 'Buka Kuiz dalam Tab Baharu', quiz_view_tab: 'Lihat Semula dalam Tab',
+    quiz_take: 'Ambil Kuiz', quiz_view: 'Lihat', quiz_countdown: 'Masa Berbaki',
+    quiz_preview: 'Paparan Pratonton', quiz_link: 'Pautan untuk dikongsi dengan peserta',
+    quiz_copy: 'Salin', quiz_copied: 'URL disalin.', quiz_copy_fail: 'Gagal salin.',
     quiz_open_notice: 'Kuiz akan dibuka dalam tab baharu.',
     quiz_open_notice_timed: 'Kuiz akan dibuka dalam tab baharu. Anda akan mempunyai {0} minit untuk menjawab — timer akan bermula serta-merta.',
     quiz_not_open_notice: 'Kuiz ini akan dibuka pada {0}.',
@@ -477,270 +386,142 @@ const I18N = {
     quiz_closed_notice: 'Kuiz ini telah ditutup pada {0}. Sila hubungi jurulatih.',
     quiz_auto_submitted: 'Auto-hantar (masa tamat)',
     quiz_correct_answers: '{0} / {1} betul',
-    quiz_answer_correct: 'Jawapan betul',
-    quiz_answer_wrong: 'Jawapan salah',
+    quiz_answer_correct: 'Jawapan betul', quiz_answer_wrong: 'Jawapan salah',
     quiz_retake_confirm: 'Ambil semula kuiz? Percubaan baharu akan menggantikan keputusan.',
-    quiz_no_quiz: 'Tiada kuiz.',
-    quiz_bank_title: 'Bank Soalan Kuiz',
+    quiz_no_quiz: 'Tiada kuiz.', quiz_bank_title: 'Bank Soalan Kuiz',
 
-    pending_quiz_title: 'Kuiz Menunggu',
-    pending_quiz_hint: 'Klik untuk membuka kuiz dalam tab baharu.',
+    pending_quiz_title: 'Kuiz Menunggu', pending_quiz_hint: 'Klik untuk membuka kuiz dalam tab baharu.',
 
-    msg_saved: 'Disimpan.',
-    msg_updated: 'Dikemas kini.',
-    msg_deleted: 'Dipadam.',
-    msg_created: 'Dicipta.',
-    msg_enrolled: 'Berjaya mendaftar.',
-    msg_unenrolled: 'Dikeluarkan.',
-    msg_select_one: 'Sila pilih sekurang-kurangnya satu.',
-    msg_no_module: 'Tiada modul.',
-    msg_no_activity: 'Tiada aktiviti.',
-    msg_no_data: 'Tiada.',
-    msg_required: 'Medan ini diperlukan.',
-    msg_email_taken: 'E-mel digunakan.',
-    msg_invalid_login: 'E-mel atau kata laluan tidak sah.',
-    msg_no_access: 'Tiada akses.',
-    msg_not_found: 'Tidak dijumpai.',
-    msg_not_published: 'Belum Diterbitkan.',
-    msg_publish_prompt: 'Terbitkan sekarang?',
-    msg_already_enrolled: 'Sudah berdaftar.',
+    msg_saved: 'Disimpan.', msg_updated: 'Dikemas kini.', msg_deleted: 'Dipadam.',
+    msg_created: 'Dicipta.', msg_enrolled: 'Berjaya mendaftar.', msg_unenrolled: 'Dikeluarkan.',
+    msg_select_one: 'Sila pilih sekurang-kurangnya satu.', msg_no_module: 'Tiada modul.',
+    msg_no_activity: 'Tiada aktiviti.', msg_no_data: 'Tiada.', msg_required: 'Medan ini diperlukan.',
+    msg_email_taken: 'E-mel digunakan.', msg_invalid_login: 'E-mel atau kata laluan tidak sah.',
+    msg_no_access: 'Tiada akses.', msg_not_found: 'Tidak dijumpai.', msg_not_published: 'Belum Diterbitkan.',
+    msg_publish_prompt: 'Terbitkan sekarang?', msg_already_enrolled: 'Sudah berdaftar.',
 
     confirm_delete_module: 'Padam modul "{0}"?\n{1} aktiviti, {2} bahan dan {3} pendaftaran akan dipadam.',
-    confirm_delete_activity: 'Padam "{0}"?',
-    confirm_delete_user: 'Padam "{0}"?',
-    confirm_delete_material: 'Padam bahan "{0}"?',
-    confirm_delete_rubric: 'Padam rubrik "{0}"?',
-    confirm_delete_question: 'Padam soalan?',
-    confirm_enroll_bulk: 'Daftar {0} peserta?',
-    confirm_unenroll: 'Keluarkan {0}?',
-    confirm_publish_all: 'Terbitkan {0} aktiviti draf?',
-    confirm_retake_quiz: 'Ambil semula kuiz?',
-    confirm_cannot_delete: 'Tidak boleh.',
+    confirm_delete_activity: 'Padam "{0}"?', confirm_delete_user: 'Padam "{0}"?',
+    confirm_delete_material: 'Padam bahan "{0}"?', confirm_delete_rubric: 'Padam rubrik "{0}"?',
+    confirm_delete_question: 'Padam soalan?', confirm_enroll_bulk: 'Daftar {0} peserta?',
+    confirm_unenroll: 'Keluarkan {0}?', confirm_publish_all: 'Terbitkan {0} aktiviti draf?',
+    confirm_retake_quiz: 'Ambil semula kuiz?', confirm_cannot_delete: 'Tidak boleh.',
 
-    form_name: 'Nama',
-    form_desc: 'Penerangan',
-    form_title: 'Tajuk',
-    form_date: 'Tarikh',
-    form_duration: 'Tempoh (jam)',
-    form_method: 'Kaedah',
-    form_objectives: 'Objektif',
-    form_instructions: 'Arahan',
-    form_materials: 'Bahan',
-    form_publish_now: 'Terbitkan segera',
-    form_publish_now_hint: 'peserta boleh akses',
-    form_rubric: 'Rubrik',
+    form_name: 'Nama', form_desc: 'Penerangan', form_title: 'Tajuk', form_date: 'Tarikh',
+    form_duration: 'Tempoh (jam)', form_method: 'Kaedah', form_objectives: 'Objektif',
+    form_instructions: 'Arahan', form_materials: 'Bahan', form_publish_now: 'Terbitkan segera',
+    form_publish_now_hint: 'peserta boleh akses', form_rubric: 'Rubrik',
     form_rubric_hint: 'untuk penilaian praktikal',
     form_quiz_time_hint: 'Selepas simpan, klik 🗂️ pada aktiviti untuk set tarikh buka, tarikh tutup dan tempoh menjawab kuiz.',
-    form_module: 'Modul',
-    form_no_rubric: '— Tiada (boleh pilih kemudian) —',
-    form_save_changes: 'Simpan',
-    form_new: 'Baharu',
-    form_edit: 'Edit',
+    form_module: 'Modul', form_no_rubric: '— Tiada (boleh pilih kemudian) —',
+    form_save_changes: 'Simpan', form_new: 'Baharu', form_edit: 'Edit',
 
-    modules_all: 'Semua Modul',
-    modules_mine: 'Modul Saya',
+    modules_all: 'Semua Modul', modules_mine: 'Modul Saya',
     modules_desc_1: 'Satu modul mengumpulkan aktiviti dan bahan. Peserta perlu mendaftar untuk menyertai aktiviti.',
-    modules_activity_count: '{0} Aktiviti',
-    modules_participant_count: '{0} Peserta',
-    modules_materials_count: '{0} Bahan',
-    modules_draft_count: '{0} Draf',
-    modules_actions_open: 'Buka',
-    modules_actions_edit: '✏️',
-    modules_actions_toggle: 'Aktifkan',
-    modules_actions_toggle_off: 'Nyahaktifkan',
-    modules_actions_delete: '🗑️',
-    modules_no_drafts: 'Tiada draf.',
+    modules_activity_count: '{0} Aktiviti', modules_participant_count: '{0} Peserta',
+    modules_materials_count: '{0} Bahan', modules_draft_count: '{0} Draf',
+    modules_actions_open: 'Buka', modules_actions_edit: '✏️',
+    modules_actions_toggle: 'Aktifkan', modules_actions_toggle_off: 'Nyahaktifkan',
+    modules_actions_delete: '🗑️', modules_no_drafts: 'Tiada draf.',
     modules_draft_warn: '{0} aktiviti DRAF',
     modules_draft_hint: 'Aktiviti draf tidak kelihatan kepada peserta. Buka modul dan klik ✅ Terbitkan.',
-    modules_activity_section: 'Aktiviti',
-    modules_participant_section: 'Peserta',
-    modules_no_participants: 'Tiada peserta.',
-    modules_no_activities: 'Belum ada aktiviti.',
-    modules_enroll_section: 'Daftar Peserta',
-    modules_no_modules_enrolled: 'Anda belum mendaftar dalam modul ini.',
+    modules_activity_section: 'Aktiviti', modules_participant_section: 'Peserta',
+    modules_no_participants: 'Tiada peserta.', modules_no_activities: 'Belum ada aktiviti.',
+    modules_enroll_section: 'Daftar Peserta', modules_no_modules_enrolled: 'Anda belum mendaftar dalam modul ini.',
     modules_enroll_now: 'Daftar Sekarang',
     modules_activity_columns: 'Aktiviti · Tarikh · Kuiz · Praktikal · Status · Aksi',
 
-    mat_title: 'Bahan Modul',
-    mat_sub: 'Semua jenis fail',
-    mat_upload: '➕ Muat Naik Bahan',
+    mat_title: 'Bahan Modul', mat_sub: 'Semua jenis fail', mat_upload: '➕ Muat Naik Bahan',
     mat_no_materials_trainer: 'Jurulatih belum memuat naik bahan untuk modul ini.',
     mat_no_materials_admin: 'Belum ada bahan. Klik ➕ untuk muat naik fail.',
-    mat_upload_modal: 'Muat Naik Bahan Modul',
-    mat_upload_format: 'Format Diterima',
+    mat_upload_modal: 'Muat Naik Bahan Modul', mat_upload_format: 'Format Diterima',
     mat_upload_format_value: 'Semua jenis fail diterima (PDF, Word, Excel, imej, video, audio, arkib, dll.).',
-    mat_upload_limit: 'Had saiz: 100 MB per fail.',
-    mat_upload_file: 'Fail',
-    mat_upload_display_name: 'Nama Paparan (pilihan)',
-    mat_upload_desc: 'Penerangan (pilihan)',
-    mat_upload_placeholder: 'Kosong = guna nama fail asal',
-    mat_upload_btn: '⬆️ Muat Naik',
+    mat_upload_limit: 'Had saiz: 100 MB per fail.', mat_upload_file: 'Fail',
+    mat_upload_display_name: 'Nama Paparan (pilihan)', mat_upload_desc: 'Penerangan (pilihan)',
+    mat_upload_placeholder: 'Kosong = guna nama fail asal', mat_upload_btn: '⬆️ Muat Naik',
     mat_upload_success: 'Bahan dimuat naik ke Google Drive.',
-    mat_upload_too_big: 'Fail terlalu besar: {0}. Had: {1}.',
-    mat_upload_bad_type: 'Format tidak disokong.',
-    mat_upload_no_file: 'Sila pilih fail yang sah.',
-    mat_upload_storage_full: 'Ruang penyimpanan tidak mencukupi.',
-    mat_upload_fail: 'Gagal muat naik fail.',
-    mat_view_fail: 'Gagal membuka fail.',
+    mat_upload_too_big: 'Fail terlalu besar: {0}. Had: {1}.', mat_upload_bad_type: 'Format tidak disokong.',
+    mat_upload_no_file: 'Sila pilih fail yang sah.', mat_upload_storage_full: 'Ruang penyimpanan tidak mencukupi.',
+    mat_upload_fail: 'Gagal muat naik fail.', mat_view_fail: 'Gagal membuka fail.',
     mat_download_fail: 'Gagal memuat turun fail.',
     mat_word_hint: 'Fail akan dimuat turun. Buka dengan aplikasi yang sesuai.',
     mat_popup_blocked: 'Popup disekat — guna ⬇️ untuk muat turun.',
     mat_uploading: 'Memuat naik ke Drive…',
     mat_drive_note: '📤 Fail disimpan terus ke Google Drive. Peserta boleh akses melalui link.',
 
-    upload_processing: 'Memproses…',
-    file_type_image: 'Imej',
-    file_type_other: 'Fail',
+    upload_processing: 'Memproses…', file_type_image: 'Imej', file_type_other: 'Fail',
 
-    tt_title: 'Jadual Waktu',
-    tt_sub: 'Jadual sesi untuk modul ini',
-    tt_add: '+ Tambah Jadual',
-    tt_edit: 'Edit Jadual',
-    tt_new: 'Jadual Baharu',
-    tt_no_entries: 'Belum ada jadual waktu.',
-    tt_no_entries_admin: 'Belum ada jadual waktu. Klik + Tambah Jadual.',
-    tt_date: 'Tarikh',
-    tt_start: 'Masa Mula',
-    tt_end: 'Masa Tamat',
-    tt_topic: 'Tajuk / Topik',
-    tt_instructor: 'Pengajar',
-    tt_location: 'Lokasi',
-    tt_notes: 'Catatan',
-    tt_today: 'Hari Ini',
-    tt_confirm_delete: 'Padam jadual ini?',
-    tt_added: 'Jadual ditambah.',
-    tt_updated: 'Jadual dikemas kini.',
-    tt_deleted: 'Jadual dipadam.',
-    tt_invalid_time: 'Masa tamat mesti selepas masa mula.',
-    tt_date_required: 'Tarikh diperlukan.',
-    tt_topic_required: 'Tajuk diperlukan.',
-    tt_upcoming: 'Jadual Akan Datang',
-    tt_no_upcoming: 'Tiada jadual akan datang.',
-    tt_entries_count: '{0} jadual',
-    tt_topic_placeholder: 'cth: Pengenalan Kimia',
+    tt_title: 'Jadual Waktu', tt_sub: 'Jadual sesi untuk modul ini',
+    tt_add: '+ Tambah Jadual', tt_edit: 'Edit Jadual', tt_new: 'Jadual Baharu',
+    tt_no_entries: 'Belum ada jadual waktu.', tt_no_entries_admin: 'Belum ada jadual waktu. Klik + Tambah Jadual.',
+    tt_date: 'Tarikh', tt_start: 'Masa Mula', tt_end: 'Masa Tamat', tt_topic: 'Tajuk / Topik',
+    tt_instructor: 'Pengajar', tt_location: 'Lokasi', tt_notes: 'Catatan', tt_today: 'Hari Ini',
+    tt_confirm_delete: 'Padam jadual ini?', tt_added: 'Jadual ditambah.', tt_updated: 'Jadual dikemas kini.',
+    tt_deleted: 'Jadual dipadam.', tt_invalid_time: 'Masa tamat mesti selepas masa mula.',
+    tt_date_required: 'Tarikh diperlukan.', tt_topic_required: 'Tajuk diperlukan.',
+    tt_upcoming: 'Jadual Akan Datang', tt_no_upcoming: 'Tiada jadual akan datang.',
+    tt_entries_count: '{0} jadual', tt_topic_placeholder: 'cth: Pengenalan Kimia',
     tt_location_placeholder: 'cth: Bilik Seminar A',
 
-    act_new: 'Aktiviti Baharu',
-    act_edit: 'Edit Aktiviti',
-    act_publish_all: '✅ Terbit Semua',
-    act_no_module: 'Tiada modul. Cipta modul dahulu.',
-    act_no_module_assigned: 'Anda belum diassign ke modul.',
+    act_new: 'Aktiviti Baharu', act_edit: 'Edit Aktiviti', act_publish_all: '✅ Terbit Semua',
+    act_no_module: 'Tiada modul. Cipta modul dahulu.', act_no_module_assigned: 'Anda belum diassign ke modul.',
     act_publish_warn: 'Klik Terbitkan supaya peserta boleh akses.',
     act_publish_now_confirm: 'Aktiviti masih DRAF. Terbitkan sekarang? Tab kuiz akan dibuka untuk pratonton.',
-    act_bank_questions: 'Bank Soalan Kuiz',
-    act_no_quiz: 'Tiada kuiz. Sila hadir praktikal pada {0}.',
-    act_practical_session: 'Sesi Praktikal',
-    act_practical_criteria: 'Sesi Praktikal — Kriteria',
+    act_bank_questions: 'Bank Soalan Kuiz', act_no_quiz: 'Tiada kuiz. Sila hadir praktikal pada {0}.',
+    act_practical_session: 'Sesi Praktikal', act_practical_criteria: 'Sesi Praktikal — Kriteria',
     act_practical_eval: 'Penilaian Praktikal',
     act_practical_eval_hint: 'Anda akan dinilai jurulatih berdasarkan kriteria di bawah.',
-    act_practical_total: 'JUMLAH',
-    act_practical_wait: 'Sesi pada {0}',
-    act_practical_not_ready: 'Peserta belum dinilai.',
-    act_rubric_none: 'Tiada rubrik',
+    act_practical_total: 'JUMLAH', act_practical_wait: 'Sesi pada {0}',
+    act_practical_not_ready: 'Peserta belum dinilai.', act_rubric_none: 'Tiada rubrik',
     act_rubric_none_hint: 'Belum ada rubrik. Klik 📏 untuk pilih atau cipta.',
-    act_module_materials: 'Bahan Modul',
-    act_module_materials_hint: 'Bahan dari modul:',
-    act_objectives: 'Objektif',
-    act_instructions: 'Arahan',
-    act_materials: 'Bahan',
-    act_rubric_section: 'Rubrik',
+    act_module_materials: 'Bahan Modul', act_module_materials_hint: 'Bahan dari modul:',
+    act_objectives: 'Objektif', act_instructions: 'Arahan', act_materials: 'Bahan', act_rubric_section: 'Rubrik',
 
-    grad_title: 'Penilaian',
-    grad_participant: 'Peserta',
-    grad_attendance: 'Kehadiran',
-    grad_quiz: 'Kuiz',
-    grad_practical: 'Praktikal',
-    grad_score: 'Skor',
-    grad_status: 'Status',
-    grad_actions: 'Aksi',
-    grad_practical_form: 'Penilaian Rubrik',
-    grad_remarks: 'Catatan',
+    grad_title: 'Penilaian', grad_participant: 'Peserta', grad_attendance: 'Kehadiran',
+    grad_quiz: 'Kuiz', grad_practical: 'Praktikal', grad_score: 'Skor', grad_status: 'Status',
+    grad_actions: 'Aksi', grad_practical_form: 'Penilaian Rubrik', grad_remarks: 'Catatan',
     grad_save_success: 'Markah disimpan.',
     grad_no_rubric: 'Aktiviti ini belum ada rubrik. Pilih rubrik di tab Rubrik atau klik Bina Rubrik.',
-    grad_no_participants: 'Tiada peserta berdaftar.',
-    grad_attendance_mark: 'Hadir',
-    grad_attendance_absent: 'Tidak Hadir',
-    grad_attendance_none: '—',
+    grad_no_participants: 'Tiada peserta berdaftar.', grad_attendance_mark: 'Hadir',
+    grad_attendance_absent: 'Tidak Hadir', grad_attendance_none: '—',
 
-    rb_title: 'Senarai Rubrik',
-    rb_sub: 'Satu sumber kebenaran — digunakan oleh aktiviti praktikal',
-    rb_new: '➕ Rubrik',
-    rb_edit: 'Edit Rubrik',
-    rb_new_title: 'Rubrik Baharu',
-    rb_criteria_count: '{0} Kriteria',
-    rb_used_count: '{0} Digunakan',
-    rb_used_warning: 'Rubrik sedang digunakan',
-    rb_assign_title: 'Penetapan Rubrik ke Aktiviti',
+    rb_title: 'Senarai Rubrik', rb_sub: 'Satu sumber kebenaran — digunakan oleh aktiviti praktikal',
+    rb_new: '➕ Rubrik', rb_edit: 'Edit Rubrik', rb_new_title: 'Rubrik Baharu',
+    rb_criteria_count: '{0} Kriteria', rb_used_count: '{0} Digunakan',
+    rb_used_warning: 'Rubrik sedang digunakan', rb_assign_title: 'Penetapan Rubrik ke Aktiviti',
     rb_assign_hint: 'Pilih rubrik untuk setiap aktiviti praktikal. Perubahan di sini akan mempengaruhi penilaian praktikal aktiviti tersebut.',
     rb_grading_title: 'Penilaian Peserta',
     rb_grading_hint: 'Klik nama peserta untuk menilai menggunakan rubrik aktiviti.',
-    rb_no_practical: 'Tiada aktiviti praktikal.',
-    rb_name_required: 'Nama rubrik diperlukan.',
-    rb_weight_error: 'Jumlah berat mesti 100%. ({0}%)',
-    rb_level_add: '+ Level',
-    rb_crit_add: '+ Kriteria',
-    rb_total: 'Jumlah',
+    rb_no_practical: 'Tiada aktiviti praktikal.', rb_name_required: 'Nama rubrik diperlukan.',
+    rb_weight_error: 'Jumlah berat mesti 100%. ({0}%)', rb_level_add: '+ Level',
+    rb_crit_add: '+ Kriteria', rb_total: 'Jumlah',
     rb_none_hint: 'Belum ada rubrik. Klik ➕ untuk cipta rubrik pertama.',
-    rb_pick_title: 'Pilih Rubrik',
-    rb_pick_new: 'Cipta Rubrik Baharu',
-    rb_pick_existing: 'Pilih Rubrik Sedia Ada',
-    rb_pick_apply: 'Guna Rubrik Dipilih',
-    rb_pick_none: '— Pilih —',
-    rb_saved: 'Rubrik disimpan.',
-    rb_criteria_label: 'Kriteria',
-    rb_weights: 'Berat',
-    rb_edit_rubric: 'Edit Rubrik',
-    rb_new_rubric: 'Cipta & Tugas',
-    rb_no_rubric_selected: 'Pilih rubrik.',
-    rb_guide_title: 'Panduan',
-    rb_guide_1: 'Berat kriteria mesti jumlah 100%.',
+    rb_pick_title: 'Pilih Rubrik', rb_pick_new: 'Cipta Rubrik Baharu',
+    rb_pick_existing: 'Pilih Rubrik Sedia Ada', rb_pick_apply: 'Guna Rubrik Dipilih',
+    rb_pick_none: '— Pilih —', rb_saved: 'Rubrik disimpan.',
+    rb_criteria_label: 'Kriteria', rb_weights: 'Berat', rb_edit_rubric: 'Edit Rubrik',
+    rb_new_rubric: 'Cipta & Tugas', rb_no_rubric_selected: 'Pilih rubrik.',
+    rb_guide_title: 'Panduan', rb_guide_1: 'Berat kriteria mesti jumlah 100%.',
     rb_guide_2: 'Rubrik ini boleh digunakan untuk pelbagai aktiviti praktikal.',
     rb_pick_action_hint: 'Pilih tindakan',
     rb_pick_action_1: 'Pilih rubrik sedia ada — guna rubrik yang telah dicipta.',
     rb_pick_action_2: 'Cipta rubrik baharu — bina rubrik khusus untuk aktiviti ini.',
-    rb_col_name: 'Nama Kriteria',
-    rb_col_weight: 'Berat (%)',
-    rb_col_label: 'Label',
-    rb_col_marks: 'Markah',
-    rb_col_desc: 'Penerangan',
-    rb_not_yet: 'Belum ada rubrik',
-    rb_level: 'Level',
-    rb_level_excellent: 'Cemerlang',
-    rb_level_good: 'Baik',
-    rb_level_fair: 'Sederhana',
-    rb_level_weak: 'Lemah',
-    rb_level_fail: 'Gagal',
+    rb_col_name: 'Nama Kriteria', rb_col_weight: 'Berat (%)', rb_col_label: 'Label',
+    rb_col_marks: 'Markah', rb_col_desc: 'Penerangan', rb_not_yet: 'Belum ada rubrik',
+    rb_level: 'Level', rb_level_excellent: 'Cemerlang', rb_level_good: 'Baik',
+    rb_level_fair: 'Sederhana', rb_level_weak: 'Lemah', rb_level_fail: 'Gagal',
 
-    bank_title: 'Bank Soalan',
-    bank_new: 'Soalan Baharu',
-    bank_edit: 'Edit Soalan',
-    bank_question: 'Soalan',
-    bank_options: 'Pilihan',
-    bank_answer: 'Jawapan',
-    bank_category: 'Kategori',
-    bank_level: 'Tahap',
-    bank_search: 'Cari…',
-    bank_all: 'Semua',
-    bank_used: '{0} aktiviti',
-    bank_no_questions: 'Tiada soalan.',
-    bank_delete: 'Padam soalan?',
+    bank_title: 'Bank Soalan', bank_new: 'Soalan Baharu', bank_edit: 'Edit Soalan',
+    bank_question: 'Soalan', bank_options: 'Pilihan', bank_answer: 'Jawapan',
+    bank_category: 'Kategori', bank_level: 'Tahap', bank_search: 'Cari…', bank_all: 'Semua',
+    bank_used: '{0} aktiviti', bank_no_questions: 'Tiada soalan.', bank_delete: 'Padam soalan?',
     bank_saved: 'Disimpan.',
 
-    usr_title: 'Pengguna',
-    usr_new: 'Pengguna Baharu',
-    usr_edit: 'Edit Pengguna',
-    usr_admin_only: 'Pengguna',
+    usr_title: 'Pengguna', usr_new: 'Pengguna Baharu', usr_edit: 'Edit Pengguna', usr_admin_only: 'Pengguna',
+    aud_title: 'Audit Trail', aud_time: 'Masa', aud_user: 'Pengguna', aud_action: 'Tindakan',
+    aud_details: 'Butiran', aud_empty: 'Tiada rekod audit.',
 
-    aud_title: 'Audit Trail',
-    aud_time: 'Masa',
-    aud_user: 'Pengguna',
-    aud_action: 'Tindakan',
-    aud_details: 'Butiran',
-    aud_empty: 'Tiada rekod audit.',
-
-    rep_title: 'Laporan Individu',
-    rep_generate: '📄 Jana PDF',
-    rep_program: 'Laporan Program',
+    rep_title: 'Laporan Individu', rep_generate: '📄 Jana PDF', rep_program: 'Laporan Program',
     rep_program_btn: '📊 Jana PDF',
 
     msg_popup_blocked: 'Popup disekat. Benarkan popup untuk membuka tab kuiz.',
@@ -749,185 +530,102 @@ const I18N = {
     msg_quiz_not_published: 'Kuiz Belum Diterbitkan. Kuiz ini belum diterbitkan oleh jurulatih.',
     msg_not_enrolled: 'Anda Belum Berdaftar. Sila daftar dalam modul terlebih dahulu.',
     msg_confirm_publish_after_quiz: 'Soalan disimpan ({0}).\n\nAktiviti masih DRAF.\n\nTerbitkan sekarang? Tab kuiz akan dibuka untuk pratonton.',
-    msg_draft_warn: '{0} draf',
-    msg_draft_hint: 'Klik Terbitkan supaya peserta boleh akses.',
+    msg_draft_warn: '{0} draf', msg_draft_hint: 'Klik Terbitkan supaya peserta boleh akses.',
     msg_publish_after_single: 'Diterbitkan. Tab kuiz dibuka.',
     msg_publish_after_multi: '{0} diterbitkan. {1} kuiz — buka manual untuk pratonton.',
-    msg_publish_after_none: '{0} diterbitkan.',
-    msg_already_selected: 'Pilih sekurang-kurangnya seorang.',
-    msg_bulk_enrolled: '{0} peserta didaftarkan.',
-    msg_quiz_retake: 'Sedia dijawab semula.',
+    msg_publish_after_none: '{0} diterbitkan.', msg_already_selected: 'Pilih sekurang-kurangnya seorang.',
+    msg_bulk_enrolled: '{0} peserta didaftarkan.', msg_quiz_retake: 'Sedia dijawab semula.',
     msg_quiz_submitted: '{0} / {1} betul ({2}%)',
     msg_quiz_auto_submit: 'Masa tamat — auto-hantar: {0} / {1} ({2}%)',
-    msg_login_ok: 'Log masuk berjaya.',
-    msg_no_quiz_sel: 'Pilih soalan dari bank terlebih dahulu.',
-    msg_quiz_added: '{0} soalan ditambah.',
-    msg_quiz_saved: 'Tetapan kuiz disimpan.',
-    msg_no_drafts: 'Tiada draf.',
-    msg_must_select_one: 'Pilih sekurang-kurangnya seorang.',
-    msg_print_fail: 'Gagal cetak.',
-    msg_topic_required: 'Tajuk diperlukan.',
-    msg_module_required: 'Pilih modul.',
-    msg_select_module_first: 'Pilih modul.',
-    msg_saved_publish: 'Aktiviti dicipta & diterbitkan.',
-    msg_saved_draft: 'Aktiviti dicipta sebagai draf.',
-    msg_created_module: 'Modul dicipta.',
-    msg_saved_rubric: 'Rubrik disimpan.',
-    msg_published: 'Diterbitkan.',
-    msg_unpublished: 'Dinyahterbitkan.',
-    msg_saved_practical: 'Markah disimpan.',
-    msg_draft_only: 'Tiada draf.',
-    msg_yes: 'Ya',
-    msg_no: 'Tidak',
+    msg_login_ok: 'Log masuk berjaya.', msg_no_quiz_sel: 'Pilih soalan dari bank terlebih dahulu.',
+    msg_quiz_added: '{0} soalan ditambah.', msg_quiz_saved: 'Tetapan kuiz disimpan.',
+    msg_no_drafts: 'Tiada draf.', msg_must_select_one: 'Pilih sekurang-kurangnya seorang.',
+    msg_print_fail: 'Gagal cetak.', msg_topic_required: 'Tajuk diperlukan.',
+    msg_module_required: 'Pilih modul.', msg_select_module_first: 'Pilih modul.',
+    msg_saved_publish: 'Aktiviti dicipta & diterbitkan.', msg_saved_draft: 'Aktiviti dicipta sebagai draf.',
+    msg_created_module: 'Modul dicipta.', msg_saved_rubric: 'Rubrik disimpan.',
+    msg_published: 'Diterbitkan.', msg_unpublished: 'Dinyahterbitkan.',
+    msg_saved_practical: 'Markah disimpan.', msg_draft_only: 'Tiada draf.',
+    msg_yes: 'Ya', msg_no: 'Tidak',
 
-    qb_title: 'Bina Soalan Kuiz',
-    qb_settings_title: 'Tetapan Masa Kuiz',
+    qb_title: 'Bina Soalan Kuiz', qb_settings_title: 'Tetapan Masa Kuiz',
     qb_settings_hint: 'Tetapkan bila kuiz boleh dibuka dan berapa lama peserta diberi masa menjawab. Jika kosong, kuiz sentiasa terbuka dan tanpa had masa.',
-    qb_open_at: 'Tarikh & Masa Dibuka',
-    qb_close_at: 'Tarikh & Masa Ditutup',
-    qb_duration: 'Tempoh Menjawab (minit)',
-    qb_open_at_hint: 'Kosong = sentiasa dibuka',
-    qb_close_at_hint: 'Kosong = tiada tarikh tutup',
-    qb_duration_hint: 'Kosong/0 = tanpa had masa',
-    qb_save: 'Simpan',
-    qb_add_question: 'Tambah',
-    qb_pick_bank: 'Bank',
-    qb_no_questions: 'Belum ada soalan.',
-    qb_question: 'Soalan',
-    qb_add_level: '+ Level',
-    qb_answer_required: 'Perlu 2 pilihan.',
-    qb_saved_to_bank: 'Simpan ke Bank',
-    qb_pick_from_bank: 'Pilih dari Bank',
-    qb_pick_search: 'Cari…',
-    qb_pick_all: 'Semua',
-    qb_pick_count: '{0} dipilih',
-    qb_pick_apply: 'Tambah',
-    qb_pick_none: 'Tiada.',
-    qb_pick_none_selected: 'Pilih sekurang-kurangnya satu.',
-    qb_pick_added: '{0} soalan ditambah.',
-    qb_new_question: 'Tambah Soalan',
-    qb_edit_question: 'Edit Soalan',
-    qb_save: 'Simpan',
-    qb_question_required: 'Soalan diperlukan.',
-    qb_options_required: 'Perlu 2 pilihan.',
+    qb_open_at: 'Tarikh & Masa Dibuka', qb_close_at: 'Tarikh & Masa Ditutup',
+    qb_duration: 'Tempoh Menjawab (minit)', qb_open_at_hint: 'Kosong = sentiasa dibuka',
+    qb_close_at_hint: 'Kosong = tiada tarikh tutup', qb_duration_hint: 'Kosong/0 = tanpa had masa',
+    qb_save: 'Simpan', qb_add_question: 'Tambah', qb_pick_bank: 'Bank',
+    qb_no_questions: 'Belum ada soalan.', qb_question: 'Soalan', qb_add_level: '+ Level',
+    qb_answer_required: 'Perlu 2 pilihan.', qb_saved_to_bank: 'Simpan ke Bank',
+    qb_pick_from_bank: 'Pilih dari Bank', qb_pick_search: 'Cari…', qb_pick_all: 'Semua',
+    qb_pick_count: '{0} dipilih', qb_pick_apply: 'Tambah', qb_pick_none: 'Tiada.',
+    qb_pick_none_selected: 'Pilih sekurang-kurangnya satu.', qb_pick_added: '{0} soalan ditambah.',
+    qb_new_question: 'Tambah Soalan', qb_edit_question: 'Edit Soalan',
+    qb_question_required: 'Soalan diperlukan.', qb_options_required: 'Perlu 2 pilihan.',
     qb_duration_mismatch: 'Tarikh tutup mesti selepas tarikh buka.',
     qb_published_prompt: 'Soalan disimpan ({0}).\n\nAktiviti masih DRAF.\n\nTerbitkan sekarang? Tab kuiz akan dibuka untuk pratonton.',
     qb_duration_placeholder: 'cth: 30',
 
-    pf_title: 'Penilaian Rubrik',
-    pf_remarks: 'Catatan',
+    pf_title: 'Penilaian Rubrik', pf_remarks: 'Catatan',
     pf_required: 'Tiada rubrik. Pilih atau cipta rubrik di tab Rubrik.',
     pf_no_rubric: 'Tiada rubrik. Pilih atau cipta rubrik di tab Rubrik.',
     pf_saved: 'Markah disimpan.',
 
-    enr_title: 'Daftar Peserta',
-    enr_select_all: '✓ Semua',
-    enr_deselect_all: '✗ Tiada',
-    enr_none: 'Semua telah berdaftar.',
-    enr_select_one: 'Pilih sekurang-kurangnya seorang.',
-    enr_success: '{0} peserta didaftarkan.',
-    enr_unenroll_success: 'Dikeluarkan.',
+    enr_title: 'Daftar Peserta', enr_select_all: '✓ Semua', enr_deselect_all: '✗ Tiada',
+    enr_none: 'Semua telah berdaftar.', enr_select_one: 'Pilih sekurang-kurangnya seorang.',
+    enr_success: '{0} peserta didaftarkan.', enr_unenroll_success: 'Dikeluarkan.',
 
-    mat_pick_file: 'Fail',
-    mat_pick_name: 'Nama Paparan',
-    mat_pick_desc: 'Penerangan',
-    mat_pick_save: 'Muat Naik',
-    mat_pick_cancel: 'Batal',
-    mat_pick_info_title: 'Format Diterima',
-    mat_pick_info_limit: 'Had saiz: 100 MB per fail.',
+    mat_pick_file: 'Fail', mat_pick_name: 'Nama Paparan', mat_pick_desc: 'Penerangan',
+    mat_pick_save: 'Muat Naik', mat_pick_cancel: 'Batal',
+    mat_pick_info_title: 'Format Diterima', mat_pick_info_limit: 'Had saiz: 100 MB per fail.',
 
-    rpt_title: 'Laporan Individu Peserta',
-    rpt_summary_activities: 'Aktiviti',
-    rpt_summary_assessed: 'Dinilai',
-    rpt_summary_average: 'Purata',
-    rpt_details: 'Butiran',
-    rpt_col_activity: 'Aktiviti',
-    rpt_col_module: 'Modul',
-    rpt_col_date: 'Tarikh',
-    rpt_col_quiz: 'Kuiz',
-    rpt_col_rubric: 'Rubrik',
-    rpt_col_score: 'Skor',
-    rpt_col_status: 'Status',
-    rpt_generated: 'Dijana',
-    rpt_program_title: 'Laporan Keseluruhan Program',
-    rpt_program_participants: 'Peserta',
-    rpt_program_modules: 'Modul',
-    rpt_program_enrollment: 'Enrollmen',
-    rpt_program_performance: 'Prestasi Peserta',
-    rpt_col_participant: 'Peserta',
-    rpt_col_org: 'Organisasi',
-    rpt_col_assessed: 'Dinilai',
-    rpt_col_average: 'Purata',
+    rpt_title: 'Laporan Individu Peserta', rpt_summary_activities: 'Aktiviti',
+    rpt_summary_assessed: 'Dinilai', rpt_summary_average: 'Purata', rpt_details: 'Butiran',
+    rpt_col_activity: 'Aktiviti', rpt_col_module: 'Modul', rpt_col_date: 'Tarikh',
+    rpt_col_quiz: 'Kuiz', rpt_col_rubric: 'Rubrik', rpt_col_score: 'Skor',
+    rpt_col_status: 'Status', rpt_generated: 'Dijana',
+    rpt_program_title: 'Laporan Keseluruhan Program', rpt_program_participants: 'Peserta',
+    rpt_program_modules: 'Modul', rpt_program_enrollment: 'Enrollmen',
+    rpt_program_performance: 'Prestasi Peserta', rpt_col_participant: 'Peserta',
+    rpt_col_org: 'Organisasi', rpt_col_assessed: 'Dinilai', rpt_col_average: 'Purata',
     rpt_report_title: 'Laporan',
 
     sijil_title: 'Pengurusan Sijil',
     sijil_sub: 'Muat naik sijil PDF untuk setiap peserta ke Google Drive. Peserta boleh memuat turun sijil mereka sendiri.',
-    sijil_participant: 'Peserta',
-    sijil_status: 'Status Sijil',
-    sijil_has: 'Ada Sijil',
-    sijil_missing: 'Tiada Sijil',
-    sijil_upload: 'Muat Naik Sijil',
-    sijil_replace: 'Ganti Sijil',
+    sijil_participant: 'Peserta', sijil_status: 'Status Sijil', sijil_has: 'Ada Sijil',
+    sijil_missing: 'Tiada Sijil', sijil_upload: 'Muat Naik Sijil', sijil_replace: 'Ganti Sijil',
     sijil_replace_warn: 'Peserta sudah ada sijil. Memuat naik sijil baharu akan menggantikan sijil lama.',
     sijil_upload_format: 'Format Diterima',
     sijil_only_pdf: 'Hanya fail PDF (.pdf) diterima untuk sijil.',
     sijil_upload_limit: 'Had saiz: 100 MB per fail.',
-    sijil_uploaded: 'Sijil dimuat naik ke Google Drive.',
-    sijil_uploaded_on: 'Dimuat naik pada',
-    sijil_confirm_delete: 'Padam sijil "{0}"?',
-    sijil_stats_total: 'Jumlah Peserta',
-    sijil_stats_with: 'Ada Sijil',
-    sijil_stats_without: 'Belum Ada Sijil',
-    sijil_my_title: 'Sijil Saya',
-    sijil_my_sub: 'Muat turun sijil anda di sini.',
+    sijil_uploaded: 'Sijil dimuat naik ke Google Drive.', sijil_uploaded_on: 'Dimuat naik pada',
+    sijil_confirm_delete: 'Padam sijil "{0}"?', sijil_stats_total: 'Jumlah Peserta',
+    sijil_stats_with: 'Ada Sijil', sijil_stats_without: 'Belum Ada Sijil',
+    sijil_my_title: 'Sijil Saya', sijil_my_sub: 'Muat turun sijil anda di sini.',
     sijil_my_none: 'Sijil anda belum dimuat naik oleh pentadbir. Sila hubungi pihak pentadbir.',
-    sijil_view: 'Lihat Sijil',
-    sijil_name_placeholder: 'Sijil {0}',
+    sijil_view: 'Lihat Sijil', sijil_name_placeholder: 'Sijil {0}',
 
     fe_title: 'Peperiksaan Akhir',
     fe_sub: 'Peperiksaan akhir teori atau praktikal untuk setiap latihan',
-    fe_new: '+ Peperiksaan Akhir',
-    fe_edit: 'Edit Peperiksaan Akhir',
-    fe_new_title: 'Peperiksaan Akhir Baharu',
-    fe_type: 'Jenis',
-    fe_type_theory: 'Teori',
-    fe_type_practical: 'Praktikal',
-    fe_target_module: 'Modul Latihan',
-    fe_date: 'Tarikh',
-    fe_open_at: 'Tarikh & Masa Dibuka',
-    fe_close_at: 'Tarikh & Masa Ditutup',
-    fe_open_at_hint: 'Kosong = sentiasa dibuka',
-    fe_close_at_hint: 'Kosong = tiada tarikh tutup',
-    fe_duration: 'Tempoh Menjawab (minit)',
-    fe_duration_hint: 'Kosong/0 = tanpa had masa (untuk teori)',
-    fe_rubric: 'Rubrik (untuk praktikal)',
-    fe_description: 'Penerangan / Arahan',
-    fe_publish: 'Terbitkan',
-    fe_unpublish: 'Nyahterbitkan',
-    fe_status_open: 'DIBUKA',
-    fe_status_not_open: 'BELUM DIBUKA',
-    fe_status_closed: 'DITUTUP',
-    fe_status_waiting: 'MENUNGGU SESI',
-    fe_upcoming: 'Peperiksaan Akhir Akan Datang',
-    fe_no_exams: 'Tiada peperiksaan akhir.',
-    fe_take: 'Ambil Peperiksaan',
-    fe_view: 'Lihat',
-    fe_take_tab: 'Ambil dalam Tab Baharu',
-    fe_completed: 'Peperiksaan Selesai',
-    fe_score_format: '{0} / {1} betul ({2}%)',
-    fe_auto_submit: 'Auto-hantar (masa tamat)',
-    fe_pending_assess: 'Menunggu Penilaian',
-    fe_assess: 'Nilai',
-    fe_saved: 'Peperiksaan disimpan.',
-    fe_deleted: 'Peperiksaan dipadam.',
-    fe_published: 'Peperiksaan diterbitkan.',
-    fe_unpublished: 'Peperiksaan dinyahterbitkan.',
-    fe_delete_confirm: 'Padam peperiksaan "{0}"?',
-    fe_questions: 'Soalan Peperiksaan',
-    fe_add_questions: 'Tambah Soalan',
+    fe_new: '+ Peperiksaan Akhir', fe_edit: 'Edit Peperiksaan Akhir',
+    fe_new_title: 'Peperiksaan Akhir Baharu', fe_type: 'Jenis',
+    fe_type_theory: 'Teori', fe_type_practical: 'Praktikal',
+    fe_target_module: 'Modul Latihan', fe_date: 'Tarikh',
+    fe_open_at: 'Tarikh & Masa Dibuka', fe_close_at: 'Tarikh & Masa Ditutup',
+    fe_open_at_hint: 'Kosong = sentiasa dibuka', fe_close_at_hint: 'Kosong = tiada tarikh tutup',
+    fe_duration: 'Tempoh Menjawab (minit)', fe_duration_hint: 'Kosong/0 = tanpa had masa (untuk teori)',
+    fe_rubric: 'Rubrik (untuk praktikal)', fe_description: 'Penerangan / Arahan',
+    fe_publish: 'Terbitkan', fe_unpublish: 'Nyahterbitkan',
+    fe_status_open: 'DIBUKA', fe_status_not_open: 'BELUM DIBUKA', fe_status_closed: 'DITUTUP',
+    fe_status_waiting: 'MENUNGGU SESI', fe_upcoming: 'Peperiksaan Akhir Akan Datang',
+    fe_no_exams: 'Tiada peperiksaan akhir.', fe_take: 'Ambil Peperiksaan', fe_view: 'Lihat',
+    fe_take_tab: 'Ambil dalam Tab Baharu', fe_completed: 'Peperiksaan Selesai',
+    fe_score_format: '{0} / {1} betul ({2}%)', fe_auto_submit: 'Auto-hantar (masa tamat)',
+    fe_pending_assess: 'Menunggu Penilaian', fe_assess: 'Nilai', fe_saved: 'Peperiksaan disimpan.',
+    fe_deleted: 'Peperiksaan dipadam.', fe_published: 'Peperiksaan diterbitkan.',
+    fe_unpublished: 'Peperiksaan dinyahterbitkan.', fe_delete_confirm: 'Padam peperiksaan "{0}"?',
+    fe_questions: 'Soalan Peperiksaan', fe_add_questions: 'Tambah Soalan',
     fe_no_questions: 'Tiada soalan. Tambah dari bank atau cipta soalan.',
-    fe_exam_not_found: 'Peperiksaan Tidak Dijumpai.',
-    fe_not_published: 'Peperiksaan Belum Diterbitkan.',
+    fe_exam_not_found: 'Peperiksaan Tidak Dijumpai.', fe_not_published: 'Peperiksaan Belum Diterbitkan.',
     fe_not_enrolled: 'Anda Belum Berdaftar dalam modul ini.',
     fe_open_notice: 'Peperiksaan akan dibuka dalam tab baharu.',
     fe_timed_body: 'Anda mempunyai {0} minit untuk menjawab. Peperiksaan akan dihantar secara automatik apabila masa tamat.',
@@ -940,27 +638,18 @@ const I18N = {
     fe_practical_setup_hint: 'Pilih rubrik. Nilai peserta selepas sesi praktikal selesai.',
     fe_title_placeholder: 'cth: Peperiksaan Akhir Teori',
 
-    retest_title: 'Buka Retest',
-    retest_info_title: 'Maklumat Retest',
+    retest_title: 'Buka Retest', retest_info_title: 'Maklumat Retest',
     retest_info: 'Peserta akan dapat menjawab kuiz ini semula. Markah TERTINGGI antara percubaan lama dan baharu akan disimpan sebagai markah rasmi.',
     retest_pending: 'Retest Menunggu',
     retest_pending_hint: 'Retest sudah dibuka untuk peserta ini. Peserta akan nampak pilihan untuk mengambil kuiz semula pada dashboard mereka.',
-    retest_btn_grant: 'Buka Retest',
-    retest_btn_cancel: 'Batal Retest',
-    retest_cancel: 'Batal Retest',
-    retest_pending_badge: 'Retest Tersedia',
-    retest_done: 'Retest Selesai',
-    retest_btn_edit_q: 'Edit Soalan Dulu',
-    retest_current_attempts: 'Bilangan Percubaan',
-    retest_score_best: 'Markah Terbaik',
-    retest_no_attempt: 'Belum Menjawab',
-    retest_take: 'Ambil Semula',
-    msg_retest_granted: 'Retest dibuka untuk {0}.',
-    msg_retest_cancelled: 'Retest dibatalkan.',
+    retest_btn_grant: 'Buka Retest', retest_btn_cancel: 'Batal Retest', retest_cancel: 'Batal Retest',
+    retest_pending_badge: 'Retest Tersedia', retest_done: 'Retest Selesai',
+    retest_btn_edit_q: 'Edit Soalan Dulu', retest_current_attempts: 'Bilangan Percubaan',
+    retest_score_best: 'Markah Terbaik', retest_no_attempt: 'Belum Menjawab', retest_take: 'Ambil Semula',
+    msg_retest_granted: 'Retest dibuka untuk {0}.', msg_retest_cancelled: 'Retest dibatalkan.',
     retest_confirm_grant: 'Buka retest untuk {0}?\n\nPeserta akan dapat menjawab semula kuiz ini. Markah terbaik akan disimpan.',
     retest_confirm_cancel: 'Batal retest untuk {0}?',
-    best_score_note: 'Markah terbaik disimpan: {0}',
-    this_attempt: 'Percubaan ini: {0}',
+    best_score_note: 'Markah terbaik disimpan: {0}', this_attempt: 'Percubaan ini: {0}',
     new_best_score: 'Markah terbaik baharu!',
     retest_banner: 'Retest dibuka oleh jurulatih — jawab semula untuk memperbaiki markah anda.',
     retest_view_result: 'Lihat Keputusan',
@@ -972,187 +661,78 @@ const I18N = {
     sys_sub: 'Malaysia · Training Management System',
     app_brand: 'CFTP Malaysia',
     app_brand_sub: 'Chemical Fundamentals Training',
-    lang_toggle: 'BM',
-    lang_tooltip: 'Switch to Malay',
+    lang_toggle: 'BM', lang_tooltip: 'Switch to Malay',
 
-    nav_dashboard: 'Dashboard',
-    nav_modules: 'Module Management',
-    nav_modules_own: 'My Modules',
-    nav_programs: 'Training Programme',
-    nav_activities: 'Activities',
-    nav_activities_own: 'My Activities',
-    nav_grading: 'Assessment',
-    nav_rubrik: 'Rubrics',
-    nav_bank: 'Question Bank',
-    nav_users: 'Users',
-    nav_audit: 'Audit Trail',
-    nav_reports: 'PDF Reports',
-    nav_sijil: 'Certificates',
-    nav_final: 'Final Exam',
+    nav_dashboard: 'Dashboard', nav_modules: 'Module Management', nav_modules_own: 'My Modules',
+    nav_programs: 'Training Programme', nav_activities: 'Activities', nav_activities_own: 'My Activities',
+    nav_grading: 'Assessment', nav_rubrik: 'Rubrics', nav_bank: 'Question Bank', nav_users: 'Users',
+    nav_audit: 'Audit Trail', nav_reports: 'PDF Reports', nav_sijil: 'Certificates', nav_final: 'Final Exam',
     nav_profile: 'My Profile',
-    title_sijil: 'Certificate Management',
-    title_final: 'Final Exam',
-    title_profile: 'My Profile',
+    title_sijil: 'Certificate Management', title_final: 'Final Exam', title_profile: 'My Profile',
+    title_dashboard: 'Dashboard', title_modules: 'Module Management', title_module: 'Module Details',
+    title_programs: 'Training Programme', title_activities: 'Activity Management',
+    title_activities_mine: 'My Activities', title_activity: 'Activity Details', title_grading: 'Assessment',
+    title_rubrik: 'Rubrics', title_bank: 'Question Bank', title_users: 'Users',
+    title_audit: 'Audit Trail', title_reports: 'PDF Reports',
 
-    title_dashboard: 'Dashboard',
-    title_modules: 'Module Management',
-    title_module: 'Module Details',
-    title_programs: 'Training Programme',
-    title_activities: 'Activity Management',
-    title_activities_mine: 'My Activities',
-    title_activity: 'Activity Details',
-    title_grading: 'Assessment',
-    title_rubrik: 'Rubrics',
-    title_bank: 'Question Bank',
-    title_users: 'Users',
-    title_audit: 'Audit Trail',
-    title_reports: 'PDF Reports',
-
-    role_admin: 'Administrator',
-    role_trainer: 'Trainer',
-    role_participant: 'Participant',
-
-    login: 'Log In',
-    logout: 'Log Out',
-    email: 'Email',
-    password: 'Password',
-    email_or_username: 'Username / Email',
-    demo_accounts: 'Demo Accounts',
-
-    register: 'Register',
-    register_title: 'Create New Account',
+    role_admin: 'Administrator', role_trainer: 'Trainer', role_participant: 'Participant',
+    login: 'Log In', logout: 'Log Out', email: 'Email', password: 'Password',
+    email_or_username: 'Username / Email', demo_accounts: 'Demo Accounts',
+    register: 'Register', register_title: 'Create New Account',
     register_success: 'Account created successfully. Welcome!',
-    already_have_account: 'Already have an account?',
-    no_account: "Don't have an account?",
-    confirm_password: 'Confirm Password',
-    password_mismatch: 'Passwords do not match.',
+    already_have_account: 'Already have an account?', no_account: "Don't have an account?",
+    confirm_password: 'Confirm Password', password_mismatch: 'Passwords do not match.',
     password_too_short: 'Password must be at least 6 characters.',
-    username: 'Username',
-    username_taken: 'Username is already taken.',
+    username: 'Username', username_taken: 'Username is already taken.',
     username_invalid: 'Username must be 3+ characters (letters, numbers, underscore).',
     full_name: 'Full name',
+    profile_title: 'My Profile', profile_member_since: 'Member Since', profile_updated: 'Profile updated.',
+    change_password: 'Change Password', current_password: 'Current Password',
+    new_password: 'New Password', confirm_new_password: 'Confirm New Password',
+    current_password_wrong: 'Current password is incorrect.', password_changed: 'Password changed successfully.',
+    phone: 'Phone No.', personal_info: 'Personal Information', account_security: 'Account Security',
 
-    profile_title: 'My Profile',
-    profile_member_since: 'Member Since',
-    profile_updated: 'Profile updated.',
-    change_password: 'Change Password',
-    current_password: 'Current Password',
-    new_password: 'New Password',
-    confirm_new_password: 'Confirm New Password',
-    current_password_wrong: 'Current password is incorrect.',
-    password_changed: 'Password changed successfully.',
-    phone: 'Phone No.',
-    personal_info: 'Personal Information',
-    account_security: 'Account Security',
+    btn_save: 'Save', btn_cancel: 'Cancel', btn_close: 'Close', btn_delete: 'Delete',
+    btn_edit: 'Edit', btn_add: 'Add', btn_back: 'Back', btn_submit: 'Submit', btn_view: 'View',
+    btn_open: 'Open', btn_close_tab: 'Close Tab', btn_retake: 'Retake', btn_publish: 'Publish',
+    btn_unpublish: 'Unpublish', btn_enroll: 'Enrol', btn_unenroll: 'Remove',
+    btn_upload: 'Upload', btn_download: 'Download',
 
-    btn_save: 'Save',
-    btn_cancel: 'Cancel',
-    btn_close: 'Close',
-    btn_delete: 'Delete',
-    btn_edit: 'Edit',
-    btn_add: 'Add',
-    btn_back: 'Back',
-    btn_submit: 'Submit',
-    btn_view: 'View',
-    btn_open: 'Open',
-    btn_close_tab: 'Close Tab',
-    btn_retake: 'Retake',
-    btn_publish: 'Publish',
-    btn_unpublish: 'Unpublish',
-    btn_enroll: 'Enrol',
-    btn_unenroll: 'Remove',
-    btn_upload: 'Upload',
-    btn_download: 'Download',
+    lbl_name: 'Name', lbl_email: 'Email', lbl_password: 'Password', lbl_role: 'Role',
+    lbl_org: 'Organisation', lbl_ic: 'IC No.', lbl_date: 'Date', lbl_duration: 'Duration',
+    lbl_status: 'Status', lbl_quiz: 'Quiz', lbl_rubric: 'Rubric', lbl_materials: 'Materials',
+    lbl_objectives: 'Objectives', lbl_instructions: 'Instructions', lbl_method: 'Method',
+    lbl_score: 'Score', lbl_remarks: 'Remarks', lbl_title: 'Title', lbl_description: 'Description',
+    lbl_trainer: 'Trainer', lbl_module: 'Module', lbl_activity: 'Activity',
+    lbl_participants: 'Participants', lbl_enrollment: 'Enrolments', lbl_attendance: 'Attendance',
+    lbl_practical: 'Practical', lbl_actions: 'Actions', lbl_questions: 'questions',
+    lbl_activities: 'Activities', lbl_draft: 'Draft', lbl_published: 'Published',
+    lbl_active: 'Active', lbl_inactive: 'Inactive', lbl_enrolled: 'Enrolled',
+    lbl_available: 'Available', lbl_weight: 'Weight', lbl_criteria: 'Criteria',
+    lbl_hours: 'hrs', lbl_minutes: 'minutes', lbl_no_deadline: 'No deadline', lbl_best: 'best',
 
-    lbl_name: 'Name',
-    lbl_email: 'Email',
-    lbl_password: 'Password',
-    lbl_role: 'Role',
-    lbl_org: 'Organisation',
-    lbl_ic: 'IC No.',
-    lbl_date: 'Date',
-    lbl_duration: 'Duration',
-    lbl_status: 'Status',
-    lbl_quiz: 'Quiz',
-    lbl_rubric: 'Rubric',
-    lbl_materials: 'Materials',
-    lbl_objectives: 'Objectives',
-    lbl_instructions: 'Instructions',
-    lbl_method: 'Method',
-    lbl_score: 'Score',
-    lbl_remarks: 'Remarks',
-    lbl_title: 'Title',
-    lbl_description: 'Description',
-    lbl_trainer: 'Trainer',
-    lbl_module: 'Module',
-    lbl_activity: 'Activity',
-    lbl_participants: 'Participants',
-    lbl_enrollment: 'Enrolments',
-    lbl_attendance: 'Attendance',
-    lbl_practical: 'Practical',
-    lbl_actions: 'Actions',
-    lbl_questions: 'questions',
-    lbl_activities: 'Activities',
-    lbl_draft: 'Draft',
-    lbl_published: 'Published',
-    lbl_active: 'Active',
-    lbl_inactive: 'Inactive',
-    lbl_enrolled: 'Enrolled',
-    lbl_available: 'Available',
-    lbl_weight: 'Weight',
-    lbl_criteria: 'Criteria',
-    lbl_hours: 'hrs',
-    lbl_minutes: 'minutes',
-    lbl_no_deadline: 'No deadline',
-    lbl_best: 'best',
-
-    stat_programs_enrolled: 'Programmes Enrolled',
-    stat_activities: 'Activities',
-    stat_avg_score: 'Average Score',
-    stat_competent: 'Competent',
-    stat_users: 'Users',
-    stat_modules: 'Modules',
-    stat_modules_active: '{0} active',
-    stat_enrollment: 'Enrolments',
-    stat_materials: 'Module Materials',
-    stat_more_available: '{0} more available',
+    stat_programs_enrolled: 'Programmes Enrolled', stat_activities: 'Activities',
+    stat_avg_score: 'Average Score', stat_competent: 'Competent', stat_users: 'Users',
+    stat_modules: 'Modules', stat_modules_active: '{0} active', stat_enrollment: 'Enrolments',
+    stat_materials: 'Module Materials', stat_more_available: '{0} more available',
     stat_published_drafts: '{0} published · {1} drafts',
 
-    status_excellent: 'Excellent',
-    status_competent: 'Competent',
-    status_needs_improvement: 'Needs Improvement',
-    status_not_assessed: 'Not Assessed',
-    status_pending: 'Pending',
-    status_open: 'Open',
-    status_closed: 'Closed',
-    status_not_open: 'Not Yet Open',
-    status_waiting: 'Waiting',
-    status_available_quiz: 'Available',
+    status_excellent: 'Excellent', status_competent: 'Competent',
+    status_needs_improvement: 'Needs Improvement', status_not_assessed: 'Not Assessed',
+    status_pending: 'Pending', status_open: 'Open', status_closed: 'Closed',
+    status_not_open: 'Not Yet Open', status_waiting: 'Waiting', status_available_quiz: 'Available',
 
-    quiz_open_now: 'OPEN NOW',
-    quiz_not_open: 'NOT YET OPEN',
-    quiz_closed: 'CLOSED',
-    quiz_no_schedule: 'NO SCHEDULE',
-    quiz_time: 'Time',
-    quiz_open_at: 'Open at',
-    quiz_close_at: 'Close at',
-    quiz_duration: 'Duration',
-    quiz_timed: 'Timed Quiz',
+    quiz_open_now: 'OPEN NOW', quiz_not_open: 'NOT YET OPEN', quiz_closed: 'CLOSED',
+    quiz_no_schedule: 'NO SCHEDULE', quiz_time: 'Time', quiz_open_at: 'Open at',
+    quiz_close_at: 'Close at', quiz_duration: 'Duration', quiz_timed: 'Timed Quiz',
     quiz_ready: 'Quiz Ready',
     quiz_ready_body: 'Choose one answer per question. Marks will be shown immediately after submission.',
     quiz_timed_body: 'You have {0} minutes to answer. The quiz will auto-submit when time is up.',
-    quiz_close_hint: '🕐 Quiz closes at: {0}',
-    quiz_completed: 'Quiz Completed',
-    quiz_open_new_tab: 'Open Quiz in New Tab',
-    quiz_view_tab: 'View Again in Tab',
-    quiz_take: 'Take Quiz',
-    quiz_view: 'View',
-    quiz_countdown: 'Time Remaining',
-    quiz_preview: 'Preview Mode',
-    quiz_link: 'Shareable link for participants',
-    quiz_copy: 'Copy',
-    quiz_copied: 'URL copied.',
-    quiz_copy_fail: 'Copy failed.',
+    quiz_close_hint: '🕐 Quiz closes at: {0}', quiz_completed: 'Quiz Completed',
+    quiz_open_new_tab: 'Open Quiz in New Tab', quiz_view_tab: 'View Again in Tab',
+    quiz_take: 'Take Quiz', quiz_view: 'View', quiz_countdown: 'Time Remaining',
+    quiz_preview: 'Preview Mode', quiz_link: 'Shareable link for participants',
+    quiz_copy: 'Copy', quiz_copied: 'URL copied.', quiz_copy_fail: 'Copy failed.',
     quiz_open_notice: 'Quiz will open in a new tab.',
     quiz_open_notice_timed: 'Quiz will open in a new tab. You have {0} minutes to answer — timer starts immediately.',
     quiz_not_open_notice: 'This quiz will open at {0}.',
@@ -1160,270 +740,144 @@ const I18N = {
     quiz_closed_notice: 'This quiz was closed at {0}. Please contact your trainer.',
     quiz_auto_submitted: 'Auto-submitted (time up)',
     quiz_correct_answers: '{0} / {1} correct',
-    quiz_answer_correct: 'Correct answer',
-    quiz_answer_wrong: 'Wrong answer',
+    quiz_answer_correct: 'Correct answer', quiz_answer_wrong: 'Wrong answer',
     quiz_retake_confirm: 'Retake quiz? A new attempt will replace your previous result.',
-    quiz_no_quiz: 'No quiz.',
-    quiz_bank_title: 'Quiz Question Bank',
+    quiz_no_quiz: 'No quiz.', quiz_bank_title: 'Quiz Question Bank',
 
-    pending_quiz_title: 'Pending Quizzes',
-    pending_quiz_hint: 'Click to open the quiz in a new tab.',
+    pending_quiz_title: 'Pending Quizzes', pending_quiz_hint: 'Click to open the quiz in a new tab.',
 
-    msg_saved: 'Saved.',
-    msg_updated: 'Updated.',
-    msg_deleted: 'Deleted.',
-    msg_created: 'Created.',
-    msg_enrolled: 'Successfully enrolled.',
-    msg_unenrolled: 'Removed.',
-    msg_select_one: 'Please select at least one.',
-    msg_no_module: 'No modules.',
-    msg_no_activity: 'No activities.',
-    msg_no_data: 'None.',
-    msg_required: 'This field is required.',
-    msg_email_taken: 'Email already in use.',
-    msg_invalid_login: 'Invalid email or password.',
-    msg_no_access: 'No access.',
-    msg_not_found: 'Not found.',
-    msg_not_published: 'Not Published.',
-    msg_publish_prompt: 'Publish now?',
-    msg_already_enrolled: 'Already enrolled.',
+    msg_saved: 'Saved.', msg_updated: 'Updated.', msg_deleted: 'Deleted.', msg_created: 'Created.',
+    msg_enrolled: 'Successfully enrolled.', msg_unenrolled: 'Removed.',
+    msg_select_one: 'Please select at least one.', msg_no_module: 'No modules.',
+    msg_no_activity: 'No activities.', msg_no_data: 'None.', msg_required: 'This field is required.',
+    msg_email_taken: 'Email already in use.', msg_invalid_login: 'Invalid email or password.',
+    msg_no_access: 'No access.', msg_not_found: 'Not found.', msg_not_published: 'Not Published.',
+    msg_publish_prompt: 'Publish now?', msg_already_enrolled: 'Already enrolled.',
 
     confirm_delete_module: 'Delete module "{0}"?\n{1} activities, {2} materials and {3} enrolments will be deleted.',
-    confirm_delete_activity: 'Delete "{0}"?',
-    confirm_delete_user: 'Delete "{0}"?',
-    confirm_delete_material: 'Delete material "{0}"?',
-    confirm_delete_rubric: 'Delete rubric "{0}"?',
-    confirm_delete_question: 'Delete question?',
-    confirm_enroll_bulk: 'Enrol {0} participants?',
-    confirm_unenroll: 'Remove {0}?',
-    confirm_publish_all: 'Publish {0} draft activities?',
-    confirm_retake_quiz: 'Retake quiz?',
-    confirm_cannot_delete: 'Cannot delete.',
+    confirm_delete_activity: 'Delete "{0}"?', confirm_delete_user: 'Delete "{0}"?',
+    confirm_delete_material: 'Delete material "{0}"?', confirm_delete_rubric: 'Delete rubric "{0}"?',
+    confirm_delete_question: 'Delete question?', confirm_enroll_bulk: 'Enrol {0} participants?',
+    confirm_unenroll: 'Remove {0}?', confirm_publish_all: 'Publish {0} draft activities?',
+    confirm_retake_quiz: 'Retake quiz?', confirm_cannot_delete: 'Cannot delete.',
 
-    form_name: 'Name',
-    form_desc: 'Description',
-    form_title: 'Title',
-    form_date: 'Date',
-    form_duration: 'Duration (hours)',
-    form_method: 'Method',
-    form_objectives: 'Objectives',
-    form_instructions: 'Instructions',
-    form_materials: 'Materials',
-    form_publish_now: 'Publish now',
-    form_publish_now_hint: 'participants can access',
-    form_rubric: 'Rubric',
+    form_name: 'Name', form_desc: 'Description', form_title: 'Title', form_date: 'Date',
+    form_duration: 'Duration (hours)', form_method: 'Method', form_objectives: 'Objectives',
+    form_instructions: 'Instructions', form_materials: 'Materials', form_publish_now: 'Publish now',
+    form_publish_now_hint: 'participants can access', form_rubric: 'Rubric',
     form_rubric_hint: 'for practical assessment',
     form_quiz_time_hint: 'After saving, click 🗂️ on the activity to set open date, close date and quiz duration.',
-    form_module: 'Module',
-    form_no_rubric: '— None (choose later) —',
-    form_save_changes: 'Save',
-    form_new: 'New',
-    form_edit: 'Edit',
+    form_module: 'Module', form_no_rubric: '— None (choose later) —',
+    form_save_changes: 'Save', form_new: 'New', form_edit: 'Edit',
 
-    modules_all: 'All Modules',
-    modules_mine: 'My Modules',
+    modules_all: 'All Modules', modules_mine: 'My Modules',
     modules_desc_1: 'A module groups activities and materials. Participants must enrol to join activities.',
-    modules_activity_count: '{0} Activities',
-    modules_participant_count: '{0} Participants',
-    modules_materials_count: '{0} Materials',
-    modules_draft_count: '{0} Draft',
-    modules_actions_open: 'Open',
-    modules_actions_edit: '✏️',
-    modules_actions_toggle: 'Activate',
-    modules_actions_toggle_off: 'Deactivate',
-    modules_actions_delete: '🗑️',
-    modules_no_drafts: 'No drafts.',
+    modules_activity_count: '{0} Activities', modules_participant_count: '{0} Participants',
+    modules_materials_count: '{0} Materials', modules_draft_count: '{0} Draft',
+    modules_actions_open: 'Open', modules_actions_edit: '✏️',
+    modules_actions_toggle: 'Activate', modules_actions_toggle_off: 'Deactivate',
+    modules_actions_delete: '🗑️', modules_no_drafts: 'No drafts.',
     modules_draft_warn: '{0} DRAFT activities',
     modules_draft_hint: 'Draft activities are not visible to participants. Open the module and click ✅ Publish.',
-    modules_activity_section: 'Activities',
-    modules_participant_section: 'Participants',
-    modules_no_participants: 'No participants.',
-    modules_no_activities: 'No activities yet.',
-    modules_enroll_section: 'Enrol Participants',
-    modules_no_modules_enrolled: 'You are not enrolled in this module.',
+    modules_activity_section: 'Activities', modules_participant_section: 'Participants',
+    modules_no_participants: 'No participants.', modules_no_activities: 'No activities yet.',
+    modules_enroll_section: 'Enrol Participants', modules_no_modules_enrolled: 'You are not enrolled in this module.',
     modules_enroll_now: 'Enrol Now',
     modules_activity_columns: 'Activity · Date · Quiz · Practical · Status · Actions',
 
-    mat_title: 'Module Materials',
-    mat_sub: 'All file types',
-    mat_upload: '➕ Upload Material',
+    mat_title: 'Module Materials', mat_sub: 'All file types', mat_upload: '➕ Upload Material',
     mat_no_materials_trainer: 'Trainer has not uploaded materials for this module.',
     mat_no_materials_admin: 'No materials yet. Click ➕ to upload files.',
-    mat_upload_modal: 'Upload Module Material',
-    mat_upload_format: 'Accepted Formats',
+    mat_upload_modal: 'Upload Module Material', mat_upload_format: 'Accepted Formats',
     mat_upload_format_value: 'All file types accepted (PDF, Word, Excel, images, videos, audio, archives, etc.).',
-    mat_upload_limit: 'Size limit: 100 MB per file.',
-    mat_upload_file: 'File',
-    mat_upload_display_name: 'Display Name (optional)',
-    mat_upload_desc: 'Description (optional)',
-    mat_upload_placeholder: 'Empty = use original filename',
-    mat_upload_btn: '⬆️ Upload',
+    mat_upload_limit: 'Size limit: 100 MB per file.', mat_upload_file: 'File',
+    mat_upload_display_name: 'Display Name (optional)', mat_upload_desc: 'Description (optional)',
+    mat_upload_placeholder: 'Empty = use original filename', mat_upload_btn: '⬆️ Upload',
     mat_upload_success: 'Material uploaded to Google Drive.',
-    mat_upload_too_big: 'File too large: {0}. Limit: {1}.',
-    mat_upload_bad_type: 'Unsupported format.',
-    mat_upload_no_file: 'Please select a valid file.',
-    mat_upload_storage_full: 'Storage space is full.',
-    mat_upload_fail: 'Upload failed.',
-    mat_view_fail: 'Failed to open file.',
+    mat_upload_too_big: 'File too large: {0}. Limit: {1}.', mat_upload_bad_type: 'Unsupported format.',
+    mat_upload_no_file: 'Please select a valid file.', mat_upload_storage_full: 'Storage space is full.',
+    mat_upload_fail: 'Upload failed.', mat_view_fail: 'Failed to open file.',
     mat_download_fail: 'Failed to download file.',
     mat_word_hint: 'File will be downloaded. Open with the appropriate application.',
     mat_popup_blocked: 'Popup blocked — use ⬇️ to download.',
     mat_uploading: 'Uploading to Drive…',
     mat_drive_note: '📤 Files are stored directly in Google Drive. Participants can access via link.',
 
-    upload_processing: 'Processing…',
-    file_type_image: 'Image',
-    file_type_other: 'File',
+    upload_processing: 'Processing…', file_type_image: 'Image', file_type_other: 'File',
 
-    tt_title: 'Timetable',
-    tt_sub: 'Session schedule for this module',
-    tt_add: '+ Add Entry',
-    tt_edit: 'Edit Timetable Entry',
-    tt_new: 'New Timetable Entry',
-    tt_no_entries: 'No timetable entries yet.',
-    tt_no_entries_admin: 'No timetable entries yet. Click + Add Entry.',
-    tt_date: 'Date',
-    tt_start: 'Start Time',
-    tt_end: 'End Time',
-    tt_topic: 'Title / Topic',
-    tt_instructor: 'Instructor',
-    tt_location: 'Location',
-    tt_notes: 'Notes',
-    tt_today: 'Today',
-    tt_confirm_delete: 'Delete this timetable entry?',
-    tt_added: 'Timetable entry added.',
-    tt_updated: 'Timetable entry updated.',
-    tt_deleted: 'Timetable entry deleted.',
-    tt_invalid_time: 'End time must be after start time.',
-    tt_date_required: 'Date is required.',
-    tt_topic_required: 'Title is required.',
-    tt_upcoming: 'Upcoming Timetable',
-    tt_no_upcoming: 'No upcoming timetable.',
-    tt_entries_count: '{0} entries',
+    tt_title: 'Timetable', tt_sub: 'Session schedule for this module',
+    tt_add: '+ Add Entry', tt_edit: 'Edit Timetable Entry', tt_new: 'New Timetable Entry',
+    tt_no_entries: 'No timetable entries yet.', tt_no_entries_admin: 'No timetable entries yet. Click + Add Entry.',
+    tt_date: 'Date', tt_start: 'Start Time', tt_end: 'End Time', tt_topic: 'Title / Topic',
+    tt_instructor: 'Instructor', tt_location: 'Location', tt_notes: 'Notes', tt_today: 'Today',
+    tt_confirm_delete: 'Delete this timetable entry?', tt_added: 'Timetable entry added.',
+    tt_updated: 'Timetable entry updated.', tt_deleted: 'Timetable entry deleted.',
+    tt_invalid_time: 'End time must be after start time.', tt_date_required: 'Date is required.',
+    tt_topic_required: 'Title is required.', tt_upcoming: 'Upcoming Timetable',
+    tt_no_upcoming: 'No upcoming timetable.', tt_entries_count: '{0} entries',
     tt_topic_placeholder: 'e.g. Introduction to Chemistry',
     tt_location_placeholder: 'e.g. Seminar Room A',
 
-    act_new: 'New Activity',
-    act_edit: 'Edit Activity',
-    act_publish_all: '✅ Publish All',
-    act_no_module: 'No modules. Create a module first.',
-    act_no_module_assigned: 'You have no modules assigned.',
+    act_new: 'New Activity', act_edit: 'Edit Activity', act_publish_all: '✅ Publish All',
+    act_no_module: 'No modules. Create a module first.', act_no_module_assigned: 'You have no modules assigned.',
     act_publish_warn: 'Click Publish so participants can access.',
     act_publish_now_confirm: 'Activity is still DRAFT. Publish now? The quiz tab will open for preview.',
-    act_bank_questions: 'Quiz Question Bank',
-    act_no_quiz: 'No quiz. Please attend the practical session on {0}.',
-    act_practical_session: 'Practical Session',
-    act_practical_criteria: 'Practical Session — Criteria',
+    act_bank_questions: 'Quiz Question Bank', act_no_quiz: 'No quiz. Please attend the practical session on {0}.',
+    act_practical_session: 'Practical Session', act_practical_criteria: 'Practical Session — Criteria',
     act_practical_eval: 'Practical Assessment',
     act_practical_eval_hint: 'You will be assessed by the trainer based on the criteria below.',
-    act_practical_total: 'TOTAL',
-    act_practical_wait: 'Session on {0}',
-    act_practical_not_ready: 'Participant not yet assessed.',
-    act_rubric_none: 'No rubric',
+    act_practical_total: 'TOTAL', act_practical_wait: 'Session on {0}',
+    act_practical_not_ready: 'Participant not yet assessed.', act_rubric_none: 'No rubric',
     act_rubric_none_hint: 'No rubric yet. Click 📏 to select or create one.',
-    act_module_materials: 'Module Materials',
-    act_module_materials_hint: 'Materials from module:',
-    act_objectives: 'Objectives',
-    act_instructions: 'Instructions',
-    act_materials: 'Materials',
+    act_module_materials: 'Module Materials', act_module_materials_hint: 'Materials from module:',
+    act_objectives: 'Objectives', act_instructions: 'Instructions', act_materials: 'Materials',
     act_rubric_section: 'Rubric',
 
-    grad_title: 'Assessment',
-    grad_participant: 'Participant',
-    grad_attendance: 'Attendance',
-    grad_quiz: 'Quiz',
-    grad_practical: 'Practical',
-    grad_score: 'Score',
-    grad_status: 'Status',
-    grad_actions: 'Actions',
-    grad_practical_form: 'Rubric Assessment',
-    grad_remarks: 'Remarks',
+    grad_title: 'Assessment', grad_participant: 'Participant', grad_attendance: 'Attendance',
+    grad_quiz: 'Quiz', grad_practical: 'Practical', grad_score: 'Score', grad_status: 'Status',
+    grad_actions: 'Actions', grad_practical_form: 'Rubric Assessment', grad_remarks: 'Remarks',
     grad_save_success: 'Marks saved.',
     grad_no_rubric: 'This activity has no rubric yet. Select a rubric in the Rubric tab or click Build Rubric.',
-    grad_no_participants: 'No participants enrolled.',
-    grad_attendance_mark: 'Present',
-    grad_attendance_absent: 'Absent',
-    grad_attendance_none: '—',
+    grad_no_participants: 'No participants enrolled.', grad_attendance_mark: 'Present',
+    grad_attendance_absent: 'Absent', grad_attendance_none: '—',
 
-    rb_title: 'Rubric List',
-    rb_sub: 'Single source of truth — used by practical activities',
-    rb_new: '➕ Rubric',
-    rb_edit: 'Edit Rubric',
-    rb_new_title: 'New Rubric',
-    rb_criteria_count: '{0} Criteria',
-    rb_used_count: '{0} Used',
-    rb_used_warning: 'Rubric is in use',
-    rb_assign_title: 'Rubric Assignment to Activities',
-    rb_assign_hint: 'Select a rubric for each practical activity. Changes here affect that activity\'s practical assessment.',
+    rb_title: 'Rubric List', rb_sub: 'Single source of truth — used by practical activities',
+    rb_new: '➕ Rubric', rb_edit: 'Edit Rubric', rb_new_title: 'New Rubric',
+    rb_criteria_count: '{0} Criteria', rb_used_count: '{0} Used',
+    rb_used_warning: 'Rubric is in use', rb_assign_title: 'Rubric Assignment to Activities',
+    rb_assign_hint: "Select a rubric for each practical activity. Changes here affect that activity's practical assessment.",
     rb_grading_title: 'Participant Assessment',
     rb_grading_hint: 'Click participant names to assess using the activity rubric.',
-    rb_no_practical: 'No practical activities.',
-    rb_name_required: 'Rubric name is required.',
-    rb_weight_error: 'Total weight must be 100%. ({0}%)',
-    rb_level_add: '+ Level',
-    rb_crit_add: '+ Criteria',
-    rb_total: 'Total',
+    rb_no_practical: 'No practical activities.', rb_name_required: 'Rubric name is required.',
+    rb_weight_error: 'Total weight must be 100%. ({0}%)', rb_level_add: '+ Level',
+    rb_crit_add: '+ Criteria', rb_total: 'Total',
     rb_none_hint: 'No rubrics yet. Click ➕ to create the first rubric.',
-    rb_pick_title: 'Choose Rubric',
-    rb_pick_new: 'Create New Rubric',
-    rb_pick_existing: 'Choose Existing Rubric',
-    rb_pick_apply: 'Use Selected Rubric',
-    rb_pick_none: '— Choose —',
-    rb_saved: 'Rubric saved.',
-    rb_criteria_label: 'Criteria',
-    rb_weights: 'Weight',
-    rb_edit_rubric: 'Edit Rubric',
-    rb_new_rubric: 'Create & Assign',
-    rb_no_rubric_selected: 'Choose a rubric.',
-    rb_guide_title: 'Guidelines',
-    rb_guide_1: 'Criteria weights must total 100%.',
+    rb_pick_title: 'Choose Rubric', rb_pick_new: 'Create New Rubric',
+    rb_pick_existing: 'Choose Existing Rubric', rb_pick_apply: 'Use Selected Rubric',
+    rb_pick_none: '— Choose —', rb_saved: 'Rubric saved.',
+    rb_criteria_label: 'Criteria', rb_weights: 'Weight', rb_edit_rubric: 'Edit Rubric',
+    rb_new_rubric: 'Create & Assign', rb_no_rubric_selected: 'Choose a rubric.',
+    rb_guide_title: 'Guidelines', rb_guide_1: 'Criteria weights must total 100%.',
     rb_guide_2: 'This rubric can be used for multiple practical activities.',
     rb_pick_action_hint: 'Choose an action',
     rb_pick_action_1: 'Choose existing rubric — use an already created rubric.',
     rb_pick_action_2: 'Create new rubric — build a custom rubric for this activity.',
-    rb_col_name: 'Criteria Name',
-    rb_col_weight: 'Weight (%)',
-    rb_col_label: 'Label',
-    rb_col_marks: 'Marks',
-    rb_col_desc: 'Description',
-    rb_not_yet: 'No rubric yet',
-    rb_level: 'Level',
-    rb_level_excellent: 'Excellent',
-    rb_level_good: 'Good',
-    rb_level_fair: 'Fair',
-    rb_level_weak: 'Weak',
-    rb_level_fail: 'Fail',
+    rb_col_name: 'Criteria Name', rb_col_weight: 'Weight (%)', rb_col_label: 'Label',
+    rb_col_marks: 'Marks', rb_col_desc: 'Description', rb_not_yet: 'No rubric yet',
+    rb_level: 'Level', rb_level_excellent: 'Excellent', rb_level_good: 'Good',
+    rb_level_fair: 'Fair', rb_level_weak: 'Weak', rb_level_fail: 'Fail',
 
-    bank_title: 'Question Bank',
-    bank_new: 'New Question',
-    bank_edit: 'Edit Question',
-    bank_question: 'Question',
-    bank_options: 'Options',
-    bank_answer: 'Answer',
-    bank_category: 'Category',
-    bank_level: 'Level',
-    bank_search: 'Search…',
-    bank_all: 'All',
-    bank_used: '{0} activities',
-    bank_no_questions: 'No questions.',
-    bank_delete: 'Delete question?',
+    bank_title: 'Question Bank', bank_new: 'New Question', bank_edit: 'Edit Question',
+    bank_question: 'Question', bank_options: 'Options', bank_answer: 'Answer',
+    bank_category: 'Category', bank_level: 'Level', bank_search: 'Search…', bank_all: 'All',
+    bank_used: '{0} activities', bank_no_questions: 'No questions.', bank_delete: 'Delete question?',
     bank_saved: 'Saved.',
 
-    usr_title: 'Users',
-    usr_new: 'New User',
-    usr_edit: 'Edit User',
-    usr_admin_only: 'Users',
+    usr_title: 'Users', usr_new: 'New User', usr_edit: 'Edit User', usr_admin_only: 'Users',
+    aud_title: 'Audit Trail', aud_time: 'Time', aud_user: 'User', aud_action: 'Action',
+    aud_details: 'Details', aud_empty: 'No audit records.',
 
-    aud_title: 'Audit Trail',
-    aud_time: 'Time',
-    aud_user: 'User',
-    aud_action: 'Action',
-    aud_details: 'Details',
-    aud_empty: 'No audit records.',
-
-    rep_title: 'Individual Report',
-    rep_generate: '📄 Generate PDF',
-    rep_program: 'Programme Report',
+    rep_title: 'Individual Report', rep_generate: '📄 Generate PDF', rep_program: 'Programme Report',
     rep_program_btn: '📊 Generate PDF',
 
     msg_popup_blocked: 'Popup blocked. Allow popups to open quiz tab.',
@@ -1432,185 +886,100 @@ const I18N = {
     msg_quiz_not_published: 'Quiz Not Yet Published. This quiz has not been published by the trainer.',
     msg_not_enrolled: 'Not Enrolled. Please enrol in the module first.',
     msg_confirm_publish_after_quiz: 'Questions saved ({0}).\n\nActivity is still DRAFT.\n\nPublish now? Quiz tab will open for preview.',
-    msg_draft_warn: '{0} drafts',
-    msg_draft_hint: 'Click Publish so participants can access.',
+    msg_draft_warn: '{0} drafts', msg_draft_hint: 'Click Publish so participants can access.',
     msg_publish_after_single: 'Published. Quiz tab opened.',
     msg_publish_after_multi: '{0} published. {1} quizzes — open manually for preview.',
-    msg_publish_after_none: '{0} published.',
-    msg_already_selected: 'Select at least one.',
-    msg_bulk_enrolled: '{0} participants enrolled.',
-    msg_quiz_retake: 'Ready to retake.',
+    msg_publish_after_none: '{0} published.', msg_already_selected: 'Select at least one.',
+    msg_bulk_enrolled: '{0} participants enrolled.', msg_quiz_retake: 'Ready to retake.',
     msg_quiz_submitted: '{0} / {1} correct ({2}%)',
     msg_quiz_auto_submit: 'Time up — auto-submitted: {0} / {1} ({2}%)',
-    msg_login_ok: 'Login successful.',
-    msg_no_quiz_sel: 'Select questions from the bank first.',
-    msg_quiz_added: '{0} questions added.',
-    msg_quiz_saved: 'Quiz settings saved.',
-    msg_no_drafts: 'No drafts.',
-    msg_must_select_one: 'Select at least one.',
-    msg_print_fail: 'Failed to print.',
-    msg_topic_required: 'Title required.',
-    msg_module_required: 'Select a module.',
-    msg_select_module_first: 'Select a module.',
-    msg_saved_publish: 'Activity created & published.',
-    msg_saved_draft: 'Activity created as draft.',
-    msg_created_module: 'Module created.',
-    msg_saved_rubric: 'Rubric saved.',
-    msg_published: 'Published.',
-    msg_unpublished: 'Unpublished.',
-    msg_saved_practical: 'Marks saved.',
-    msg_draft_only: 'No drafts.',
-    msg_yes: 'Yes',
-    msg_no: 'No',
+    msg_login_ok: 'Login successful.', msg_no_quiz_sel: 'Select questions from the bank first.',
+    msg_quiz_added: '{0} questions added.', msg_quiz_saved: 'Quiz settings saved.',
+    msg_no_drafts: 'No drafts.', msg_must_select_one: 'Select at least one.',
+    msg_print_fail: 'Failed to print.', msg_topic_required: 'Title required.',
+    msg_module_required: 'Select a module.', msg_select_module_first: 'Select a module.',
+    msg_saved_publish: 'Activity created & published.', msg_saved_draft: 'Activity created as draft.',
+    msg_created_module: 'Module created.', msg_saved_rubric: 'Rubric saved.',
+    msg_published: 'Published.', msg_unpublished: 'Unpublished.',
+    msg_saved_practical: 'Marks saved.', msg_draft_only: 'No drafts.',
+    msg_yes: 'Yes', msg_no: 'No',
 
-    qb_title: 'Build Quiz Questions',
-    qb_settings_title: 'Quiz Time Settings',
+    qb_title: 'Build Quiz Questions', qb_settings_title: 'Quiz Time Settings',
     qb_settings_hint: 'Set when the quiz opens and how long participants have to answer. If left blank, the quiz is always open with no time limit.',
-    qb_open_at: 'Open Date & Time',
-    qb_close_at: 'Close Date & Time',
-    qb_duration: 'Answer Duration (minutes)',
-    qb_open_at_hint: 'Empty = always open',
-    qb_close_at_hint: 'Empty = no closing date',
-    qb_duration_hint: 'Empty/0 = no time limit',
-    qb_save: 'Save',
-    qb_add_question: 'Add',
-    qb_pick_bank: 'Bank',
-    qb_no_questions: 'No questions yet.',
-    qb_question: 'Question',
-    qb_add_level: '+ Level',
-    qb_answer_required: 'At least 2 options required.',
-    qb_saved_to_bank: 'Save to Bank',
-    qb_pick_from_bank: 'Pick from Bank',
-    qb_pick_search: 'Search…',
-    qb_pick_all: 'All',
-    qb_pick_count: '{0} selected',
-    qb_pick_apply: 'Add',
-    qb_pick_none: 'None.',
-    qb_pick_none_selected: 'Select at least one.',
-    qb_pick_added: '{0} questions added.',
-    qb_new_question: 'Add Question',
-    qb_edit_question: 'Edit Question',
-    qb_save: 'Save',
-    qb_question_required: 'Question required.',
-    qb_options_required: 'At least 2 options required.',
+    qb_open_at: 'Open Date & Time', qb_close_at: 'Close Date & Time',
+    qb_duration: 'Answer Duration (minutes)', qb_open_at_hint: 'Empty = always open',
+    qb_close_at_hint: 'Empty = no closing date', qb_duration_hint: 'Empty/0 = no time limit',
+    qb_save: 'Save', qb_add_question: 'Add', qb_pick_bank: 'Bank',
+    qb_no_questions: 'No questions yet.', qb_question: 'Question', qb_add_level: '+ Level',
+    qb_answer_required: 'At least 2 options required.', qb_saved_to_bank: 'Save to Bank',
+    qb_pick_from_bank: 'Pick from Bank', qb_pick_search: 'Search…', qb_pick_all: 'All',
+    qb_pick_count: '{0} selected', qb_pick_apply: 'Add', qb_pick_none: 'None.',
+    qb_pick_none_selected: 'Select at least one.', qb_pick_added: '{0} questions added.',
+    qb_new_question: 'Add Question', qb_edit_question: 'Edit Question',
+    qb_question_required: 'Question required.', qb_options_required: 'At least 2 options required.',
     qb_duration_mismatch: 'Close date must be after open date.',
     qb_published_prompt: 'Questions saved ({0}).\n\nActivity is still DRAFT.\n\nPublish now? Quiz tab will open for preview.',
     qb_duration_placeholder: 'e.g. 30',
 
-    pf_title: 'Rubric Assessment',
-    pf_remarks: 'Remarks',
+    pf_title: 'Rubric Assessment', pf_remarks: 'Remarks',
     pf_required: 'No rubric. Choose or create a rubric in the Rubric tab.',
     pf_no_rubric: 'No rubric. Choose or create a rubric in the Rubric tab.',
     pf_saved: 'Marks saved.',
 
-    enr_title: 'Enrol Participants',
-    enr_select_all: '✓ All',
-    enr_deselect_all: '✗ None',
-    enr_none: 'All are already enrolled.',
-    enr_select_one: 'Select at least one.',
-    enr_success: '{0} participants enrolled.',
-    enr_unenroll_success: 'Removed.',
+    enr_title: 'Enrol Participants', enr_select_all: '✓ All', enr_deselect_all: '✗ None',
+    enr_none: 'All are already enrolled.', enr_select_one: 'Select at least one.',
+    enr_success: '{0} participants enrolled.', enr_unenroll_success: 'Removed.',
 
-    mat_pick_file: 'File',
-    mat_pick_name: 'Display Name',
-    mat_pick_desc: 'Description',
-    mat_pick_save: 'Upload',
-    mat_pick_cancel: 'Cancel',
-    mat_pick_info_title: 'Accepted Formats',
-    mat_pick_info_limit: 'Size limit: 100 MB per file.',
+    mat_pick_file: 'File', mat_pick_name: 'Display Name', mat_pick_desc: 'Description',
+    mat_pick_save: 'Upload', mat_pick_cancel: 'Cancel',
+    mat_pick_info_title: 'Accepted Formats', mat_pick_info_limit: 'Size limit: 100 MB per file.',
 
-    rpt_title: 'Participant Individual Report',
-    rpt_summary_activities: 'Activities',
-    rpt_summary_assessed: 'Assessed',
-    rpt_summary_average: 'Average',
-    rpt_details: 'Details',
-    rpt_col_activity: 'Activity',
-    rpt_col_module: 'Module',
-    rpt_col_date: 'Date',
-    rpt_col_quiz: 'Quiz',
-    rpt_col_rubric: 'Rubric',
-    rpt_col_score: 'Score',
-    rpt_col_status: 'Status',
-    rpt_generated: 'Generated',
-    rpt_program_title: 'Programme Overall Report',
-    rpt_program_participants: 'Participants',
-    rpt_program_modules: 'Modules',
-    rpt_program_enrollment: 'Enrolments',
-    rpt_program_performance: 'Participant Performance',
-    rpt_col_participant: 'Participant',
-    rpt_col_org: 'Organisation',
-    rpt_col_assessed: 'Assessed',
-    rpt_col_average: 'Average',
+    rpt_title: 'Participant Individual Report', rpt_summary_activities: 'Activities',
+    rpt_summary_assessed: 'Assessed', rpt_summary_average: 'Average', rpt_details: 'Details',
+    rpt_col_activity: 'Activity', rpt_col_module: 'Module', rpt_col_date: 'Date',
+    rpt_col_quiz: 'Quiz', rpt_col_rubric: 'Rubric', rpt_col_score: 'Score',
+    rpt_col_status: 'Status', rpt_generated: 'Generated',
+    rpt_program_title: 'Programme Overall Report', rpt_program_participants: 'Participants',
+    rpt_program_modules: 'Modules', rpt_program_enrollment: 'Enrolments',
+    rpt_program_performance: 'Participant Performance', rpt_col_participant: 'Participant',
+    rpt_col_org: 'Organisation', rpt_col_assessed: 'Assessed', rpt_col_average: 'Average',
     rpt_report_title: 'Report',
 
     sijil_title: 'Certificate Management',
     sijil_sub: 'Upload PDF certificates for each participant to Google Drive. Participants can download their own certificate.',
-    sijil_participant: 'Participant',
-    sijil_status: 'Certificate Status',
-    sijil_has: 'Has Certificate',
-    sijil_missing: 'No Certificate',
-    sijil_upload: 'Upload Certificate',
-    sijil_replace: 'Replace Certificate',
+    sijil_participant: 'Participant', sijil_status: 'Certificate Status', sijil_has: 'Has Certificate',
+    sijil_missing: 'No Certificate', sijil_upload: 'Upload Certificate', sijil_replace: 'Replace Certificate',
     sijil_replace_warn: 'Participant already has a certificate. Uploading a new one will replace the existing certificate.',
     sijil_upload_format: 'Accepted Format',
     sijil_only_pdf: 'Only PDF files (.pdf) are accepted for certificates.',
     sijil_upload_limit: 'Size limit: 100 MB per file.',
-    sijil_uploaded: 'Certificate uploaded to Google Drive.',
-    sijil_uploaded_on: 'Uploaded on',
-    sijil_confirm_delete: 'Delete certificate "{0}"?',
-    sijil_stats_total: 'Total Participants',
-    sijil_stats_with: 'Has Certificate',
-    sijil_stats_without: 'No Certificate Yet',
-    sijil_my_title: 'My Certificate',
-    sijil_my_sub: 'Download your certificate here.',
+    sijil_uploaded: 'Certificate uploaded to Google Drive.', sijil_uploaded_on: 'Uploaded on',
+    sijil_confirm_delete: 'Delete certificate "{0}"?', sijil_stats_total: 'Total Participants',
+    sijil_stats_with: 'Has Certificate', sijil_stats_without: 'No Certificate Yet',
+    sijil_my_title: 'My Certificate', sijil_my_sub: 'Download your certificate here.',
     sijil_my_none: 'Your certificate has not been uploaded by the administrator yet. Please contact the administrator.',
-    sijil_view: 'View Certificate',
-    sijil_name_placeholder: 'Certificate {0}',
+    sijil_view: 'View Certificate', sijil_name_placeholder: 'Certificate {0}',
 
-    fe_title: 'Final Exam',
-    fe_sub: 'Theory or practical final exam for each training module',
-    fe_new: '+ Final Exam',
-    fe_edit: 'Edit Final Exam',
-    fe_new_title: 'New Final Exam',
-    fe_type: 'Type',
-    fe_type_theory: 'Theory',
-    fe_type_practical: 'Practical',
-    fe_target_module: 'Training Module',
-    fe_date: 'Date',
-    fe_open_at: 'Open Date & Time',
-    fe_close_at: 'Close Date & Time',
-    fe_open_at_hint: 'Empty = always open',
-    fe_close_at_hint: 'Empty = no closing date',
-    fe_duration: 'Answer Duration (minutes)',
-    fe_duration_hint: 'Empty/0 = no time limit (theory)',
-    fe_rubric: 'Rubric (for practical)',
-    fe_description: 'Description / Instructions',
-    fe_publish: 'Publish',
-    fe_unpublish: 'Unpublish',
-    fe_status_open: 'OPEN',
-    fe_status_not_open: 'NOT YET OPEN',
-    fe_status_closed: 'CLOSED',
-    fe_status_waiting: 'AWAITING SESSION',
-    fe_upcoming: 'Upcoming Final Exams',
-    fe_no_exams: 'No final exams.',
-    fe_take: 'Take Exam',
-    fe_view: 'View',
-    fe_take_tab: 'Take in New Tab',
-    fe_completed: 'Exam Completed',
-    fe_score_format: '{0} / {1} correct ({2}%)',
-    fe_auto_submit: 'Auto-submitted (time up)',
-    fe_pending_assess: 'Awaiting Assessment',
-    fe_assess: 'Assess',
-    fe_saved: 'Final exam saved.',
-    fe_deleted: 'Final exam deleted.',
-    fe_published: 'Final exam published.',
-    fe_unpublished: 'Final exam unpublished.',
-    fe_delete_confirm: 'Delete exam "{0}"?',
-    fe_questions: 'Exam Questions',
-    fe_add_questions: 'Add Questions',
+    fe_title: 'Final Exam', fe_sub: 'Theory or practical final exam for each training module',
+    fe_new: '+ Final Exam', fe_edit: 'Edit Final Exam', fe_new_title: 'New Final Exam',
+    fe_type: 'Type', fe_type_theory: 'Theory', fe_type_practical: 'Practical',
+    fe_target_module: 'Training Module', fe_date: 'Date',
+    fe_open_at: 'Open Date & Time', fe_close_at: 'Close Date & Time',
+    fe_open_at_hint: 'Empty = always open', fe_close_at_hint: 'Empty = no closing date',
+    fe_duration: 'Answer Duration (minutes)', fe_duration_hint: 'Empty/0 = no time limit (theory)',
+    fe_rubric: 'Rubric (for practical)', fe_description: 'Description / Instructions',
+    fe_publish: 'Publish', fe_unpublish: 'Unpublish',
+    fe_status_open: 'OPEN', fe_status_not_open: 'NOT YET OPEN', fe_status_closed: 'CLOSED',
+    fe_status_waiting: 'AWAITING SESSION', fe_upcoming: 'Upcoming Final Exams',
+    fe_no_exams: 'No final exams.', fe_take: 'Take Exam', fe_view: 'View',
+    fe_take_tab: 'Take in New Tab', fe_completed: 'Exam Completed',
+    fe_score_format: '{0} / {1} correct ({2}%)', fe_auto_submit: 'Auto-submitted (time up)',
+    fe_pending_assess: 'Awaiting Assessment', fe_assess: 'Assess', fe_saved: 'Final exam saved.',
+    fe_deleted: 'Final exam deleted.', fe_published: 'Final exam published.',
+    fe_unpublished: 'Final exam unpublished.', fe_delete_confirm: 'Delete exam "{0}"?',
+    fe_questions: 'Exam Questions', fe_add_questions: 'Add Questions',
     fe_no_questions: 'No questions. Add from bank or create new.',
-    fe_exam_not_found: 'Exam Not Found.',
-    fe_not_published: 'Exam Not Yet Published.',
+    fe_exam_not_found: 'Exam Not Found.', fe_not_published: 'Exam Not Yet Published.',
     fe_not_enrolled: 'You are not enrolled in this module.',
     fe_open_notice: 'Exam will open in a new tab.',
     fe_timed_body: 'You have {0} minutes to answer. The exam will auto-submit when time is up.',
@@ -1623,27 +992,18 @@ const I18N = {
     fe_practical_setup_hint: 'Choose a rubric. Assess participants after the practical session.',
     fe_title_placeholder: 'e.g. Final Theory Exam',
 
-    retest_title: 'Grant Retest',
-    retest_info_title: 'Retest Information',
+    retest_title: 'Grant Retest', retest_info_title: 'Retest Information',
     retest_info: 'The participant will be able to retake this quiz. The HIGHEST score between old and new attempts will be kept as the official score.',
     retest_pending: 'Retest Pending',
     retest_pending_hint: 'A retest has been granted. The participant will see the option to retake this quiz on their dashboard.',
-    retest_btn_grant: 'Grant Retest',
-    retest_btn_cancel: 'Cancel Retest',
-    retest_cancel: 'Cancel Retest',
-    retest_pending_badge: 'Retest Available',
-    retest_done: 'Retest Done',
-    retest_btn_edit_q: 'Edit Questions First',
-    retest_current_attempts: 'Attempt Count',
-    retest_score_best: 'Best Score',
-    retest_no_attempt: 'Not Attempted',
-    retest_take: 'Retake',
-    msg_retest_granted: 'Retest granted for {0}.',
-    msg_retest_cancelled: 'Retest cancelled.',
+    retest_btn_grant: 'Grant Retest', retest_btn_cancel: 'Cancel Retest', retest_cancel: 'Cancel Retest',
+    retest_pending_badge: 'Retest Available', retest_done: 'Retest Done',
+    retest_btn_edit_q: 'Edit Questions First', retest_current_attempts: 'Attempt Count',
+    retest_score_best: 'Best Score', retest_no_attempt: 'Not Attempted', retest_take: 'Retake',
+    msg_retest_granted: 'Retest granted for {0}.', msg_retest_cancelled: 'Retest cancelled.',
     retest_confirm_grant: 'Grant retest for {0}?\n\nThe participant will be able to retake this quiz. Best score will be kept.',
     retest_confirm_cancel: 'Cancel the pending retest for {0}?',
-    best_score_note: 'Best score kept: {0}',
-    this_attempt: 'This attempt: {0}',
+    best_score_note: 'Best score kept: {0}', this_attempt: 'This attempt: {0}',
     new_best_score: 'New best score!',
     retest_banner: 'Retest opened by trainer — answer again to improve your score.',
     retest_view_result: 'View Result',
@@ -1655,15 +1015,13 @@ const I18N = {
 let currentLang = localStorage.getItem('cftp_lang') || 'ms';
 const t = (key, ...args) => {
   let s = (I18N[currentLang] && I18N[currentLang][key]) || I18N.ms[key] || key;
-  if (args.length) {
-    args.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
-  }
+  if (args.length) args.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
   return s;
 };
 const locale = () => currentLang === 'en' ? 'en-GB' : 'ms-MY';
 
 /* =========================================================
-   Utilities & State
+   Utilities
    ========================================================= */
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -1750,9 +1108,11 @@ const state = {
 };
 
 /* =========================================================
-   SERVER SYNC — saveDB pushes to Google Sheets (debounced)
+   SERVER SYNC
    ========================================================= */
 let saveTimer = null, saveInFlight = false, savePending = false;
+let firstSyncDone = false;
+let firstSyncPromise = null;
 
 function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.error(e); }
@@ -1784,28 +1144,73 @@ function scheduleServerSave() {
   }, 1200);
 }
 
-async function bootDB() {
-  try {
-    const res = await driveAPI('loadState');
-    if (res.ok && res.state && Array.isArray(res.state.users) && res.state.users.length) {
-      DB = res.state;
-      console.log('✅ Loaded from server (' + (res.source || '?') + ')');
-    } else {
-      console.log('Server empty → seeding…');
-      DB = seedDB();
-      try { await driveAPI('saveState', { state: DB }); } catch(e) { console.warn('Seed push failed:', e); }
-    }
-  } catch (err) {
-    console.warn('Server load failed, using cache:', err);
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) { try { DB = JSON.parse(raw); } catch(e) { DB = null; } }
-    if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
+function hideSplash() {
+  const s = document.getElementById('splash');
+  if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 300); }
+}
+
+/* FAST BOOT — render from cache instantly, sync in background */
+function fastBoot() {
+  // 1. Load cache
+  const raw = localStorage.getItem(DB_KEY);
+  if (raw) { try { DB = JSON.parse(raw); } catch(e) { DB = null; } }
+  
+  // 2. If no cache, seed immediately
+  if (!DB || !Array.isArray(DB.users) || !DB.users.length) {
+    DB = seedDB();
   }
   if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
   migrateDB();
-  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+  
+  // 3. Restore session
   const sid = localStorage.getItem(SESSION_KEY);
   if (sid) state.user = DB.users.find(u => u.id === sid) || null;
+  
+  // 4. RENDER IMMEDIATELY
+  render();
+  hideSplash();
+  
+  // 5. Sync from server in background
+  serverPullInBackground();
+}
+
+async function serverPullInBackground() {
+  if (firstSyncPromise) return firstSyncPromise;
+  firstSyncPromise = (async () => {
+    try {
+      const res = await driveAPI('loadState');
+      if (res.ok && res.state && Array.isArray(res.state.users) && res.state.users.length) {
+        const before = JSON.stringify(DB);
+        DB = res.state;
+        if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
+        migrateDB();
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        const sid = localStorage.getItem(SESSION_KEY);
+        if (sid) state.user = DB.users.find(u => u.id === sid) || null;
+        if (JSON.stringify(DB) !== before) {
+          if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
+        }
+        console.log('✅ Loaded from server (' + (res.source || '?') + ')');
+      } else if (res.ok) {
+        // Server empty → push seed
+        console.log('Server empty → pushing seed…');
+        try {
+          const sr = await driveAPI('saveState', { state: DB });
+          if (sr.ok) console.log('✅ Seed pushed. Sheet:', sr.spreadsheetUrl || '(no URL)');
+          else console.error('❌ Seed push rejected:', sr.error);
+        } catch(e) {
+          console.error('❌ Seed push failed:', e);
+        }
+      } else {
+        console.warn('⚠️ loadState returned:', res);
+      }
+    } catch(e) {
+      console.warn('Background sync failed:', e);
+    } finally {
+      firstSyncDone = true;
+    }
+  })();
+  return firstSyncPromise;
 }
 
 function migrateDB() {
@@ -1825,7 +1230,6 @@ function migrateDB() {
       if (u.phone === undefined) u.phone = '';
     });
   }
-
   (DB.activities || []).forEach(a => {
     (a.rubric || []).forEach(c => {
       if (!c.levels) {
@@ -2036,7 +1440,6 @@ const getModule = (id) => DB.modules.find(m => m.id === id) || null;
 const moduleName = (id) => { const m = getModule(id); return m ? m.name : '—'; };
 const getAttendance = (aid, pid) => DB.attendance.find(x => x.activityId === aid && x.participantId === pid) || null;
 const getPractical = (aid, pid) => DB.practical.find(x => x.activityId === aid && x.participantId === pid) || null;
-
 const getLatestAttempt = (aid, pid) => DB.attempts.filter(x => x.activityId === aid && x.participantId === pid).sort((a, b) => new Date(b.at) - new Date(a.at))[0] || null;
 const getAttempt = (aid, pid) => {
   const attempts = DB.attempts.filter(x => x.activityId === aid && x.participantId === pid);
@@ -2048,15 +1451,11 @@ const getAttempt = (aid, pid) => {
   })[0];
 };
 const getAttemptCount = (aid, pid) => DB.attempts.filter(x => x.activityId === aid && x.participantId === pid).length;
-
 const getRetestRecord = (aid, pid) => {
   if (!Array.isArray(DB.retests)) return null;
   return DB.retests.filter(x => x.activityId === aid && x.participantId === pid).sort((a, b) => new Date(b.grantedAt) - new Date(a.grantedAt))[0] || null;
 };
-const hasPendingRetest = (aid, pid) => {
-  const r = getRetestRecord(aid, pid);
-  return !!(r && !r.usedAt);
-};
+const hasPendingRetest = (aid, pid) => { const r = getRetestRecord(aid, pid); return !!(r && !r.usedAt); };
 function grantRetest(aid, pid) {
   if (!Array.isArray(DB.retests)) DB.retests = [];
   DB.retests.push({ id: uid('rt'), activityId: aid, participantId: pid, grantedBy: state.user.id, grantedAt: nowISO(), usedAt: null });
@@ -2072,7 +1471,6 @@ function cancelRetest(aid, pid) {
     logAudit('Cancel Retest', 'Aktiviti', `${aid}:${pid}`, userName(pid));
   }
 }
-
 const myModules = () => sortModules(DB.modules.filter(m => m.trainerId === state.user.id));
 const isEnrolled = (mid, pid) => DB.enrollments.some(e => e.moduleId === mid && e.participantId === pid);
 const moduleActivitiesList = (mid) => sortActs(DB.activities.filter(a => a.moduleId === mid));
@@ -2087,7 +1485,6 @@ const pendingQuizzesFor = (pid) => accessibleActivities(pid).filter(a => {
   return hasPendingRetest(a.id, pid);
 });
 const findMaterial = (mid, matid) => { const m = getModule(mid); return m ? (m.materials||[]).find(x => x.id === matid) : null; };
-
 const sortTimetable = (arr) => arr.slice().sort((a, b) => ((a.date||'') + ' ' + (a.startTime||'')).localeCompare((b.date||'') + ' ' + (b.startTime||'')));
 const moduleTimetable = (mid) => sortTimetable(DB.timetables.filter(x => x.moduleId === mid));
 const isTodayDate = (date) => date === todayISO();
@@ -2097,7 +1494,6 @@ function canManageTimetable(mid) {
   if (state.user.role !== 'trainer') return false;
   return canTrainerAccessModule(mid);
 }
-
 const getFinalExam = (id) => (DB.finalExams || []).find(x => x.id === id) || null;
 const moduleFinalExams = (mid) => (DB.finalExams || []).filter(x => x.moduleId === mid).sort((a,b) => (a.openAt||'').localeCompare(b.openAt||''));
 const participantFinalExams = (pid) => {
@@ -2130,7 +1526,6 @@ const upcomingFinalExamsFor = (pid, limit) => {
     .slice(0, limit || 3);
 };
 const getRubricById = (rid) => (DB.rubrics || []).find(r => r.id === rid) || null;
-
 function canTrainerAccessModule(mid) {
   if (!state.user) return false;
   if (state.user.role === 'admin') return true;
@@ -2143,7 +1538,6 @@ function canTrainerAccessActivity(aid) {
   if (!a) return false;
   return canTrainerAccessModule(a.moduleId);
 }
-
 const quizWindowStatus = (act) => {
   if (!act || !act.quiz || !act.quiz.length) return { state: 'no-quiz', open: null, close: null };
   const now = Date.now();
@@ -2163,7 +1557,6 @@ const getRubricCriteria = (act) => {
   const rb = getRubric(act);
   return rb ? (rb.criteria || []) : [];
 };
-
 function scoreFor(activity, pid) {
   const att = getAttendance(activity.id, pid);
   const attempt = getAttempt(activity.id, pid);
@@ -2226,7 +1619,6 @@ function closeModal() {
 }
 function openModal2(html, size = '') { $('#modalRoot2').innerHTML = `<div class="modal-backdrop" style="z-index:200"><div class="modal ${size}">${html}</div></div>`; }
 function closeModal2() { $('#modalRoot2').innerHTML = ''; }
-
 function openQuizTab(aid) {
   const base = location.href.split('#')[0];
   const url = base + '#quiz=' + aid;
@@ -2241,7 +1633,6 @@ function openFinalTab(feid) {
   if (!w) { toast('⚠️ ' + t('msg_popup_blocked'), 'bad'); return false; }
   return true;
 }
-
 function checkStandaloneFinal() {
   if (location.hash.startsWith('#final=')) {
     const feid = location.hash.substring(7).split('&')[0].split('#')[0];
@@ -2258,7 +1649,6 @@ function checkStandaloneQuiz() {
   }
   return false;
 }
-
 function stopQuizTimer() {
   if (quizTimerInterval) { clearInterval(quizTimerInterval); quizTimerInterval = null; }
 }
@@ -2272,25 +1662,24 @@ function renderStandaloneFinal(feid) {
   const fe = getFinalExam(feid);
 
   if (!fe) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('fe_exam_not_found')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   if (!state.user) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('msg_session_expired')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   if (!fe.published) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('fe_not_published')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   const viewer = state.user;
-
   if (viewer.role === 'participant') {
     if (!isEnrolled(fe.moduleId, viewer.id)) {
-      app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+      app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
         <h2>${t('fe_not_enrolled')}</h2>
         <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
     }
@@ -2299,7 +1688,7 @@ function renderStandaloneFinal(feid) {
     } else {
       const rb = getRubricById(fe.rubricId);
       const pr = fePracticalFor(fe.id, viewer.id);
-      app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+      app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
         <div class="quiz-header"><div class="logo">CF</div>
           <div><h1>${esc(fe.title)}</h1>
           <p class="muted" style="margin:0">${esc(moduleName(fe.moduleId))} · ${t('fe_type_practical')}</p></div>
@@ -2316,8 +1705,7 @@ function renderStandaloneFinal(feid) {
     }
     return;
   }
-
-  app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div style="width:100%;max-width:760px">
+  app.innerHTML = `<div class="standalone-wrap"><div style="width:100%;max-width:760px">
     <div class="preview-banner">👁️ ${t('quiz_preview')}</div>
     <div class="standalone-card">
       <div class="quiz-header"><div class="logo">CF</div>
@@ -2342,10 +1730,9 @@ function renderFinalTheoryTab(fe, pid) {
   stopQuizTimer();
   const app = $('#app');
   const attempt = feAttemptFor(fe.id, pid);
-
   if (attempt) {
     const pct = Math.round(attempt.score / attempt.total * 100);
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="result-header">
         <h1>✅ ${t('fe_completed')}</h1>
         <div class="score-big" style="color:${pct >= 70 ? 'var(--ok)' : 'var(--warn)'}">${pct}%</div>
@@ -2368,11 +1755,9 @@ function renderFinalTheoryTab(fe, pid) {
     </div></div>`;
     return;
   }
-
   const w = feWindowStatus(fe);
-
   if (w.state === 'not-open') {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="quiz-header"><div class="logo">CF</div>
         <div><h1>${esc(fe.title)}</h1><p class="muted" style="margin:0">${esc(moduleName(fe.moduleId))}</p></div>
       </div>
@@ -2386,7 +1771,7 @@ function renderFinalTheoryTab(fe, pid) {
     return;
   }
   if (w.state === 'closed') {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="info-box warn">
         <h4>🔒 ${t('fe_status_closed')}</h4>
         <p style="margin:0">${t('fe_closed_notice', fe.closeAt ? fmtDT(fe.closeAt) : '—')}</p>
@@ -2395,7 +1780,6 @@ function renderFinalTheoryTab(fe, pid) {
     </div></div>`;
     return;
   }
-
   const hasTimer = feHasTimer(fe);
   const durationMs = hasTimer ? (Number(fe.duration) * 60 * 1000) : 0;
   let remainingMs = 0;
@@ -2410,8 +1794,7 @@ function renderFinalTheoryTab(fe, pid) {
     remainingMs = durationMs - (now - startedAt);
     if (remainingMs <= 0) { autoSubmitFinal(fe, pid); return; }
   }
-
-  app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+  app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header">
       <div class="logo">CF</div>
       <div style="flex:1;min-width:220px">
@@ -2439,7 +1822,6 @@ function renderFinalTheoryTab(fe, pid) {
       </div>
     </form>
   </div></div>`;
-
   document.getElementById('standalone-final-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const form = e.target;
@@ -2449,7 +1831,6 @@ function renderFinalTheoryTab(fe, pid) {
     });
     submitFinalAttempt(fe, pid, answers, false);
   });
-
   if (hasTimer) startFinalTimer(fe, pid, remainingMs);
 }
 
@@ -2495,36 +1876,36 @@ function autoSubmitFinal(fe, pid) {
 }
 
 /* =========================================================
-   QUIZ (activity) — with retest support
+   QUIZ TAB
    ========================================================= */
 function renderStandaloneQuiz(aid) {
   const app = $('#app');
   const act = getActivity(aid);
   if (!act) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('msg_quiz_not_found')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   if (!state.user) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('msg_session_expired')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   if (!act.published) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('msg_quiz_not_published')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   }
   const viewer = state.user;
   if (viewer.role === 'participant') {
     if (!isEnrolled(act.moduleId, viewer.id)) {
-      app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+      app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
         <h2>${t('msg_not_enrolled')}</h2>
         <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
     }
     renderParticipantQuizTab(act, viewer.id);
   } else if (viewer.role === 'trainer' && !canTrainerAccessActivity(act.id)) {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <h2>${t('msg_no_access')}</h2>
       <div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return;
   } else {
@@ -2553,7 +1934,6 @@ function startOpenCountdown(act) {
   update();
   quizTimerInterval = setInterval(update, 1000);
 }
-
 function startQuizTimer(act, pid, initialMs) {
   stopQuizTimer();
   let remaining = initialMs;
@@ -2572,7 +1952,6 @@ function startQuizTimer(act, pid, initialMs) {
   tick();
   quizTimerInterval = setInterval(tick, 1000);
 }
-
 function submitQuizAttempt(act, pid, answers, isAuto) {
   const score = act.quiz.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
   const prevBest = getAttempt(act.id, pid);
@@ -2595,7 +1974,6 @@ function submitQuizAttempt(act, pid, answers, isAuto) {
   stopQuizTimer();
   renderStandaloneQuiz(act.id);
 }
-
 function handleStandaloneQuizSubmit(act, pid, form) {
   const answers = act.quiz.map((q, qi) => {
     const sel = form.querySelector(`input[name="q${qi}"]:checked`);
@@ -2603,7 +1981,6 @@ function handleStandaloneQuizSubmit(act, pid, form) {
   });
   submitQuizAttempt(act, pid, answers, false);
 }
-
 function autoSubmitQuiz(act, pid) {
   const form = document.getElementById('standalone-quiz-form');
   const answers = act.quiz.map((q, qi) => {
@@ -2613,14 +1990,12 @@ function autoSubmitQuiz(act, pid) {
   });
   submitQuizAttempt(act, pid, answers, true);
 }
-
 function renderParticipantQuizTab(act, pid) {
   stopQuizTimer();
   const app = $('#app');
   const pendingRetest = hasPendingRetest(act.id, pid);
   const latest = getLatestAttempt(act.id, pid);
   const best = getAttempt(act.id, pid);
-
   if (latest && !pendingRetest) {
     const latestPct = Math.round(latest.score / latest.total * 100);
     const bestPct = best ? Math.round(best.score / best.total * 100) : latestPct;
@@ -2632,8 +2007,7 @@ function renderParticipantQuizTab(act, pid) {
           <p style="margin:0">${t('this_attempt', latestPct + '%')}${attemptCount > 1 ? ` · ${t('retest_attempt_count', attemptCount)}` : ''}</p>
         </div>`
       : (attemptCount > 1 ? `<div class="info-box" style="margin-bottom:16px"><p style="margin:0">📊 ${t('retest_attempt_count', attemptCount)}</p></div>` : '');
-
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="result-header">
         <h1>✅ ${t('quiz_completed')}</h1>
         <div class="score-big" style="color:${latestPct >= 70 ? 'var(--ok)' : 'var(--warn)'}">${latestPct}%</div>
@@ -2660,14 +2034,10 @@ function renderParticipantQuizTab(act, pid) {
     </div></div>`;
     return;
   }
-
   const w = quizWindowStatus(act);
-  const retestBanner = pendingRetest
-    ? `<div class="retest-banner">🔄 ${t('retest_banner')}</div>`
-    : '';
-
+  const retestBanner = pendingRetest ? `<div class="retest-banner">🔄 ${t('retest_banner')}</div>` : '';
   if (w.state === 'not-open') {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="quiz-header"><div class="logo">CF</div>
         <div style="flex:1"><h1>${esc(act.title)}</h1>
         <p class="muted" style="margin:0">${esc(moduleName(act.moduleId))} · ${esc(state.user.name)}</p></div>
@@ -2689,9 +2059,8 @@ function renderParticipantQuizTab(act, pid) {
     startOpenCountdown(act);
     return;
   }
-
   if (w.state === 'closed') {
-    app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
       <div class="quiz-header"><div class="logo">CF</div>
         <div style="flex:1"><h1>${esc(act.title)}</h1>
         <p class="muted" style="margin:0">${esc(moduleName(act.moduleId))} · ${esc(state.user.name)}</p></div>
@@ -2705,11 +2074,9 @@ function renderParticipantQuizTab(act, pid) {
     </div></div>`;
     return;
   }
-
   const hasTimer = quizHasTimer(act);
   const durationMs = hasTimer ? (Number(act.quizDuration) * 60 * 1000) : 0;
   let remainingMs = 0;
-
   if (hasTimer) {
     const key = startKeyFor(act.id, pid);
     let startedAt = Number(localStorage.getItem(key)) || 0;
@@ -2721,8 +2088,7 @@ function renderParticipantQuizTab(act, pid) {
     remainingMs = durationMs - (now - startedAt);
     if (remainingMs <= 0) { autoSubmitQuiz(act, pid); return; }
   }
-
-  app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div class="standalone-card">
+  app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     ${retestBanner}
     <div class="quiz-header">
       <div class="logo">CF</div>
@@ -2751,12 +2117,10 @@ function renderParticipantQuizTab(act, pid) {
       </div>
     </form>
   </div></div>`;
-
   document.getElementById('standalone-quiz-form').addEventListener('submit', (e) => {
     e.preventDefault();
     handleStandaloneQuizSubmit(act, pid, e.target);
   });
-
   if (hasTimer) startQuizTimer(act, pid, remainingMs);
 }
 
@@ -2767,7 +2131,7 @@ function renderPreviewQuizTab(act) {
   const w = quizWindowStatus(act);
   const statusLabel = w.state === 'open' ? t('quiz_open_now') : w.state === 'not-open' ? t('quiz_not_open') : w.state === 'closed' ? t('quiz_closed') : t('quiz_no_schedule');
   const statusCls = w.state === 'open' ? 'ok' : w.state === 'not-open' ? 'draft' : w.state === 'closed' ? 'bad' : 'info';
-  app.innerHTML = `<div class="new-tag">new</div><div class="standalone-wrap"><div style="width:100%;max-width:760px">
+  app.innerHTML = `<div class="standalone-wrap"><div style="width:100%;max-width:760px">
     <div class="preview-banner">👁️ ${t('quiz_preview')}</div>
     <div class="standalone-card">
       <div class="quiz-header"><div class="logo">CF</div>
@@ -2800,16 +2164,10 @@ function renderPreviewQuizTab(act) {
   </div></div>`;
 }
 
-/* =========================================================
-   MAIN APP RENDER
-   ========================================================= */
 function langToggleHtml() {
   return `<button class="lang-toggle" data-act="toggle-lang" title="${esc(t('lang_tooltip'))}">🌐 ${t('lang_toggle')}</button>`;
 }
 
-/* =========================================================
-   LOGIN VIEW
-   ========================================================= */
 function loginView() {
   const isRegister = state.loginMode === 'register';
   return `<div class="login-wrap"><div class="login-card">
@@ -2831,7 +2189,6 @@ function loginView() {
     </div>
   </div></div>`;
 }
-
 function loginForm() {
   return `<form data-form="login" autocomplete="off">
     <div class="field"><label>${t('email_or_username')}</label><input class="input" id="email" name="email" type="text" required placeholder="username atau e-mel" /></div>
@@ -2839,7 +2196,6 @@ function loginForm() {
     <button class="btn btn-primary" type="submit" style="width:100%;padding:.7rem">${t('login')}</button>
   </form>`;
 }
-
 function registerForm() {
   return `<form data-form="register" autocomplete="off">
     <div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required placeholder="${t('full_name')}" /></div>
@@ -2898,21 +2254,12 @@ function navItems() {
 }
 function titleFor(v) {
   return {
-    dashboard: t('title_dashboard'),
-    modules: t('title_modules'),
-    module: t('title_module'),
+    dashboard: t('title_dashboard'), modules: t('title_modules'), module: t('title_module'),
     programs: t('title_programs'),
     activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'),
-    activity: t('title_activity'),
-    grading: t('title_grading'),
-    rubrik: t('title_rubrik'),
-    bank: t('title_bank'),
-    users: t('title_users'),
-    sijil: t('title_sijil'),
-    final: t('title_final'),
-    audit: t('title_audit'),
-    reports: t('title_reports'),
-    profile: t('title_profile')
+    activity: t('title_activity'), grading: t('title_grading'), rubrik: t('title_rubrik'),
+    bank: t('title_bank'), users: t('title_users'), sijil: t('title_sijil'), final: t('title_final'),
+    audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile')
   }[v] || t('app_brand');
 }
 function shell() {
@@ -2972,7 +2319,7 @@ function viewContent() {
 }
 
 /* =========================================================
-   PROFILE VIEW
+   PROFILE
    ========================================================= */
 function profileView() {
   const u = state.user;
@@ -3010,40 +2357,29 @@ function profileView() {
     </form>
   </div>`;
 }
-
 function handleSaveProfile(form) {
-  const u = state.user;
-  if (!u) return;
+  const u = state.user; if (!u) return;
   const name = form.name.value.trim();
   const username = form.username.value.trim();
   const email = form.email.value.trim().toLowerCase();
   const ic = form.ic.value.trim();
   const org = form.org.value.trim();
   const phone = form.phone ? form.phone.value.trim() : '';
-
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
-
   const dupU = DB.users.find(x => x.id !== u.id && String(x.username||'').toLowerCase() === username.toLowerCase());
   if (dupU) { toast(t('username_taken'), 'bad'); return; }
   const dupE = DB.users.find(x => x.id !== u.id && x.email.toLowerCase() === email);
   if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-
-  u.name = name;
-  u.username = username;
-  u.email = email;
-  u.ic = ic;
-  u.org = org;
-  u.phone = phone;
+  u.name = name; u.username = username; u.email = email;
+  u.ic = ic; u.org = org; u.phone = phone;
   saveDB();
   logAudit('Update Profile', 'Pengguna', u.id, name);
   toast('✅ ' + t('profile_updated'));
   render();
 }
-
 function handleChangePassword(form) {
-  const u = state.user;
-  if (!u) return;
+  const u = state.user; if (!u) return;
   const cur = form.currentPassword.value;
   const np = form.newPassword.value;
   const cp = form.confirmPassword.value;
@@ -3057,25 +2393,36 @@ function handleChangePassword(form) {
   form.reset();
 }
 
-/* =========================================================
-   LOGIN / REGISTER HANDLERS
-   ========================================================= */
-function handleLogin(form) {
-  const idInput = form.email.value.trim();
-  const pass = form.password.value;
-  if (!idInput || !pass) { toast(t('msg_required'), 'bad'); return; }
-  const lower = idInput.toLowerCase();
-  const u = DB.users.find(x =>
-    (String(x.email||'').toLowerCase() === lower || String(x.username||'').toLowerCase() === lower) &&
-    x.password === pass
-  );
-  if (!u) { toast(t('msg_invalid_login'), 'bad'); return; }
-  state.user = u;
-  state.view = 'dashboard';
-  state.params = {};
-  localStorage.setItem(SESSION_KEY, u.id);
-  logAudit('Login', 'Sesi', u.id, u.name);
-  render();
+/* LOGIN — wait for first sync to avoid "invalid password" false positive */
+async function handleLogin(form) {
+  const btn = form.querySelector('button[type="submit"]');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Memeriksa…'; }
+
+  const doLogin = () => {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+    const idInput = form.email.value.trim();
+    const pass = form.password.value;
+    if (!idInput || !pass) { toast(t('msg_required'), 'bad'); return; }
+    const lower = idInput.toLowerCase();
+    const u = DB.users.find(x =>
+      (String(x.email||'').toLowerCase() === lower || String(x.username||'').toLowerCase() === lower) &&
+      x.password === pass
+    );
+    if (!u) { toast(t('msg_invalid_login'), 'bad'); return; }
+    state.user = u;
+    state.view = 'dashboard';
+    state.params = {};
+    localStorage.setItem(SESSION_KEY, u.id);
+    logAudit('Login', 'Sesi', u.id, u.name);
+    render();
+  };
+
+  if (firstSyncDone || !firstSyncPromise) {
+    doLogin();
+  } else {
+    Promise.race([firstSyncPromise, new Promise(r => setTimeout(r, 8000))]).then(doLogin);
+  }
 }
 
 function handleRegister(form) {
@@ -3084,7 +2431,6 @@ function handleRegister(form) {
   const email = form.email.value.trim().toLowerCase();
   const pass = form.password.value;
   const cp = form.confirmPassword.value;
-
   if (!name || !username || !email || !pass) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
   if (pass.length < 6) { toast(t('password_too_short'), 'bad'); return; }
@@ -3095,22 +2441,9 @@ function handleRegister(form) {
   if (DB.users.find(x => String(x.email||'').toLowerCase() === email)) {
     toast(t('msg_email_taken'), 'bad'); return;
   }
-
-  const nu = {
-    id: uid('u'),
-    username,
-    name,
-    email,
-    password: pass,
-    role: 'participant',
-    org: '',
-    ic: '',
-    phone: '',
-    createdAt: nowISO()
-  };
+  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org: '', ic: '', phone: '', createdAt: nowISO() };
   DB.users.push(nu);
   saveDB();
-
   state.user = nu;
   state.view = 'dashboard';
   state.params = {};
@@ -3432,17 +2765,14 @@ function moduleDetailView() {
   const isAdmin = state.user.role === 'admin';
   const isOwner = m.trainerId === state.user.id;
   const isParticipant = state.user.role === 'participant';
-
   if (!isAdmin && !isOwner && !isParticipant) {
     return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   }
-
   const modActs = moduleActivitiesList(m.id);
   const participants = enrolledParticipants(m.id);
   const enrolled = isParticipant ? isEnrolled(m.id, state.user.id) : false;
   const canEdit = isAdmin || isOwner;
   const canEditTT = canManageTimetable(m.id);
-
   if (isParticipant) {
     if (!enrolled) return `<div class="card">
       <div class="card-head"><h2>${esc(m.name)}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">←</button></div>
@@ -3475,7 +2805,6 @@ function moduleDetailView() {
     ${renderMaterialsSection(m, false)}
     ${renderTimetableSection(m, canEditTT)}`;
   }
-
   const drafts = modActs.filter(a => !a.published);
   const finals = moduleFinalExams(m.id);
   return `
@@ -3608,13 +2937,7 @@ function handleSaveTimetable(form) {
   if (!date) { toast(t('tt_date_required'), 'bad'); return; }
   if (!title) { toast(t('tt_topic_required'), 'bad'); return; }
   if (endTime <= startTime) { toast(t('tt_invalid_time'), 'bad'); return; }
-  const data = {
-    moduleId: mid, date, startTime, endTime, title,
-    instructor: form.instructor.value.trim(),
-    location: form.location.value.trim(),
-    notes: form.notes.value.trim(),
-    updatedAt: nowISO()
-  };
+  const data = { moduleId: mid, date, startTime, endTime, title, instructor: form.instructor.value.trim(), location: form.location.value.trim(), notes: form.notes.value.trim(), updatedAt: nowISO() };
   if (tid) {
     const e = DB.timetables.find(x => x.id === tid);
     if (e) Object.assign(e, data);
@@ -3806,7 +3129,6 @@ function openFinalExamForm(fe, presetModuleId) {
       </div>
     </form>
   `, 'modal-lg');
-
   const typeSel = document.getElementById('feType');
   if (typeSel) {
     typeSel.addEventListener('change', () => {
@@ -3817,13 +3139,11 @@ function openFinalExamForm(fe, presetModuleId) {
     });
   }
 }
-
 function handleSaveFinalExam(form) {
   const id = form.dataset.id;
   const type = form.type.value;
   const data = {
-    moduleId: form.moduleId.value,
-    type,
+    moduleId: form.moduleId.value, type,
     title: form.title.value.trim(),
     description: form.description.value.trim(),
     openAt: form.openAt.value || null,
@@ -3848,7 +3168,6 @@ function handleSaveFinalExam(form) {
   }
   closeModal(); render();
 }
-
 function deleteFinalExam(id) {
   const fe = getFinalExam(id); if (!fe) return;
   if (!confirm(t('fe_delete_confirm', fe.title))) return;
@@ -3864,7 +3183,6 @@ function toggleFinalPublish(id) {
   logAudit(fe.published ? 'Publish Final' : 'Unpublish Final', 'Peperiksaan', id, fe.title);
   toast(fe.published ? t('fe_published') : t('fe_unpublished')); render();
 }
-
 function openFinalExamQuestionsEditor(feid) {
   const fe = getFinalExam(feid); if (!fe) return;
   state.editingFinalExamId = feid;
@@ -3984,7 +3302,6 @@ function handleFeBankPickerSubmit(form) {
   picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id }));
   closeModal2(); renderFeQuestionsBuilder(); toast(t('qb_pick_added', picked.length));
 }
-
 function openFinalAssessModal(feid) {
   const fe = getFinalExam(feid); if (!fe) return;
   const parts = enrolledParticipants(fe.moduleId);
@@ -4099,7 +3416,6 @@ function programsView() {
     </div>` : `<div class="empty">${t('msg_no_data')}</div>`}
   </div>`;
 }
-
 function openModuleForm(mod) {
   const isEdit = !!mod;
   const m = mod || { name:'', description:'', trainerId: (allTrainers()[0] || {}).id, published: true };
@@ -4302,7 +3618,6 @@ function activityDetailView() {
   const attempt = isParticipant ? getAttempt(act.id, state.user.id) : null;
   const prac = isParticipant ? getPractical(act.id, state.user.id) : null;
   const mod = getModule(act.moduleId);
-
   let quizSection = '';
   if (act.quiz && act.quiz.length) {
     if (isParticipant) {
@@ -4377,7 +3692,6 @@ function activityDetailView() {
   } else if (isParticipant) {
     quizSection = `<div class="card"><div class="empty">${t('act_no_quiz', fmtDate(act.date))}</div></div>`;
   }
-
   const pracInfo = isParticipant && !prac && rubric.length ? `
     <div class="card" style="border-color:#f0d98a;background:#fffdf5">
       <div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge info">${esc(rubricObj.name)}</span>` : ''}</div>
@@ -4394,7 +3708,6 @@ function activityDetailView() {
         </tr>`).join('')}</tbody>
       </table></div>
     </div>` : '';
-
   const pracSection = isParticipant && prac ? `<div class="card">
     <div class="card-head"><h2>📏 ${t('act_practical_eval')}</h2><span class="badge ${prac.total >= 70 ? 'ok' : 'warn'}">${Math.round(prac.total)}%</span></div>
     <div class="table-wrap"><table>
@@ -4415,7 +3728,6 @@ function activityDetailView() {
     </table></div>
     ${prac.remarks ? `<p style="margin-top:10px"><strong>${t('lbl_remarks')}:</strong> ${esc(prac.remarks)}</p>` : ''}
   </div>` : '';
-
   return `
   <div class="card">
     <div class="card-head">
@@ -4540,10 +3852,9 @@ function handleSaveActivity(form) {
 }
 
 /* =========================================================
-   MATERIALS — Google Drive Integration
+   MATERIALS
    ========================================================= */
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
-
 function openUploadMaterialModal(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
@@ -4574,7 +3885,6 @@ function openUploadMaterialModal(mid) {
         <button type="submit" class="btn btn-primary">${t('mat_upload_btn')}</button>
       </div>
     </form>`);
-
   const inp = document.getElementById('uploadFileInput');
   if (inp) {
     inp.addEventListener('change', (e) => {
@@ -4593,7 +3903,6 @@ function openUploadMaterialModal(mid) {
     });
   }
 }
-
 async function handleUploadMaterial(form) {
   const mid = form.dataset.mid;
   const file = state.pendingFile;
@@ -4604,54 +3913,37 @@ async function handleUploadMaterial(form) {
   }
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
-
   const progressEl = document.getElementById('uploadProgress');
   const progressBar = document.getElementById('uploadProgressBar');
   if (progressEl) progressEl.style.display = 'block';
   if (progressBar) progressBar.style.width = '10%';
-
   try {
     if (progressBar) progressBar.style.width = '25%';
     const base64 = await fileToBase64(file);
     if (progressBar) progressBar.style.width = '55%';
-
     const res = await driveAPI('uploadModuleMaterial', {
       payload: {
-        moduleId:   mid,
-        moduleName: m.name,
-        filename:   file.name,
-        mimeType:   file.type || 'application/octet-stream',
-        base64:     base64,
-        description: (form.description ? form.description.value : '').trim()
+        moduleId: mid, moduleName: m.name, filename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64, description: (form.description ? form.description.value : '').trim()
       }
     });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
     if (progressBar) progressBar.style.width = '90%';
-
     const displayName = (form.displayName.value || '').trim() || file.name;
     const mat = {
-      id:           uid('mat'),
-      fileId:       res.file.id,
-      name:         displayName,
-      originalName: file.name,
-      type:         fileTypeFromName(file.name),
-      mime:         res.file.mimeType,
-      size:         res.file.size,
-      downloadUrl:  res.file.downloadUrl,
-      viewUrl:      res.file.viewUrl,
-      previewUrl:   res.file.previewUrl,
-      folderId:     res.file.folderId,
-      folderUrl:    res.file.folderUrl,
-      description:  (form.description ? form.description.value : '').trim(),
-      uploadedBy:   state.user.id,
-      uploadedAt:   nowISO()
+      id: uid('mat'), fileId: res.file.id, name: displayName, originalName: file.name,
+      type: fileTypeFromName(file.name), mime: res.file.mimeType, size: res.file.size,
+      downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl,
+      folderId: res.file.folderId, folderUrl: res.file.folderUrl,
+      description: (form.description ? form.description.value : '').trim(),
+      uploadedBy: state.user.id, uploadedAt: nowISO()
     };
     if (!Array.isArray(m.materials)) m.materials = [];
     m.materials.push(mat);
     m.updatedAt = nowISO();
     saveDB();
     logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
-
     if (progressBar) progressBar.style.width = '100%';
     state.pendingFile = null;
     closeModal();
@@ -4663,7 +3955,6 @@ async function handleUploadMaterial(form) {
     toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
 }
-
 function viewMaterial(mid, matid) {
   const mat = findMaterial(mid, matid);
   if (!mat) { toast(t('msg_not_found'), 'bad'); return; }
@@ -4688,7 +3979,6 @@ function viewMaterial(mid, matid) {
     }
   } catch(e) { console.error(e); toast(t('mat_view_fail'), 'bad'); }
 }
-
 function downloadMaterial(mid, matid) {
   const mat = findMaterial(mid, matid);
   if (!mat) { toast(t('msg_not_found'), 'bad'); return; }
@@ -4712,7 +4002,6 @@ function downloadMaterial(mid, matid) {
     logAudit('Download Material', 'Modul', mid, mat.name);
   } catch(e) { console.error(e); toast(t('mat_download_fail'), 'bad'); }
 }
-
 async function deleteMaterial(mid, matid) {
   const m = getModule(mid); if (!m) return;
   const mat = (m.materials||[]).find(x => x.id === matid); if (!mat) return;
@@ -4761,7 +4050,6 @@ function rubricView() {
       }).join('')}
     </div>` : `<div class="empty">${t('rb_none_hint')}</div>`}
   </div>
-
   <div class="card">
     <div class="card-head"><h2>🎯 ${t('rb_assign_title')}</h2></div>
     <p class="muted" style="font-size:.85rem">${t('rb_assign_hint')}</p>
@@ -4785,7 +4073,6 @@ function rubricView() {
       }).join('')}</tbody>
     </table></div>` : `<div class="empty">${t('rb_no_practical')}</div>`}
   </div>
-
   <div class="card">
     <div class="card-head"><h2>📊 ${t('rb_grading_title')}</h2></div>
     <p class="muted" style="font-size:.85rem">${t('rb_grading_hint')}</p>
@@ -4815,7 +4102,6 @@ function rubricView() {
     }).join('') : `<div class="empty">${t('rb_no_practical')}</div>`}
   </div>`;
 }
-
 function openRubricEditor(rubricId, assignToActivityId) {
   const isEdit = !!rubricId;
   const rb = isEdit ? DB.rubrics.find(r => r.id === rubricId) : null;
@@ -4844,7 +4130,6 @@ function openRubricEditor(rubricId, assignToActivityId) {
   `, 'modal-xl');
   renderRubricBuilder();
 }
-
 function renderRubricBuilder() {
   const c = document.getElementById('rubricBuilderContainer'); if (!c) return;
   const rubric = state.tempRubric || [];
@@ -4876,7 +4161,6 @@ function renderRubricBuilder() {
       </div>
     </div>`;
 }
-
 function handleSaveRubricConfig(assignToActivityId) {
   if (!state.tempRubric) { toast(t('msg_required'), 'bad'); return; }
   const tw = state.tempRubric.reduce((s,c) => s + c.weight, 0);
@@ -4886,7 +4170,6 @@ function handleSaveRubricConfig(assignToActivityId) {
   const name = nameEl ? nameEl.value.trim() : '';
   const desc = descEl ? descEl.value.trim() : '';
   if (!name) { toast(t('rb_name_required'), 'bad'); return; }
-
   let rubricId = state.editingRubricId;
   if (rubricId) {
     const rb = DB.rubrics.find(r => r.id === rubricId);
@@ -5184,12 +4467,8 @@ function gradingView() {
     ${!rubric.length ? `<div class="info-box warn"><h4>⚠️ ${t('act_rubric_none')}</h4><p style="margin:4px 0 0">${t('grad_no_rubric')}</p></div>` : ''}
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>${t('grad_participant')}</th>
-        <th>${t('grad_attendance')}</th>
-        <th>${t('grad_quiz')}</th>
-        <th>${t('grad_practical')}</th>
-        <th>${t('grad_score')}</th>
-        <th>${t('grad_status')}</th>
+        <th>${t('grad_participant')}</th><th>${t('grad_attendance')}</th><th>${t('grad_quiz')}</th>
+        <th>${t('grad_practical')}</th><th>${t('grad_score')}</th><th>${t('grad_status')}</th>
         <th style="width:120px">${t('lbl_actions')}</th>
       </tr></thead>
       <tbody>${parts.map(p => {
@@ -5321,15 +4600,12 @@ function handleSaveUser(form) {
   const ic = form.ic.value.trim();
   const org = form.org.value.trim();
   const phone = form.phone.value.trim();
-
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
-
   const dupU = DB.users.find(u => u.id !== id && String(u.username||'').toLowerCase() === username.toLowerCase());
   if (dupU) { toast(t('username_taken'), 'bad'); return; }
   const dupE = DB.users.find(u => u.id !== id && String(u.email||'').toLowerCase() === email);
   if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-
   if (id) {
     const u = DB.users.find(x => x.id === id);
     if (!u) return;
@@ -5404,7 +4680,6 @@ function reportsView() {
   </div>
   ${isParticipant ? '' : `<div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')}</button></div>`}`;
 }
-
 const PRINT_CSS = `*{box-sizing:border-box}body{font-family:Arial;padding:26px;font-size:12px;line-height:1.5}.rpt-head{display:flex;justify-content:space-between;border-bottom:3px solid #0b6b53;padding-bottom:12px;margin-bottom:18px}.rpt-head h1{font-size:17px;margin:0;color:#0b6b53}.rpt-head p{margin:0;font-size:11px;color:#555}.rpt-logo{width:52px;height:52px;border-radius:10px;background:#0b6b53;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:17px}h2{font-size:13px;color:#0b6b53;margin:18px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:11px}th{background:#e8f2ee}.summary{display:flex;gap:10px;margin:10px 0}.summary .box{flex:1;border:1px solid #bbb;border-radius:6px;padding:8px;text-align:center}.summary .n{font-size:16px;font-weight:bold;color:#0b6b53}.summary .l{font-size:9px;color:#666;text-transform:uppercase}.foot{margin-top:26px;border-top:1px solid #ccc;padding-top:10px;font-size:10px;color:#666}@media print{body{padding:0}@page{margin:16mm}}`;
 function tagFor(o) {
   if (o === null) return `<span style="padding:1px 7px;border:1px solid #999;border-radius:8px;font-size:10px">${t('status_not_assessed')}</span>`;
@@ -5539,14 +4814,10 @@ function deleteBankQuestion(id) {
 }
 
 /* =========================================================
-   SIJIL / CERTIFICATES — Google Drive Integration
+   SIJIL
    ========================================================= */
 const MAX_CERT_SIZE = 100 * 1024 * 1024;
-
-function getCertFor(pid) {
-  return (DB.certificates || []).find(c => c.participantId === pid) || null;
-}
-
+function getCertFor(pid) { return (DB.certificates || []).find(c => c.participantId === pid) || null; }
 function sijilView() {
   if (state.user.role === 'participant') return participantSijilView();
   if (state.user.role !== 'admin') {
@@ -5566,11 +4837,8 @@ function sijilView() {
     <p class="muted" style="font-size:.85rem">${t('sijil_sub')}</p>
     ${parts.length ? `<div class="table-wrap"><table>
       <thead><tr>
-        <th>${t('sijil_participant')}</th>
-        <th>${t('lbl_email')}</th>
-        <th>${t('lbl_org')}</th>
-        <th>${t('sijil_status')}</th>
-        <th style="width:340px">${t('lbl_actions')}</th>
+        <th>${t('sijil_participant')}</th><th>${t('lbl_email')}</th><th>${t('lbl_org')}</th>
+        <th>${t('sijil_status')}</th><th style="width:340px">${t('lbl_actions')}</th>
       </tr></thead>
       <tbody>${parts.map(p => {
         const cert = getCertFor(p.id);
@@ -5594,7 +4862,6 @@ function sijilView() {
     </table></div>` : `<div class="empty">${t('msg_no_data')}</div>`}
   </div>`;
 }
-
 function participantSijilView() {
   const me = state.user;
   const cert = getCertFor(me.id);
@@ -5615,7 +4882,6 @@ function participantSijilView() {
       : `<div class="empty">${t('sijil_my_none')}</div>`}
   </div>`;
 }
-
 function openUploadCertificateModal(pid) {
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_not_found'), 'bad'); return; }
@@ -5671,7 +4937,6 @@ function openUploadCertificateModal(pid) {
     });
   }
 }
-
 async function handleUploadCertificate(form) {
   const pid = form.dataset.pid;
   const file = state.pendingFile;
@@ -5683,45 +4948,29 @@ async function handleUploadCertificate(form) {
   }
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_not_found'), 'bad'); return; }
-
   try {
     const base64 = await fileToBase64(file);
     const res = await driveAPI('uploadCertificate', {
       payload: {
-        participantId:   pid,
-        participantName: p.name,
-        filename:        file.name,
-        mimeType:        'application/pdf',
-        base64:          base64,
-        description:     (form.description ? form.description.value : '').trim()
+        participantId: pid, participantName: p.name,
+        filename: file.name, mimeType: 'application/pdf',
+        base64, description: (form.description ? form.description.value : '').trim()
       }
     });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
-
     const displayName = (form.displayName.value || '').trim() || res.file.name;
     const cert = {
-      id:            uid('cert'),
-      participantId: pid,
-      fileId:        res.file.id,
-      name:          displayName,
-      originalName:  res.file.name,
-      type:          'pdf',
-      mime:          'application/pdf',
-      size:          res.file.size,
-      downloadUrl:   res.file.downloadUrl,
-      viewUrl:       res.file.viewUrl,
-      previewUrl:    res.file.previewUrl,
-      folderId:      res.file.folderId,
-      folderUrl:     res.file.folderUrl,
-      description:   (form.description ? form.description.value : '').trim(),
-      uploadedBy:    state.user.id,
-      uploadedAt:    nowISO()
+      id: uid('cert'), participantId: pid, fileId: res.file.id, name: displayName,
+      originalName: res.file.name, type: 'pdf', mime: 'application/pdf', size: res.file.size,
+      downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl,
+      folderId: res.file.folderId, folderUrl: res.file.folderUrl,
+      description: (form.description ? form.description.value : '').trim(),
+      uploadedBy: state.user.id, uploadedAt: nowISO()
     };
     DB.certificates = (DB.certificates || []).filter(c => c.participantId !== pid);
     DB.certificates.push(cert);
     saveDB();
     logAudit('Upload Certificate', 'Sijil', pid, displayName);
-
     state.pendingFile = null;
     closeModal();
     toast('✅ ' + t('sijil_uploaded'));
@@ -5731,7 +4980,6 @@ async function handleUploadCertificate(form) {
     toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
 }
-
 function viewCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) {
     toast(t('msg_no_access'), 'bad'); return;
@@ -5752,7 +5000,6 @@ function viewCertificate(pid) {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch (e) { console.error(e); toast(t('mat_view_fail'), 'bad'); }
 }
-
 function downloadCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) {
     toast(t('msg_no_access'), 'bad'); return;
@@ -5779,7 +5026,6 @@ function downloadCertificate(pid) {
     logAudit('Download Certificate', 'Sijil', pid, cert.name);
   } catch (e) { console.error(e); toast(t('mat_download_fail'), 'bad'); }
 }
-
 async function deleteCertificate(pid) {
   if (state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
@@ -5812,7 +5058,7 @@ function deleteActivity(id) {
 }
 
 /* =========================================================
-   Event Delegation
+   EVENT DELEGATION
    ========================================================= */
 document.addEventListener('submit', (e) => {
   const form = e.target.closest('form[data-form]');
@@ -5848,7 +5094,6 @@ document.addEventListener('click', (e) => {
   const tgt = e.target.closest('[data-act]');
   if (!tgt) return;
   const act = tgt.dataset.act, id = tgt.dataset.id;
-
   switch (act) {
     case 'toggle-lang': {
       currentLang = currentLang === 'ms' ? 'en' : 'ms';
@@ -6016,7 +5261,6 @@ document.addEventListener('click', (e) => {
     case 'fe-q-pick-bank': openFeBankPicker(); break;
     case 'fe-assess': openFinalAssessModal(id); break;
     case 'fe-practical-form': openFinalPracticalForm(tgt.dataset.feid, tgt.dataset.pid); break;
-
     case 'retest-modal': {
       if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
       openRetestModal(tgt.dataset.aid, tgt.dataset.pid);
@@ -6125,9 +5369,7 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'fePickerSearch') renderFePickerList();
 });
 
-/* =========================================================
-   Cross-tab sync — refresh from server periodically + on focus
-   ========================================================= */
+/* Cross-tab sync */
 window.addEventListener('storage', (e) => {
   if (e.key === DB_KEY) {
     try {
@@ -6167,8 +5409,6 @@ window.addEventListener('focus', async () => {
     }
   } catch(e) {}
 });
-
-/* Periodic pull from server — multi-user sync */
 setInterval(async () => {
   if (!state.user) return;
   if (document.hidden) return;
@@ -6188,13 +5428,23 @@ setInterval(async () => {
 }, 20000);
 
 /* =========================================================
-   Boot
+   BOOT — instant render, sync in background
    ========================================================= */
 document.documentElement.lang = currentLang;
-(async () => {
-  await bootDB();
-  render();
-})();
+// Splash + fast boot
+setTimeout(() => {
+  try {
+    fastBoot();
+  } catch(e) {
+    console.error('Boot error:', e);
+    hideSplash();
+    $('#app').innerHTML = `<div class="login-wrap"><div class="login-card">
+      <h2>⚠️ Boot Error</h2>
+      <p class="muted">${esc(e.message || 'Unknown error')}</p>
+      <button class="btn btn-primary" onclick="location.reload()">Reload</button>
+    </div></div>`;
+  }
+}, 0);
 </script>
 </body>
 </html>
