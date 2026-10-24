@@ -2401,15 +2401,32 @@ async function handleLogin(form) {
 
   const doLogin = () => {
     if (btn) { btn.disabled = false; btn.textContent = origText; }
-    const idInput = form.email.value.trim();
-    const pass = form.password.value;
-    if (!idInput || !pass) { toast(t('msg_required'), 'bad'); return; }
-    const lower = idInput.toLowerCase();
-    const u = DB.users.find(x =>
-      (String(x.email||'').toLowerCase() === lower || String(x.username||'').toLowerCase() === lower) &&
-      x.password === pass
-    );
-    if (!u) { toast(t('msg_invalid_login'), 'bad'); return; }
+
+    const idInput = String(form.email.value || '').trim().toLowerCase();
+    const passInput = String(form.password.value || '').trim();
+
+    if (!idInput || !passInput) { toast(t('msg_required'), 'bad'); return; }
+
+    // DEBUG: log semua users dalam DB
+    console.log('=== LOGIN DEBUG ===');
+    console.log('Input:', { id: idInput, pass: passInput });
+    console.log('DB users:', DB.users.map(u => ({
+      username: u.username, email: u.email, password: u.password,
+      pwType: typeof u.password
+    })));
+
+    const u = DB.users.find(x => {
+      const xUser = String(x.username || '').trim().toLowerCase();
+      const xEmail = String(x.email || '').trim().toLowerCase();
+      const xPass = String(x.password ?? '').trim();
+      return (xUser === idInput || xEmail === idInput) && xPass === passInput;
+    });
+
+    if (!u) {
+      toast(t('msg_invalid_login'), 'bad');
+      return;
+    }
+
     state.user = u;
     state.view = 'dashboard';
     state.params = {};
@@ -2418,10 +2435,12 @@ async function handleLogin(form) {
     render();
   };
 
+  // Tunggu sync jika masih in-flight (max 12s)
   if (firstSyncDone || !firstSyncPromise) {
     doLogin();
   } else {
-    Promise.race([firstSyncPromise, new Promise(r => setTimeout(r, 8000))]).then(doLogin);
+    if (btn) btn.textContent = '⏳ Sinkronisasi…';
+    Promise.race([firstSyncPromise, new Promise(r => setTimeout(r, 12000))]).then(doLogin);
   }
 }
 
