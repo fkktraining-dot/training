@@ -254,6 +254,33 @@ tbody tr:hover{background:#f9fcfb}
 
 <script>
 /* =========================================================
+   🔗 GOOGLE DRIVE BACKEND CONFIG — URL BAHARU
+   ========================================================= */
+const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzCF9SJjZupQ5KVs6hmx42PJs3El7mJbu7Lh3JHZb-R8PrrfS1c0AuZrmA-uv7Us9N6/exec';
+const DRIVE_API_KEY = ''; // kosongkan jika tak set API key di Code.gs
+
+async function driveAPI(action, data) {
+  const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
+  const res = await fetch(DRIVE_API_URL, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    redirect: 'follow'
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* =========================================================
    i18n — Malay (ms) & English (en)
    ========================================================= */
 const I18N = {
@@ -542,22 +569,24 @@ const I18N = {
     mat_upload_modal: 'Muat Naik Bahan Modul',
     mat_upload_format: 'Format Diterima',
     mat_upload_format_value: 'Semua jenis fail diterima (PDF, Word, Excel, imej, video, audio, arkib, dll.).',
-    mat_upload_limit: 'Had saiz: 20 MB per fail (Google Drive).',
+    mat_upload_limit: 'Had saiz: 100 MB per fail.',
     mat_upload_file: 'Fail',
     mat_upload_display_name: 'Nama Paparan (pilihan)',
     mat_upload_desc: 'Penerangan (pilihan)',
     mat_upload_placeholder: 'Kosong = guna nama fail asal',
     mat_upload_btn: '⬆️ Muat Naik',
-    mat_upload_success: 'Bahan dimuat naik.',
+    mat_upload_success: 'Bahan dimuat naik ke Google Drive.',
     mat_upload_too_big: 'Fail terlalu besar: {0}. Had: {1}.',
     mat_upload_bad_type: 'Format tidak disokong.',
     mat_upload_no_file: 'Sila pilih fail yang sah.',
-    mat_upload_storage_full: 'Ruang localStorage tidak mencukupi. Cuba fail lebih kecil atau padam bahan lama.',
-    mat_upload_fail: 'Gagal membaca fail.',
+    mat_upload_storage_full: 'Ruang penyimpanan tidak mencukupi.',
+    mat_upload_fail: 'Gagal muat naik fail.',
     mat_view_fail: 'Gagal membuka fail.',
     mat_download_fail: 'Gagal memuat turun fail.',
     mat_word_hint: 'Fail akan dimuat turun. Buka dengan aplikasi yang sesuai.',
     mat_popup_blocked: 'Popup disekat — guna ⬇️ untuk muat turun.',
+    mat_uploading: 'Memuat naik ke Drive…',
+    mat_drive_note: '📤 Fail disimpan terus ke Google Drive. Peserta boleh akses melalui link.',
 
     upload_processing: 'Memproses…',
     file_type_image: 'Imej',
@@ -805,7 +834,7 @@ const I18N = {
     mat_pick_save: 'Muat Naik',
     mat_pick_cancel: 'Batal',
     mat_pick_info_title: 'Format Diterima',
-    mat_pick_info_limit: 'Had saiz: 20 MB per fail (Google Drive).',
+    mat_pick_info_limit: 'Had saiz: 100 MB per fail.',
 
     rpt_title: 'Laporan Individu Peserta',
     rpt_summary_activities: 'Aktiviti',
@@ -832,7 +861,7 @@ const I18N = {
     rpt_report_title: 'Laporan',
 
     sijil_title: 'Pengurusan Sijil',
-    sijil_sub: 'Muat naik sijil PDF untuk setiap peserta. Peserta boleh memuat turun sijil mereka sendiri.',
+    sijil_sub: 'Muat naik sijil PDF untuk setiap peserta ke Google Drive. Peserta boleh memuat turun sijil mereka sendiri.',
     sijil_participant: 'Peserta',
     sijil_status: 'Status Sijil',
     sijil_has: 'Ada Sijil',
@@ -842,8 +871,8 @@ const I18N = {
     sijil_replace_warn: 'Peserta sudah ada sijil. Memuat naik sijil baharu akan menggantikan sijil lama.',
     sijil_upload_format: 'Format Diterima',
     sijil_only_pdf: 'Hanya fail PDF (.pdf) diterima untuk sijil.',
-    sijil_upload_limit: 'Had saiz: 20 MB per fail.',
-    sijil_uploaded: 'Sijil dimuat naik.',
+    sijil_upload_limit: 'Had saiz: 100 MB per fail.',
+    sijil_uploaded: 'Sijil dimuat naik ke Google Drive.',
     sijil_uploaded_on: 'Dimuat naik pada',
     sijil_confirm_delete: 'Padam sijil "{0}"?',
     sijil_stats_total: 'Jumlah Peserta',
@@ -1223,22 +1252,24 @@ const I18N = {
     mat_upload_modal: 'Upload Module Material',
     mat_upload_format: 'Accepted Formats',
     mat_upload_format_value: 'All file types accepted (PDF, Word, Excel, images, videos, audio, archives, etc.).',
-    mat_upload_limit: 'Size limit: 20 MB per file (Google Drive).',
+    mat_upload_limit: 'Size limit: 100 MB per file.',
     mat_upload_file: 'File',
     mat_upload_display_name: 'Display Name (optional)',
     mat_upload_desc: 'Description (optional)',
     mat_upload_placeholder: 'Empty = use original filename',
     mat_upload_btn: '⬆️ Upload',
-    mat_upload_success: 'Material uploaded.',
+    mat_upload_success: 'Material uploaded to Google Drive.',
     mat_upload_too_big: 'File too large: {0}. Limit: {1}.',
     mat_upload_bad_type: 'Unsupported format.',
     mat_upload_no_file: 'Please select a valid file.',
-    mat_upload_storage_full: 'localStorage space is full. Try a smaller file or delete old materials.',
-    mat_upload_fail: 'Failed to read file.',
+    mat_upload_storage_full: 'Storage space is full.',
+    mat_upload_fail: 'Upload failed.',
     mat_view_fail: 'Failed to open file.',
     mat_download_fail: 'Failed to download file.',
     mat_word_hint: 'File will be downloaded. Open with the appropriate application.',
     mat_popup_blocked: 'Popup blocked — use ⬇️ to download.',
+    mat_uploading: 'Uploading to Drive…',
+    mat_drive_note: '📤 Files are stored directly in Google Drive. Participants can access via link.',
 
     upload_processing: 'Processing…',
     file_type_image: 'Image',
@@ -1486,7 +1517,7 @@ const I18N = {
     mat_pick_save: 'Upload',
     mat_pick_cancel: 'Cancel',
     mat_pick_info_title: 'Accepted Formats',
-    mat_pick_info_limit: 'Size limit: 20 MB per file (Google Drive).',
+    mat_pick_info_limit: 'Size limit: 100 MB per file.',
 
     rpt_title: 'Participant Individual Report',
     rpt_summary_activities: 'Activities',
@@ -1513,7 +1544,7 @@ const I18N = {
     rpt_report_title: 'Report',
 
     sijil_title: 'Certificate Management',
-    sijil_sub: 'Upload PDF certificates for each participant. Participants can download their own certificate.',
+    sijil_sub: 'Upload PDF certificates for each participant to Google Drive. Participants can download their own certificate.',
     sijil_participant: 'Participant',
     sijil_status: 'Certificate Status',
     sijil_has: 'Has Certificate',
@@ -1524,7 +1555,7 @@ const I18N = {
     sijil_upload_format: 'Accepted Format',
     sijil_only_pdf: 'Only PDF files (.pdf) are accepted for certificates.',
     sijil_upload_limit: 'Size limit: 100 MB per file.',
-    sijil_uploaded: 'Certificate uploaded.',
+    sijil_uploaded: 'Certificate uploaded to Google Drive.',
     sijil_uploaded_on: 'Uploaded on',
     sijil_confirm_delete: 'Delete certificate "{0}"?',
     sijil_stats_total: 'Total Participants',
@@ -1718,185 +1749,66 @@ const state = {
   retestContext: null
 };
 
-// Backend sync: Google Sheets menjadi storan utama apabila portal dibuka melalui Apps Script.
-let cftpBackendReady = false;
-let cftpBackendLoading = false;
-let cftpSaveTimer = null;
-let cftpLastServerSave = 0;
-let cftpSaveInFlight = false;
-let cftpSaveQueued = false;
-
-function hasCftpBackend() {
-  return !!(window.google && google.script && google.script.run);
-}
-
-function safeLocalSnapshot(db) {
-  // Elakkan fail besar (data URL/Base64) memenuhi Local Storage.
-  // Metadata bahan yang sudah di Google Drive dikekalkan.
-  const copy = JSON.parse(JSON.stringify(db || {}));
-  (copy.modules || []).forEach(m => {
-    (m.materials || []).forEach(mat => {
-      if (mat && (mat.driveUrl || mat.downloadUrl)) delete mat.dataUrl;
-    });
-  });
-  return copy;
-}
+/* =========================================================
+   SERVER SYNC — saveDB pushes to Google Sheets (debounced)
+   ========================================================= */
+let saveTimer = null, saveInFlight = false, savePending = false;
 
 function saveDB() {
-  let localOk = true;
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.error(e); }
+  scheduleServerSave();
+}
+
+function scheduleServerSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  if (saveInFlight) { savePending = true; return; }
+  const b = document.getElementById('syncBadge');
+  if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
+  saveTimer = setTimeout(async () => {
+    saveTimer = null;
+    if (saveInFlight) { savePending = true; return; }
+    saveInFlight = true;
+    try {
+      const res = await driveAPI('saveState', { state: DB });
+      if (!res.ok) throw new Error(res.error || 'Save failed');
+      const b2 = document.getElementById('syncBadge');
+      if (b2) { b2.textContent = '✓'; b2.style.background = '#e8f5ec'; b2.style.color = '#1e7d4f'; b2.title = 'Synced ' + new Date().toLocaleTimeString(); }
+    } catch (err) {
+      console.warn('Save failed:', err);
+      const b2 = document.getElementById('syncBadge');
+      if (b2) { b2.textContent = '⚠'; b2.style.background = '#fdecea'; b2.style.color = '#c0392b'; b2.title = 'Save failed: ' + err.message; }
+    } finally {
+      saveInFlight = false;
+      if (savePending) { savePending = false; scheduleServerSave(); }
+    }
+  }, 1200);
+}
+
+async function bootDB() {
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(safeLocalSnapshot(DB)));
-  } catch (e) {
-    localOk = false;
-    console.warn('Local Storage penuh; data akan disimpan melalui Google Sheets jika backend tersedia.', e);
+    const res = await driveAPI('loadState');
+    if (res.ok && res.state && Array.isArray(res.state.users) && res.state.users.length) {
+      DB = res.state;
+      console.log('✅ Loaded from server (' + (res.source || '?') + ')');
+    } else {
+      console.log('Server empty → seeding…');
+      DB = seedDB();
+      try { await driveAPI('saveState', { state: DB }); } catch(e) { console.warn('Seed push failed:', e); }
+    }
+  } catch (err) {
+    console.warn('Server load failed, using cache:', err);
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) { try { DB = JSON.parse(raw); } catch(e) { DB = null; } }
+    if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
   }
-
-  // Debounce panggilan supaya perubahan berturut-turut tidak menghantar banyak simpanan.
-  if (hasCftpBackend() && !cftpBackendLoading) {
-    if (cftpSaveTimer) clearTimeout(cftpSaveTimer);
-    cftpSaveTimer = setTimeout(syncDbToServer, 900);
-  }
-  // Return true jika backend boleh menyimpan walaupun Local Storage sudah penuh.
-  return localOk || hasCftpBackend();
-}
-
-function syncDbToServer() {
-  if (!hasCftpBackend() || !DB || cftpBackendLoading) return;
-  if (cftpSaveInFlight) { cftpSaveQueued = true; return; }
-  cftpSaveInFlight = true;
-  const payload = safeLocalSnapshot(DB);
-  google.script.run
-    .withSuccessHandler((res) => {
-      cftpSaveInFlight = false;
-      if (res && res.ok) {
-        cftpLastServerSave = Date.now();
-        cftpBackendReady = true;
-      } else {
-        console.error('Simpan ke Google Sheets tidak berjaya:', res);
-      }
-      if (cftpSaveQueued) { cftpSaveQueued = false; syncDbToServer(); }
-    })
-    .withFailureHandler((err) => {
-      cftpSaveInFlight = false;
-      console.error('Simpan ke Google Sheets gagal:', err);
-      if (cftpSaveQueued) { cftpSaveQueued = false; syncDbToServer(); }
-    })
-    .apiSaveDb(payload);
-}
-
-function mergeDbCollections(serverDb, localDb) {
-  const merged = {};
-  const keys = new Set([...(Object.keys(serverDb || {})), ...(Object.keys(localDb || {}))]);
-  keys.forEach(key => {
-    const serverRows = Array.isArray(serverDb && serverDb[key]) ? serverDb[key] : [];
-    const localRows = Array.isArray(localDb && localDb[key]) ? localDb[key] : [];
-    const map = new Map();
-    serverRows.forEach((item, i) => map.set(String(item && item.id != null ? item.id : '__server_' + i), item));
-    // Rekod lokal yang belum ada di server dikekalkan; rekod ber-ID sama gunakan versi lokal.
-    localRows.forEach((item, i) => map.set(String(item && item.id != null ? item.id : '__local_' + i), item));
-    merged[key] = Array.from(map.values());
-  });
-  return merged;
-}
-
-function migrateLegacyMaterialsToDrive(done) {
-  if (!hasCftpBackend() || !DB) { if (done) done(); return; }
-  const pending = [];
-  (DB.modules || []).forEach(mod => (mod.materials || []).forEach(mat => {
-    if (mat && mat.dataUrl && !mat.driveUrl && !mat.downloadUrl) pending.push({mod, mat});
-  }));
-  let index = 0;
-  function next() {
-    if (index >= pending.length) { if (done) done(); return; }
-    const item = pending[index++];
-    const {mod, mat} = item;
-    const dataUrl = String(mat.dataUrl || '');
-    const comma = dataUrl.indexOf(',');
-    const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
-    if (!base64) { next(); return; }
-    const payload = {
-      fileName: mat.originalName || mat.name || 'bahan-lama',
-      mimeType: mat.mime || (dataUrl.match(/^data:([^;]+)/) || [])[1] || 'application/octet-stream',
-      base64,
-      moduleId: mod.id,
-      trainerId: mod.trainerId || (state.user && state.user.id) || '',
-      displayName: mat.name || mat.originalName || 'Bahan latihan',
-      description: mat.description || ''
-    };
-    google.script.run
-      .withSuccessHandler(res => {
-        if (res && res.ok && res.file) {
-          const f = res.file;
-          mat.driveFileId = f.fileId || f.id;
-          mat.driveUrl = f.url;
-          mat.downloadUrl = f.downloadUrl;
-          mat.folderId = f.folderId;
-          mat.folderUrl = f.folderUrl;
-          mat.size = Number(f.size || mat.size || 0);
-          mat.mime = f.mimeType || payload.mimeType;
-          // Padam data Base64 hanya selepas salinan Drive berjaya.
-          delete mat.dataUrl;
-        } else {
-          console.warn('Migrasi bahan lama tidak berjaya:', mat.name, res);
-        }
-        next();
-      })
-      .withFailureHandler(err => {
-        console.warn('Migrasi bahan lama gagal; data asal dikekalkan:', mat.name, err);
-        next();
-      })
-      .apiUploadFile(payload);
-  }
-  next();
-}
-
-function bootDB() {
-  const raw = localStorage.getItem(DB_KEY);
-  let localDb = null;
-  if (raw) { try { localDb = JSON.parse(raw); } catch(e) { localDb = null; } }
-  DB = localDb;
-  if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
   if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
   migrateDB();
-  // Cuba simpan snapshot ringkas; jika storan penuh, backend masih boleh menyimpan.
-  saveDB();
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
   const sid = localStorage.getItem(SESSION_KEY);
   if (sid) state.user = DB.users.find(u => u.id === sid) || null;
-
-  // Muatkan pangkalan data utama daripada Google Sheets dan gabungkan rekod tempatan.
-  if (hasCftpBackend()) {
-    cftpBackendLoading = true;
-    google.script.run
-      .withSuccessHandler((res) => {
-        const serverDb = res && res.ok && res.db ? res.db : {};
-        const serverHasData = Object.keys(serverDb).some(k => Array.isArray(serverDb[k]) && serverDb[k].length);
-        const localHasData = !!(localDb && Array.isArray(localDb.users) && localDb.users.length);
-        if (serverHasData) DB = mergeDbCollections(serverDb, localHasData ? localDb : {});
-        else if (localHasData) DB = localDb;
-        if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
-        if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
-        migrateDB();
-        cftpBackendLoading = false;
-        cftpBackendReady = true;
-        const currentSid = localStorage.getItem(SESSION_KEY);
-        state.user = currentSid ? (DB.users.find(u => u.id === currentSid) || null) : null;
-        // Migrasi bahan lama yang tersimpan sebagai Base64. Data asal hanya dibuang selepas upload Drive berjaya.
-        migrateLegacyMaterialsToDrive(() => {
-          saveDB();
-          render();
-        });
-        render();
-      })
-      .withFailureHandler((err) => {
-        cftpBackendLoading = false;
-        console.error('Tidak dapat memuatkan Google Sheets; menggunakan data tempatan.', err);
-      })
-      .apiLoadDb();
-  }
 }
 
 function migrateDB() {
-  // ---- NEW: ensure every user has username, createdAt, phone ----
   if (Array.isArray(DB.users)) {
     const takenUsernames = new Set();
     DB.users.forEach(u => { if (u.username) takenUsernames.add(String(u.username).toLowerCase()); });
@@ -2674,7 +2586,6 @@ function submitQuizAttempt(act, pid, answers, isAuto) {
   const pct = Math.round(score / act.quiz.length * 100);
   const newBest = getAttempt(act.id, pid);
   const isNewBest = !prevBest || (newBest && newBest.id !== prevBest.id);
-  const bestPct = newBest ? Math.round(newBest.score / newBest.total * 100) : pct;
   toast(
     isAuto
       ? t('msg_quiz_auto_submit', score, act.quiz.length, pct)
@@ -2897,7 +2808,7 @@ function langToggleHtml() {
 }
 
 /* =========================================================
-   LOGIN VIEW (with Register toggle)
+   LOGIN VIEW
    ========================================================= */
 function loginView() {
   const isRegister = state.loginMode === 'register';
@@ -3020,7 +2931,11 @@ function shell() {
     </aside>
     <div class="main">
       <header class="topbar"><h1>${esc(titleFor(state.view))}</h1>
-        <div class="tb-right">${langToggleHtml()}<span class="pill">${roleLabel(u.role)}</span></div>
+        <div class="tb-right">
+          ${langToggleHtml()}
+          <span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span>
+          <span class="pill">${roleLabel(u.role)}</span>
+        </div>
       </header>
       <main id="view"></main>
     </div>
@@ -3057,7 +2972,7 @@ function viewContent() {
 }
 
 /* =========================================================
-   PROFILE VIEW — NEW
+   PROFILE VIEW
    ========================================================= */
 function profileView() {
   const u = state.user;
@@ -3462,12 +3377,13 @@ function renderMaterialsSection(m, canEdit) {
       <div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div>
       ${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}
     </div>
+    <p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>
     ${mats.length ? `<div class="material-list">
       ${mats.map(mat => `<div class="material-item">
         <div class="mat-icon">${fileIcon(mat.type)}</div>
         <div class="mat-body">
           <div class="mat-name">${esc(mat.name)}</div>
-          <div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.uploadedBy ? ' · by ' + esc(userName(mat.uploadedBy)) : ''}</div>
+          <div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.uploadedBy ? ' · by ' + esc(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Drive' : ''}</div>
           ${mat.description ? `<div class="mat-desc">${esc(mat.description)}</div>` : ''}
         </div>
         <div class="toolbar">
@@ -4545,7 +4461,7 @@ function activityDetailView() {
         <div class="mat-icon">${fileIcon(mat.type)}</div>
         <div class="mat-body">
           <div class="mat-name">${esc(mat.name)}</div>
-          <div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}</div>
+          <div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.fileId ? ' · ☁️ Drive' : ''}</div>
         </div>
         <div class="toolbar">
           <button class="btn btn-sm" data-act="view-material" data-mid="${mod.id}" data-matid="${mat.id}">👁️</button>
@@ -4624,9 +4540,9 @@ function handleSaveActivity(form) {
 }
 
 /* =========================================================
-   MATERIALS
+   MATERIALS — Google Drive Integration
    ========================================================= */
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 function openUploadMaterialModal(mid) {
   const m = getModule(mid);
@@ -4639,6 +4555,7 @@ function openUploadMaterialModal(mid) {
       <h4>${t('mat_upload_format')}</h4>
       <p style="margin:0">${t('mat_upload_format_value')}</p>
       <p style="margin:6px 0 0"><strong>${t('mat_upload_limit')}</strong></p>
+      <p style="margin:6px 0 0;font-size:.8rem">${t('mat_drive_note')}</p>
     </div>
     <form data-form="upload-material" data-mid="${mid}">
       <div class="field">
@@ -4650,7 +4567,7 @@ function openUploadMaterialModal(mid) {
       <div class="field"><label>${t('mat_upload_desc')}</label><input class="input" name="description" /></div>
       <div id="uploadProgress" style="display:none;margin-top:8px">
         <div class="progress"><span id="uploadProgressBar" style="width:0%"></span></div>
-        <small class="muted" style="display:block;margin-top:4px">${t('upload_processing')}</small>
+        <small class="muted" style="display:block;margin-top:4px">${t('mat_uploading')}</small>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button>
@@ -4676,124 +4593,88 @@ function openUploadMaterialModal(mid) {
     });
   }
 }
-function handleUploadMaterial(form) {
+
+async function handleUploadMaterial(form) {
   const mid = form.dataset.mid;
   const file = state.pendingFile;
   if (!file) { toast(t('mat_upload_no_file'), 'bad'); return; }
-  if (file.size > MAX_FILE_SIZE) { toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE)), 'bad'); return; }
-
-  // Google Drive upload is available when this HTML is served by Google Apps Script.
-  if (!(window.google && google.script && google.script.run)) {
-    toast('Sila buka portal melalui URL Web App Google Apps Script untuk memuat naik ke Google Drive.', 'bad');
+  if (file.size > MAX_FILE_SIZE) {
+    toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE)), 'bad');
     return;
   }
-
-  const midModule = getModule(mid);
-  if (!midModule) { toast(t('msg_not_found'), 'bad'); return; }
+  const m = getModule(mid);
+  if (!m) { toast(t('msg_not_found'), 'bad'); return; }
 
   const progressEl = document.getElementById('uploadProgress');
   const progressBar = document.getElementById('uploadProgressBar');
   if (progressEl) progressEl.style.display = 'block';
   if (progressBar) progressBar.style.width = '10%';
 
-  const displayName = (form.displayName.value || '').trim() || file.name;
-  const desc = (form.description ? form.description.value : '').trim();
-  const reader = new FileReader();
+  try {
+    if (progressBar) progressBar.style.width = '25%';
+    const base64 = await fileToBase64(file);
+    if (progressBar) progressBar.style.width = '55%';
 
-  reader.onprogress = (ev) => {
-    if (ev.lengthComputable && progressBar) {
-      progressBar.style.width = (Math.round((ev.loaded / ev.total) * 35) + 10) + '%';
-    }
-  };
+    const res = await driveAPI('uploadModuleMaterial', {
+      payload: {
+        moduleId:   mid,
+        moduleName: m.name,
+        filename:   file.name,
+        mimeType:   file.type || 'application/octet-stream',
+        base64:     base64,
+        description: (form.description ? form.description.value : '').trim()
+      }
+    });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
+    if (progressBar) progressBar.style.width = '90%';
 
-  reader.onload = () => {
-    if (progressBar) progressBar.style.width = '50%';
-    const dataUrl = String(reader.result || '');
-    const base64 = dataUrl.includes(',') ? dataUrl.substring(dataUrl.indexOf(',') + 1) : dataUrl;
-    const payload = {
-      fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      base64: base64,
-      moduleId: mid,
-      trainerId: midModule.trainerId || (state.user && state.user.id) || '',
-      displayName: displayName,
-      description: desc
+    const displayName = (form.displayName.value || '').trim() || file.name;
+    const mat = {
+      id:           uid('mat'),
+      fileId:       res.file.id,
+      name:         displayName,
+      originalName: file.name,
+      type:         fileTypeFromName(file.name),
+      mime:         res.file.mimeType,
+      size:         res.file.size,
+      downloadUrl:  res.file.downloadUrl,
+      viewUrl:      res.file.viewUrl,
+      previewUrl:   res.file.previewUrl,
+      folderId:     res.file.folderId,
+      folderUrl:    res.file.folderUrl,
+      description:  (form.description ? form.description.value : '').trim(),
+      uploadedBy:   state.user.id,
+      uploadedAt:   nowISO()
     };
+    if (!Array.isArray(m.materials)) m.materials = [];
+    m.materials.push(mat);
+    m.updatedAt = nowISO();
+    saveDB();
+    logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
 
-    google.script.run
-      .withSuccessHandler((response) => {
-        if (!response || !response.ok || !response.file) {
-          if (progressEl) progressEl.style.display = 'none';
-          toast('Upload tidak berjaya: respons Google Drive tidak sah.', 'bad');
-          return;
-        }
-
-        const m = getModule(mid);
-        if (!m) {
-          if (progressEl) progressEl.style.display = 'none';
-          toast('Fail telah dimuat naik ke Drive, tetapi modul tidak ditemui untuk mengemas kini senarai.', 'bad');
-          return;
-        }
-        if (!Array.isArray(m.materials)) m.materials = [];
-
-        const driveFile = response.file;
-        const mat = {
-          id: uid('mat'),
-          name: displayName,
-          originalName: file.name,
-          type: fileTypeFromName(file.name),
-          mime: driveFile.mimeType || payload.mimeType,
-          size: Number(driveFile.size || file.size),
-          description: desc,
-          uploadedBy: state.user.id,
-          uploadedAt: driveFile.uploadedAt || nowISO(),
-          driveFileId: driveFile.fileId || driveFile.id,
-          driveUrl: driveFile.url,
-          downloadUrl: driveFile.downloadUrl,
-          folderId: driveFile.folderId,
-          folderUrl: driveFile.folderUrl
-        };
-
-        // Store only Drive metadata in the portal, not the full file data in localStorage.
-        m.materials.push(mat);
-        m.updatedAt = nowISO();
-        if (!saveDB()) {
-          // Keep the Drive file; explain that only the portal list failed to save.
-          if (progressEl) progressEl.style.display = 'none';
-          toast('Fail sudah berada di Google Drive, tetapi senarai portal gagal disimpan. Muat semula portal dan semak Drive.', 'bad');
-          return;
-        }
-
-        logAudit('Upload Material to Google Drive', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
-        if (progressBar) progressBar.style.width = '100%';
-        state.pendingFile = null;
-        closeModal();
-        toast('✅ ' + t('mat_upload_success') + ' (Google Drive)');
-        render();
-      })
-      .withFailureHandler((error) => {
-        console.error('Google Drive upload failed:', error);
-        if (progressEl) progressEl.style.display = 'none';
-        const message = error && error.message ? error.message : String(error || 'Ralat tidak diketahui');
-        toast('Gagal memuat naik ke Google Drive: ' + message, 'bad');
-      })
-      .apiUploadFile(payload);
-  };
-
-  reader.onerror = () => {
+    if (progressBar) progressBar.style.width = '100%';
+    state.pendingFile = null;
+    closeModal();
+    toast('✅ ' + t('mat_upload_success'));
+    render();
+  } catch (err) {
+    console.error('Upload error:', err);
     if (progressEl) progressEl.style.display = 'none';
-    toast(t('mat_upload_fail'), 'bad');
-  };
-  reader.readAsDataURL(file);
+    toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
+  }
 }
+
 function viewMaterial(mid, matid) {
   const mat = findMaterial(mid, matid);
   if (!mat) { toast(t('msg_not_found'), 'bad'); return; }
+  if (mat.fileId) {
+    const url = mat.previewUrl || ('https://drive.google.com/file/d/' + mat.fileId + '/preview');
+    const w = window.open(url, '_blank');
+    if (!w) toast('⚠️ ' + t('mat_popup_blocked'), 'bad');
+    return;
+  }
   try {
-    if (mat.driveUrl) {
-      const w = window.open(mat.driveUrl, '_blank');
-      if (!w) toast('⚠️ ' + t('mat_popup_blocked'), 'bad');
-    } else if (mat.type === 'pdf' || mat.type === 'image') {
+    if (mat.type === 'pdf' || mat.type === 'image') {
       const blob = base64ToBlob(mat.dataUrl);
       const url = URL.createObjectURL(blob);
       const w = window.open(url, '_blank');
@@ -4807,32 +4688,39 @@ function viewMaterial(mid, matid) {
     }
   } catch(e) { console.error(e); toast(t('mat_view_fail'), 'bad'); }
 }
+
 function downloadMaterial(mid, matid) {
   const mat = findMaterial(mid, matid);
   if (!mat) { toast(t('msg_not_found'), 'bad'); return; }
+  if (mat.downloadUrl) {
+    const a = document.createElement('a');
+    a.href = mat.downloadUrl;
+    a.download = mat.originalName || mat.name;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    logAudit('Download Material', 'Modul', mid, mat.name);
+    return;
+  }
   try {
-    if (mat.downloadUrl) {
-      const a = document.createElement('a');
-      a.href = mat.downloadUrl;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.download = mat.originalName || mat.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    } else {
-      const blob = base64ToBlob(mat.dataUrl);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = mat.originalName || mat.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
-    }
+    const blob = base64ToBlob(mat.dataUrl);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = mat.originalName || mat.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
     logAudit('Download Material', 'Modul', mid, mat.name);
   } catch(e) { console.error(e); toast(t('mat_download_fail'), 'bad'); }
 }
-function deleteMaterial(mid, matid) {
+
+async function deleteMaterial(mid, matid) {
   const m = getModule(mid); if (!m) return;
   const mat = (m.materials||[]).find(x => x.id === matid); if (!mat) return;
   if (!confirm(t('confirm_delete_material', mat.name))) return;
+  if (mat.fileId) {
+    try { await driveAPI('deleteFile', { fileId: mat.fileId }); }
+    catch (e) { console.warn('Drive delete failed:', e); }
+  }
   m.materials = m.materials.filter(x => x.id !== matid);
   m.updatedAt = nowISO(); saveDB();
   logAudit('Delete Material', 'Modul', mid, mat.name);
@@ -5651,7 +5539,7 @@ function deleteBankQuestion(id) {
 }
 
 /* =========================================================
-   SIJIL / CERTIFICATES
+   SIJIL / CERTIFICATES — Google Drive Integration
    ========================================================= */
 const MAX_CERT_SIZE = 100 * 1024 * 1024;
 
@@ -5691,7 +5579,7 @@ function sijilView() {
           <td>${esc(p.email)}</td>
           <td>${esc(p.org || '—')}</td>
           <td>${cert
-            ? `<span class="badge ok">✓ ${t('sijil_has')}</span><br><small class="muted">${fmtDate(cert.uploadedAt)}</small>`
+            ? `<span class="badge ok">✓ ${t('sijil_has')}</span><br><small class="muted">${fmtDate(cert.uploadedAt)}${cert.fileId ? ' · ☁️ Drive' : ''}</small>`
             : `<span class="badge warn">— ${t('sijil_missing')}</span>`}</td>
           <td><div class="toolbar">
             ${cert
@@ -5717,7 +5605,7 @@ function participantSijilView() {
       ? `<div style="border:1px solid var(--brand-2);background:linear-gradient(135deg,#f7fdfa,#fff);border-radius:14px;padding:28px;text-align:center">
           <div style="font-size:3.5rem;margin-bottom:10px">🏆</div>
           <h3 style="margin:0 0 6px">${esc(cert.name)}</h3>
-          <p class="muted" style="margin:0 0 18px">${t('sijil_uploaded_on')} ${fmtDate(cert.uploadedAt)} · ${formatFileSize(cert.size)}</p>
+          <p class="muted" style="margin:0 0 18px">${t('sijil_uploaded_on')} ${fmtDate(cert.uploadedAt)} · ${formatFileSize(cert.size)}${cert.fileId ? ' · ☁️ Drive' : ''}</p>
           ${cert.description ? `<p class="muted" style="font-style:italic;margin:0 0 18px">${esc(cert.description)}</p>` : ''}
           <div class="toolbar" style="justify-content:center">
             <button class="btn btn-primary" data-act="view-certificate" data-pid="${me.id}">👁️ ${t('sijil_view')}</button>
@@ -5740,6 +5628,7 @@ function openUploadCertificateModal(pid) {
     <div class="info-box">
       <h4>📄 ${t('sijil_upload_format')}</h4>
       <p style="margin:0">PDF (.pdf) · ${t('sijil_upload_limit')}</p>
+      <p style="margin:6px 0 0;font-size:.8rem">${t('mat_drive_note')}</p>
     </div>
     <form data-form="upload-certificate" data-pid="${pid}">
       <div class="field">
@@ -5783,7 +5672,7 @@ function openUploadCertificateModal(pid) {
   }
 }
 
-function handleUploadCertificate(form) {
+async function handleUploadCertificate(form) {
   const pid = form.dataset.pid;
   const file = state.pendingFile;
   if (!file) { toast(t('mat_upload_no_file'), 'bad'); return; }
@@ -5792,34 +5681,55 @@ function handleUploadCertificate(form) {
     toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_CERT_SIZE)), 'bad');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const p = DB.users.find(u => u.id === pid);
-    if (!p) { toast(t('msg_not_found'), 'bad'); return; }
-    const displayName = (form.displayName.value || '').trim() || file.name;
-    const desc = (form.description ? form.description.value : '').trim();
+  const p = DB.users.find(u => u.id === pid);
+  if (!p) { toast(t('msg_not_found'), 'bad'); return; }
+
+  try {
+    const base64 = await fileToBase64(file);
+    const res = await driveAPI('uploadCertificate', {
+      payload: {
+        participantId:   pid,
+        participantName: p.name,
+        filename:        file.name,
+        mimeType:        'application/pdf',
+        base64:          base64,
+        description:     (form.description ? form.description.value : '').trim()
+      }
+    });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
+
+    const displayName = (form.displayName.value || '').trim() || res.file.name;
     const cert = {
-      id: uid('cert'), participantId: pid, name: displayName,
-      originalName: file.name, type: 'pdf',
-      mime: file.type || 'application/pdf', size: file.size,
-      dataUrl: reader.result, description: desc,
-      uploadedBy: state.user.id, uploadedAt: nowISO()
+      id:            uid('cert'),
+      participantId: pid,
+      fileId:        res.file.id,
+      name:          displayName,
+      originalName:  res.file.name,
+      type:          'pdf',
+      mime:          'application/pdf',
+      size:          res.file.size,
+      downloadUrl:   res.file.downloadUrl,
+      viewUrl:       res.file.viewUrl,
+      previewUrl:    res.file.previewUrl,
+      folderId:      res.file.folderId,
+      folderUrl:     res.file.folderUrl,
+      description:   (form.description ? form.description.value : '').trim(),
+      uploadedBy:    state.user.id,
+      uploadedAt:    nowISO()
     };
-    const backup = JSON.parse(JSON.stringify(DB));
     DB.certificates = (DB.certificates || []).filter(c => c.participantId !== pid);
     DB.certificates.push(cert);
-    if (!saveDB()) {
-      DB = backup;
-      toast('⚠️ ' + t('mat_upload_storage_full'), 'bad');
-      return;
-    }
-    logAudit('Upload Certificate', 'Sijil', pid, `${displayName} — ${p.name}`);
-    state.pendingFile = null; closeModal();
+    saveDB();
+    logAudit('Upload Certificate', 'Sijil', pid, displayName);
+
+    state.pendingFile = null;
+    closeModal();
     toast('✅ ' + t('sijil_uploaded'));
     render();
-  };
-  reader.onerror = () => toast(t('mat_upload_fail'), 'bad');
-  reader.readAsDataURL(file);
+  } catch (err) {
+    console.error('Upload cert error:', err);
+    toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
+  }
 }
 
 function viewCertificate(pid) {
@@ -5828,6 +5738,12 @@ function viewCertificate(pid) {
   }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
+  if (cert.fileId) {
+    const url = cert.previewUrl || ('https://drive.google.com/file/d/' + cert.fileId + '/preview');
+    const w = window.open(url, '_blank');
+    if (!w) toast('⚠️ ' + t('mat_popup_blocked'), 'bad');
+    return;
+  }
   try {
     const blob = base64ToBlob(cert.dataUrl);
     const url = URL.createObjectURL(blob);
@@ -5843,23 +5759,36 @@ function downloadCertificate(pid) {
   }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
+  if (cert.downloadUrl) {
+    const a = document.createElement('a');
+    a.href = cert.downloadUrl;
+    a.download = cert.originalName || (cert.name + '.pdf');
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    logAudit('Download Certificate', 'Sijil', pid, cert.name);
+    return;
+  }
   try {
     const blob = base64ToBlob(cert.dataUrl);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = cert.originalName || (cert.name + '.pdf');
+    a.href = url; a.download = cert.originalName || (cert.name + '.pdf');
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1500);
     logAudit('Download Certificate', 'Sijil', pid, cert.name);
   } catch (e) { console.error(e); toast(t('mat_download_fail'), 'bad'); }
 }
 
-function deleteCertificate(pid) {
+async function deleteCertificate(pid) {
   if (state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
   if (!cert) return;
   if (!confirm(t('sijil_confirm_delete', cert.name))) return;
+  if (cert.fileId) {
+    try { await driveAPI('deleteFile', { fileId: cert.fileId }); }
+    catch (e) { console.warn('Drive delete failed:', e); }
+  }
   DB.certificates = (DB.certificates || []).filter(c => c.participantId !== pid);
   saveDB();
   logAudit('Delete Certificate', 'Sijil', pid, cert.name);
@@ -5868,7 +5797,7 @@ function deleteCertificate(pid) {
 }
 
 /* =========================================================
-   DELETE ACTIVITY (used by handlers)
+   DELETE ACTIVITY
    ========================================================= */
 function deleteActivity(id) {
   const act = getActivity(id); if (!act) return;
@@ -6197,7 +6126,7 @@ document.addEventListener('input', (e) => {
 });
 
 /* =========================================================
-   Cross-tab sync
+   Cross-tab sync — refresh from server periodically + on focus
    ========================================================= */
 window.addEventListener('storage', (e) => {
   if (e.key === DB_KEY) {
@@ -6223,33 +6152,49 @@ window.addEventListener('message', (e) => {
     } catch(err) {}
   }
 });
-window.addEventListener('focus', () => {
+window.addEventListener('focus', async () => {
+  if (!state.user) return;
+  if (document.querySelector('.modal-backdrop')) return;
+  if (saveInFlight || saveTimer) return;
   try {
-    const raw = localStorage.getItem(DB_KEY);
-    if (raw) {
-      const nd = JSON.parse(raw);
-      if (JSON.stringify(nd) !== JSON.stringify(DB)) {
-        DB = nd;
-        if (checkStandaloneFinal()) {
-          const feid = location.hash.substring(7).split('&')[0].split('#')[0];
-          renderStandaloneFinal(feid);
-        } else if (checkStandaloneQuiz()) {
-          const aid = location.hash.substring(6).split('&')[0].split('#')[0];
-          renderStandaloneQuiz(aid);
-        } else if (state.user) {
-          render();
-        }
+    const res = await driveAPI('loadState');
+    if (res.ok && res.state && Array.isArray(res.state.users)) {
+      if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
+        DB = res.state;
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        render();
       }
     }
-  } catch(err) {}
+  } catch(e) {}
 });
+
+/* Periodic pull from server — multi-user sync */
+setInterval(async () => {
+  if (!state.user) return;
+  if (document.hidden) return;
+  if (document.querySelector('.modal-backdrop')) return;
+  if (saveInFlight || saveTimer || savePending) return;
+  try {
+    const res = await driveAPI('loadState');
+    if (res.ok && res.state && Array.isArray(res.state.users)) {
+      if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
+        DB = res.state;
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        render();
+        toast('🔄 Data dikemas kini dari server');
+      }
+    }
+  } catch(e) {}
+}, 20000);
 
 /* =========================================================
    Boot
    ========================================================= */
 document.documentElement.lang = currentLang;
-bootDB();
-render();
+(async () => {
+  await bootDB();
+  render();
+})();
 </script>
 </body>
 </html>
