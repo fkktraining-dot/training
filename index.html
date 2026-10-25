@@ -489,11 +489,12 @@ const I18N = {
     title_programs: 'Program Latihan', title_activities: 'Pengurusan Aktiviti', title_activities_mine: 'Aktiviti Saya',
     title_activity: 'Butiran Aktiviti', title_grading: 'Penilaian', title_rubrik: 'Rubrik',
     title_bank: 'Bank Soalan', title_users: 'Pengguna', title_audit: 'Audit Trail', title_reports: 'Laporan PDF',
-    role_admin: 'Pentadbir', role_trainer: 'Jurulatih', role_participant: 'Peserta',
+    role_admin: 'Pentadbir', role_trainer: 'Jurulatih', role_participant: 'Peserta', role_vip: 'VIP Syarikat',
     login: 'Log Masuk', logout: 'Log Keluar', email: 'E-mel', password: 'Kata Laluan',
     email_or_username: 'Nama Pengguna / E-mel',
     register: 'Daftar', register_title: 'Daftar Akaun Baharu',
     register_success: 'Akaun berjaya dicipta. Selamat datang!',
+    register_pending_success: 'Pendaftaran berjaya. Akaun anda sedang menunggu kelulusan pentadbir.',
     already_have_account: 'Sudah ada akaun?', no_account: 'Belum ada akaun?',
     confirm_password: 'Sahkan Kata Laluan', password_mismatch: 'Kata laluan tidak sepadan.',
     password_too_short: 'Kata laluan mesti sekurang-kurangnya 6 aksara.',
@@ -675,7 +676,21 @@ const I18N = {
     bank_category: 'Kategori', bank_level: 'Tahap', bank_search: 'Cari…', bank_all: 'Semua',
     bank_used: '{0} aktiviti', bank_no_questions: 'Tiada soalan.', bank_delete: 'Padam soalan?',
     bank_saved: 'Disimpan.',
+    bank_module: 'Modul', bank_all_modules: 'Semua Modul', bank_module_required: 'Pilih modul.',
     usr_title: 'Pengguna', usr_new: 'Pengguna Baharu', usr_edit: 'Edit Pengguna', usr_admin_only: 'Pengguna',
+    usr_pending_title: 'Pendaftaran Menunggu Kelulusan',
+    usr_approve: 'Luluskan', usr_reject: 'Tolak', usr_status: 'Status Akaun',
+    usr_status_pending: 'Menunggu', usr_status_approved: 'Diluluskan', usr_status_rejected: 'Ditolak',
+    usr_org_required: 'Organisasi diperlukan untuk pengguna VIP.',
+    msg_account_pending: 'Akaun anda sedang menunggu kelulusan pentadbir. Sila cuba lagi selepas diluluskan.',
+    msg_account_rejected: 'Pendaftaran akaun anda telah ditolak. Sila hubungi pentadbir.',
+    msg_user_approved: 'Akaun diluluskan.', msg_user_rejected: 'Akaun ditolak.',
+    confirm_approve_user: 'Luluskan akaun "{0}"?', confirm_reject_user: 'Tolak akaun "{0}"?',
+    vip_no_participants: 'Tiada pekerja berdaftar dari syarikat anda.',
+    vip_company_progress: 'Kemajuan Pekerja Syarikat', vip_view_progress: 'Lihat Kemajuan',
+    vip_participants: 'Pekerja', vip_company_report: 'Laporan Syarikat',
+    vip_avg_company: 'Purata Syarikat', vip_access_denied: 'Akses terhad kepada pekerja syarikat anda sahaja.',
+    title_company: 'Kemajuan Syarikat',
     aud_title: 'Audit Trail', aud_time: 'Masa', aud_user: 'Pengguna', aud_action: 'Tindakan',
     aud_details: 'Butiran', aud_empty: 'Tiada rekod audit.',
     rep_title: 'Laporan Individu', rep_generate: '📄 Jana PDF', rep_program: 'Laporan Program',
@@ -803,7 +818,6 @@ const I18N = {
     retest_view_result: 'Lihat Keputusan',
     retest_edit_hint_toast: 'Soalan disimpan. Klik 🔄 pada peserta untuk buka retest.',
     retest_attempt_count: '{0} percubaan',
-    /* SYNC / UPLOAD */
     sync_upload_title: 'Menyimpan Data',
     sync_upload_desc: 'Data anda sedang dimuat naik ke sistem. Sila tunggu sebentar...',
     sync_upload_status_connecting: 'Menghubungi server…',
@@ -847,11 +861,12 @@ const I18N = {
     title_activities_mine: 'My Activities', title_activity: 'Activity Details', title_grading: 'Assessment',
     title_rubrik: 'Rubrics', title_bank: 'Question Bank', title_users: 'Users',
     title_audit: 'Audit Trail', title_reports: 'PDF Reports',
-    role_admin: 'Administrator', role_trainer: 'Trainer', role_participant: 'Participant',
+    role_admin: 'Administrator', role_trainer: 'Trainer', role_participant: 'Participant', role_vip: 'Company VIP',
     login: 'Log In', logout: 'Log Out', email: 'Email', password: 'Password',
     email_or_username: 'Username / Email',
     register: 'Register', register_title: 'Create New Account',
     register_success: 'Account created successfully. Welcome!',
+    register_pending_success: 'Registration successful. Your account is awaiting administrator approval.',
     already_have_account: 'Already have an account?', no_account: "Don't have an account?",
     confirm_password: 'Confirm Password', password_mismatch: 'Passwords do not match.',
     password_too_short: 'Password must be at least 6 characters.',
@@ -1037,7 +1052,21 @@ const I18N = {
     bank_category: 'Category', bank_level: 'Level', bank_search: 'Search…', bank_all: 'All',
     bank_used: '{0} activities', bank_no_questions: 'No questions.', bank_delete: 'Delete question?',
     bank_saved: 'Saved.',
+    bank_module: 'Module', bank_all_modules: 'All Modules', bank_module_required: 'Select a module.',
     usr_title: 'Users', usr_new: 'New User', usr_edit: 'Edit User', usr_admin_only: 'Users',
+    usr_pending_title: 'Registrations Awaiting Approval',
+    usr_approve: 'Approve', usr_reject: 'Reject', usr_status: 'Account Status',
+    usr_status_pending: 'Pending', usr_status_approved: 'Approved', usr_status_rejected: 'Rejected',
+    usr_org_required: 'Organisation is required for VIP users.',
+    msg_account_pending: 'Your account is awaiting administrator approval. Please try again once approved.',
+    msg_account_rejected: 'Your account registration was rejected. Please contact the administrator.',
+    msg_user_approved: 'Account approved.', msg_user_rejected: 'Account rejected.',
+    confirm_approve_user: 'Approve account "{0}"?', confirm_reject_user: 'Reject account "{0}"?',
+    vip_no_participants: 'No participants registered from your company.',
+    vip_company_progress: 'Company Employee Progress', vip_view_progress: 'View Progress',
+    vip_participants: 'Employees', vip_company_report: 'Company Report',
+    vip_avg_company: 'Company Average', vip_access_denied: 'Access restricted to your company employees only.',
+    title_company: 'Company Progress',
     aud_title: 'Audit Trail', aud_time: 'Time', aud_user: 'User', aud_action: 'Action',
     aud_details: 'Details', aud_empty: 'No audit records.',
     rep_title: 'Individual Report', rep_generate: '📄 Generate PDF', rep_program: 'Programme Report',
@@ -1221,7 +1250,7 @@ const toLocalInput = (s) => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const initials = (n) => (n||'?').split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
-const roleLabel = (r) => ({ admin: t('role_admin'), trainer: t('role_trainer'), participant: t('role_participant') }[r] || r);
+const roleLabel = (r) => ({ admin: t('role_admin'), trainer: t('role_trainer'), participant: t('role_participant'), vip: t('role_vip') }[r] || r);
 const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
 
 /* PASSWORD STRENGTH */
@@ -1344,7 +1373,8 @@ const state = {
   editingActivityId: null, editingRubricId: null,
   pendingFile: null,
   tempFeQuestions: null, editingFinalExamId: null,
-  retestContext: null
+  retestContext: null,
+  pickerModuleId: null, fePickerModuleId: null
 };
 
 /* =========================================================
@@ -1375,8 +1405,6 @@ window.addEventListener('popstate', (e) => {
     lastPushedStateKey = stateKeyOf(state.view, state.params);
     render();
   } else {
-    // Non-app state → user tried to leave. Trap inside app:
-    // re-push current state so browser back doesn't close the app.
     try {
       history.pushState({ view: state.view, params: JSON.parse(JSON.stringify(state.params || {})), cftp: true }, '');
       lastPushedStateKey = stateKeyOf(state.view, state.params);
@@ -1395,7 +1423,6 @@ let firstSyncPromise = null;
 function updateBeforeUnload() {
   if (pendingSaveSince > 0 || saveInFlight || saveTimer) {
     window.onbeforeunload = function(e) {
-      // Emergency fire-and-forget save
       try {
         if (navigator.sendBeacon) {
           const blob = new Blob([JSON.stringify({ action: 'saveState', state: DB })], { type: 'text/plain;charset=utf-8' });
@@ -1453,11 +1480,8 @@ function scheduleServerSave() {
   }, 1200);
 }
 
-/* Force save (async, immediate) */
 async function forceSaveNow() {
-  // Cancel pending timer
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  // Wait for in-flight save to complete first
   if (saveInFlight) {
     let waited = 0;
     while (saveInFlight && waited < 8000) {
@@ -1465,7 +1489,6 @@ async function forceSaveNow() {
       waited += 200;
     }
   }
-  // If nothing pending, mark as saved
   if (!pendingSaveSince && !savePending && !saveInFlight) {
     return { ok: true, skipped: true };
   }
@@ -1542,6 +1565,8 @@ async function serverPullInBackground() {
   return firstSyncPromise;
 }
 
+const CATEGORY_MODULE_MAP = { 'Kimia Asas':'mod_1', 'Keselamatan Makmal':'mod_2', 'Teknik Makmal':'mod_3', 'Analisis Kuantitatif':'mod_4' };
+
 function migrateDB() {
   if (Array.isArray(DB.users)) {
     const takenUsernames = new Set();
@@ -1557,6 +1582,7 @@ function migrateDB() {
       }
       if (!u.createdAt) u.createdAt = nowISO();
       if (u.phone === undefined) u.phone = '';
+      if (!u.status) u.status = 'approved';
     });
   }
   (DB.activities || []).forEach(a => {
@@ -1613,34 +1639,41 @@ function migrateDB() {
   if (!Array.isArray(DB.fePractical)) DB.fePractical = [];
   (DB.finalExams || []).forEach(fe => { if (!Array.isArray(fe.questions)) fe.questions = []; });
   if (!Array.isArray(DB.retests)) DB.retests = [];
+  /* Question bank module attribution */
+  (DB.questionBank || []).forEach(b => {
+    if (!b.moduleId) b.moduleId = CATEGORY_MODULE_MAP[b.category] || (DB.modules && DB.modules[0] ? DB.modules[0].id : 'mod_1');
+  });
 }
 
 function seedQuestionBank() {
   const now = nowISO();
   return [
-    { id:'qb_1', q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_2', q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_3', q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_4', q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_5', q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2, category:'Keselamatan Makmal', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_6', q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_7', q:'Berapakah jisim NaOH (Mr = 40) diperlukan untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1, category:'Teknik Makmal', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_8', q:'Alat manakah paling tepat untuk mengukur 25.00 mL larutan?', options:['Silinder penyukat','Pipet volumetrik','Bikar','Kelalang kon'], answer:1, category:'Teknik Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_9', q:'Apakah fungsi penunjuk fenolftalein dalam titrasi asid-bes?', options:['Menstabilkan larutan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan asid'], answer:1, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_10', q:'Titik akhir titrasi asid kuat–bes kuat biasanya pada pH…', options:['3','5','7','10'], answer:2, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now }
+    { id:'qb_1', moduleId:'mod_1', q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
+    { id:'qb_2', moduleId:'mod_1', q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
+    { id:'qb_3', moduleId:'mod_1', q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
+    { id:'qb_4', moduleId:'mod_2', q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
+    { id:'qb_5', moduleId:'mod_2', q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2, category:'Keselamatan Makmal', difficulty:'Sederhana', createdAt:now },
+    { id:'qb_6', moduleId:'mod_2', q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
+    { id:'qb_7', moduleId:'mod_3', q:'Berapakah jisim NaOH (Mr = 40) diperlukan untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1, category:'Teknik Makmal', difficulty:'Sederhana', createdAt:now },
+    { id:'qb_8', moduleId:'mod_3', q:'Alat manakah paling tepat untuk mengukur 25.00 mL larutan?', options:['Silinder penyukat','Pipet volumetrik','Bikar','Kelalang kon'], answer:1, category:'Teknik Makmal', difficulty:'Mudah', createdAt:now },
+    { id:'qb_9', moduleId:'mod_4', q:'Apakah fungsi penunjuk fenolftalein dalam titrasi asid-bes?', options:['Menstabilkan larutan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan asid'], answer:1, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now },
+    { id:'qb_10', moduleId:'mod_4', q:'Titik akhir titrasi asid kuat–bes kuat biasanya pada pH…', options:['3','5','7','10'], answer:2, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now }
   ];
 }
 
 function seedDB() {
   const now = nowISO();
   const users = [
-    { id:'u_admin', username:'admin', name:'Pentadbir Sistem', email:'admin@cftp.my', password:'admin123', role:'admin', org:'CFTP Malaysia', ic:'', phone:'', createdAt:now },
-    { id:'u_tr1', username:'trainer', name:'Pn. Nurul Aina binti Hassan', email:'trainer@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', createdAt:now },
-    { id:'u_tr2', username:'trainer2', name:'En. Rajesh Kumaran', email:'trainer2@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', createdAt:now },
-    { id:'u_p1', username:'participant', name:'Ahmad Zaki bin Ismail', email:'participant@cftp.my', password:'participant123', role:'participant', ic:'900101-14-5567', org:'Makmal Analisis Sdn Bhd', phone:'', createdAt:now },
-    { id:'u_p2', username:'siti', name:'Siti Nurhaliza binti Omar', email:'siti@cftp.my', password:'participant123', role:'participant', ic:'920315-10-6621', org:'Petrokimia Negara Bhd', phone:'', createdAt:now },
-    { id:'u_p3', username:'lim', name:'Lim Wei Sheng', email:'lim@cftp.my', password:'participant123', role:'participant', ic:'880722-08-4471', org:'Makmal Analisis Sdn Bhd', phone:'', createdAt:now },
-    { id:'u_p4', username:'kavitha', name:'Kavitha a/p Subramaniam', email:'kavitha@cftp.my', password:'participant123', role:'participant', ic:'950508-06-3388', org:'Kimia Industri Malaysia', phone:'', createdAt:now }
+    { id:'u_admin', username:'admin', name:'Pentadbir Sistem', email:'admin@cftp.my', password:'admin123', role:'admin', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
+    { id:'u_tr1', username:'trainer', name:'Pn. Nurul Aina binti Hassan', email:'trainer@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
+    { id:'u_tr2', username:'trainer2', name:'En. Rajesh Kumaran', email:'trainer2@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
+    { id:'u_vip1', username:'vip', name:'Dato\' Ahmad Faizal bin Rahman', email:'vip@petrokimia.my', password:'vip123', role:'vip', org:'Petrokimia Negara Bhd', ic:'', phone:'', status:'approved', createdAt:now },
+    { id:'u_p1', username:'participant', name:'Ahmad Zaki bin Ismail', email:'participant@cftp.my', password:'participant123', role:'participant', ic:'900101-14-5567', org:'Makmal Analisis Sdn Bhd', phone:'', status:'approved', createdAt:now },
+    { id:'u_p2', username:'siti', name:'Siti Nurhaliza binti Omar', email:'siti@cftp.my', password:'participant123', role:'participant', ic:'920315-10-6621', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now },
+    { id:'u_p3', username:'lim', name:'Lim Wei Sheng', email:'lim@cftp.my', password:'participant123', role:'participant', ic:'880722-08-4471', org:'Makmal Analisis Sdn Bhd', phone:'', status:'approved', createdAt:now },
+    { id:'u_p4', username:'kavitha', name:'Kavitha a/p Subramaniam', email:'kavitha@cftp.my', password:'participant123', role:'participant', ic:'950508-06-3388', org:'Kimia Industri Malaysia', phone:'', status:'approved', createdAt:now },
+    { id:'u_p5', username:'raj', name:'Raj Kumar a/l Selvam', email:'raj@petrokimia.my', password:'participant123', role:'participant', ic:'910210-08-5577', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now },
+    { id:'u_p6', username:'nurul', name:'Nurul Izzah binti Kamal', email:'nurul@petrokimia.my', password:'participant123', role:'participant', ic:'930712-10-4422', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now }
   ];
   const modules = [
     { id:'mod_1', name:'Modul 1 — Asas Kimia', description:'Pengenalan konsep asas kimia, atom, molekul dan stoikiometri.', trainerId:'u_tr1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [] },
@@ -1669,34 +1702,34 @@ function seedDB() {
       instructions:'Hadir 15 minit awal. Bawa kalkulator saintifik.', materials:'Modul PDF, Jadual Berkala, Kalkulator', method:'Kuiz + Praktikal',
       rubricId:'rb_1', quizOpenAt: null, quizCloseAt: null, quizDuration: 15,
       quiz: [
-        { q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1 },
-        { q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1 },
-        { q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2 }
+        { q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1, sourceBankId:'qb_1', moduleId:'mod_1' },
+        { q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1, sourceBankId:'qb_2', moduleId:'mod_1' },
+        { q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2, sourceBankId:'qb_3', moduleId:'mod_1' }
       ], createdAt:now, updatedAt:now },
     { id:'act_2', trainerId:'u_tr1', order:2, published:true, moduleId:'mod_2', module:'Modul 2 — Keselamatan Makmal',
       title:'Keselamatan Bahan Kimia & MSDS', date:'2026-02-17', duration:3,
       objectives:'Mengenal pasti hazard, membaca MSDS dan prosedur tumpahan.', instructions:'Sesi praktikal di makmal.', materials:'MSDS, kit tumpahan, PPE', method:'Kuiz + Praktikal',
       rubricId:'rb_1', quizOpenAt: null, quizCloseAt: null, quizDuration: 10,
       quiz: [
-        { q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0 },
-        { q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2 },
-        { q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0 }
+        { q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0, sourceBankId:'qb_4', moduleId:'mod_2' },
+        { q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2, sourceBankId:'qb_5', moduleId:'mod_2' },
+        { q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0, sourceBankId:'qb_6', moduleId:'mod_2' }
       ], createdAt:now, updatedAt:now },
     { id:'act_3', trainerId:'u_tr1', order:3, published:false, moduleId:'mod_3', module:'Modul 3 — Teknik Makmal',
       title:'Penyediaan Larutan Standard', date:'2026-03-02', duration:5,
       objectives:'Menyediakan larutan standard dengan kepekatan tepat.', instructions:'Bawa buku log makmal.', materials:'Buret, pipet, neraca', method:'Kuiz + Praktikal',
       rubricId:null, quizOpenAt: null, quizCloseAt: null, quizDuration: null,
       quiz: [
-        { q:'Berapakah jisim NaOH (Mr=40) untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1 },
-        { q:'Alat paling tepat untuk 25.00 mL?', options:['Silinder','Pipet volumetrik','Bikar','Kelalang kon'], answer:1 }
+        { q:'Berapakah jisim NaOH (Mr=40) untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1, sourceBankId:'qb_7', moduleId:'mod_3' },
+        { q:'Alat paling tepat untuk 25.00 mL?', options:['Silinder','Pipet volumetrik','Bikar','Kelalang kon'], answer:1, sourceBankId:'qb_8', moduleId:'mod_3' }
       ], createdAt:now, updatedAt:now },
     { id:'act_4', trainerId:'u_tr2', order:4, published:true, moduleId:'mod_4', module:'Modul 4 — Analisis Kuantitatif',
       title:'Analisis Titrimetri Asid-Bes', date:'2026-03-12', duration:6,
       objectives:'Menjalankan titrasi asid-bes dan mengira kepekatan.', instructions:'Sesi makmal penuh.', materials:'Buret, fenolftalein, NaOH', method:'Kuiz + Praktikal',
       rubricId:'rb_2', quizOpenAt: null, quizCloseAt: null, quizDuration: 20,
       quiz: [
-        { q:'Fungsi fenolftalein dalam titrasi?', options:['Menstabilkan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan'], answer:1 },
-        { q:'Titik akhir asid kuat–bes kuat biasanya pH…', options:['3','5','7','10'], answer:2 }
+        { q:'Fungsi fenolftalein dalam titrasi?', options:['Menstabilkan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan'], answer:1, sourceBankId:'qb_9', moduleId:'mod_4' },
+        { q:'Titik akhir asid kuat–bes kuat biasanya pH…', options:['3','5','7','10'], answer:2, sourceBankId:'qb_10', moduleId:'mod_4' }
       ], createdAt:now, updatedAt:now }
   ];
   const attempts = [
@@ -1716,7 +1749,10 @@ function seedDB() {
     { id:'en_1', moduleId:'mod_1', participantId:'u_p1', enrolledBy:'u_p1', enrolledAt:'2026-02-01T08:00:00.000Z', status:'Aktif' },
     { id:'en_2', moduleId:'mod_2', participantId:'u_p1', enrolledBy:'u_p1', enrolledAt:'2026-02-01T08:00:00.000Z', status:'Aktif' },
     { id:'en_3', moduleId:'mod_1', participantId:'u_p2', enrolledBy:'u_p2', enrolledAt:'2026-02-02T09:15:00.000Z', status:'Aktif' },
-    { id:'en_4', moduleId:'mod_4', participantId:'u_p3', enrolledBy:'u_admin', enrolledAt:'2026-03-01T10:00:00.000Z', status:'Aktif' }
+    { id:'en_4', moduleId:'mod_4', participantId:'u_p3', enrolledBy:'u_admin', enrolledAt:'2026-03-01T10:00:00.000Z', status:'Aktif' },
+    { id:'en_5', moduleId:'mod_1', participantId:'u_p5', enrolledBy:'u_p5', enrolledAt:'2026-02-03T09:15:00.000Z', status:'Aktif' },
+    { id:'en_6', moduleId:'mod_2', participantId:'u_p5', enrolledBy:'u_p5', enrolledAt:'2026-02-03T09:15:00.000Z', status:'Aktif' },
+    { id:'en_7', moduleId:'mod_1', participantId:'u_p6', enrolledBy:'u_p6', enrolledAt:'2026-02-04T09:15:00.000Z', status:'Aktif' }
   ];
   const audit = [];
   const today = new Date();
@@ -1758,7 +1794,8 @@ function logAudit(action, entity, entityId, details) {
 const sortActs = (arr) => arr.slice().sort((a, b) => a.order - b.order);
 const sortModules = (arr) => arr.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
 const allTrainers = () => DB.users.filter(u => u.role === 'trainer');
-const allParticipants = () => DB.users.filter(u => u.role === 'participant');
+const allParticipants = () => DB.users.filter(u => u.role === 'participant' && u.status === 'approved');
+const allVips = () => DB.users.filter(u => u.role === 'vip');
 const userName = (id) => (DB.users.find(u => u.id === id) || {}).name || '—';
 const getActivity = (id) => DB.activities.find(a => a.id === id) || null;
 const getModule = (id) => DB.modules.find(m => m.id === id) || null;
@@ -1799,7 +1836,7 @@ function cancelRetest(aid, pid) {
 const myModules = () => sortModules(DB.modules.filter(m => m.trainerId === state.user.id));
 const isEnrolled = (mid, pid) => DB.enrollments.some(e => e.moduleId === mid && e.participantId === pid);
 const moduleActivitiesList = (mid) => sortActs(DB.activities.filter(a => a.moduleId === mid));
-const enrolledParticipants = (mid) => DB.enrollments.filter(e => e.moduleId === mid).map(e => ({ enroll: e, user: DB.users.find(u => u.id === e.participantId) })).filter(x => x.user);
+const enrolledParticipants = (mid) => DB.enrollments.filter(e => e.moduleId === mid).map(e => ({ enroll: e, user: DB.users.find(u => u.id === e.participantId) })).filter(x => x.user && x.user.status === 'approved');
 const participantModules = (pid) => { const mids = DB.enrollments.filter(e => e.participantId === pid).map(e => e.moduleId); return sortModules(DB.modules.filter(m => mids.includes(m.id))); };
 const availableModules = (pid) => { const mids = DB.enrollments.filter(e => e.participantId === pid).map(e => e.moduleId); return sortModules(DB.modules.filter(m => m.published && !mids.includes(m.id))); };
 const accessibleActivities = (pid) => { const mids = DB.enrollments.filter(e => e.participantId === pid).map(e => e.moduleId); return sortActs(DB.activities.filter(a => a.published && mids.includes(a.moduleId))); };
@@ -2006,7 +2043,6 @@ function showSyncModal(opts) {
     const btn = document.getElementById('syncSkipBtn');
     if (btn) btn.addEventListener('click', () => { try { onSkip(); } catch(e){} }, { once: true });
   }
-  // Animate indeterminate progress
   let pct = 0;
   const texts = [t('sync_upload_status_connecting'), t('sync_upload_status_sending'), t('sync_upload_status_verifying')];
   syncProgressInterval = setInterval(() => {
@@ -2054,7 +2090,6 @@ function handleLogoutClick() {
     doLogout();
     return;
   }
-  // Show sync modal + perform forced save, then logout
   const modal = showSyncModal({
     title: t('sync_upload_title'),
     desc: t('sync_upload_desc'),
@@ -2069,7 +2104,6 @@ function handleLogoutClick() {
       setTimeout(() => { modal.close(); doLogout(); }, 900);
     } else {
       modal.done(false, (res.error || '') + ' — ' + t('msg_invalid_login'));
-      // Auto close after 2.5s and continue logout anyway (don't trap user)
       setTimeout(() => { modal.close(); doLogout(); }, 2600);
     }
   });
@@ -2177,7 +2211,6 @@ async function downloadWithProgress(url, filename, logInfo) {
     return true;
   } catch (err) {
     console.warn('Download via fetch failed, falling back to link:', err);
-    // Fallback: direct link
     try {
       const a = document.createElement('a');
       a.href = url; a.download = filename; a.target = '_blank'; a.rel = 'noopener';
@@ -2460,6 +2493,7 @@ function registerForm() {
     <div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required placeholder="${t('full_name')}" /></div>
     <div class="field"><label>${t('username')} *</label><input class="input" name="username" required pattern="[A-Za-z0-9_]{3,}" placeholder="cth: ahmad_87" /></div>
     <div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required placeholder="nama@email.com" /></div>
+    <div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" placeholder="${t('lbl_org')}" /></div>
     <div class="field"><label>${t('password')} *</label><input class="input" type="password" name="password" id="regPassword" required minlength="8" autocomplete="new-password" placeholder="${t('pwd_placeholder')}" />${passwordMeterHtml('register')}</div>
     <div class="field"><label>${t('confirm_password')} *</label><input class="input" type="password" name="confirmPassword" required minlength="8" autocomplete="new-password" /></div>
     <button class="btn btn-primary" type="submit" style="width:100%;padding:.7rem">${t('register')}</button>
@@ -2468,6 +2502,13 @@ function registerForm() {
 
 function navItems() {
   const r = state.user.role;
+  if (r === 'vip') {
+    return [
+      { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'reports', label:t('nav_reports'), icon:'📄' },
+      { v:'profile', label:t('nav_profile'), icon:'👤' }
+    ];
+  }
   if (r === 'participant') {
     const pq = pendingQuizzesFor(state.user.id).length;
     const pf = upcomingFinalExamsFor(state.user.id, 99).length;
@@ -2494,6 +2535,7 @@ function navItems() {
       { v:'profile', label:t('nav_profile'), icon:'👤' }
     ];
   }
+  const pendingUsers = DB.users.filter(u => u.status === 'pending').length;
   return [
     { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
     { v:'modules', label:t('nav_modules'), icon:'📦' },
@@ -2502,7 +2544,7 @@ function navItems() {
     { v:'grading', label:t('nav_grading'), icon:'✅' },
     { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
     { v:'bank', label:t('nav_bank'), icon:'🗂️' },
-    { v:'users', label:t('nav_users'), icon:'👥' },
+    { v:'users', label:t('nav_users') + (pendingUsers ? ` (${pendingUsers})` : ''), icon:'👥' },
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
@@ -2519,7 +2561,7 @@ function shell() {
       <div class="brand"><div class="logo">CF</div><div><strong>${t('app_brand')}</strong><span>${t('app_brand_sub')}</span></div></div>
       <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span></button>`).join('')}</nav>
       <div class="sidebar-foot">
-        <div class="userchip" data-act="nav" data-view="profile" title="${esc(t('nav_profile'))}"><div class="avatar">${esc(initials(u.name))}</div><div style="flex:1;min-width:0"><strong>${tce(u.name)}</strong><span>${roleLabel(u.role)}</span></div></div>
+        <div class="userchip" data-act="nav" data-view="profile" title="${esc(t('nav_profile'))}"><div class="avatar">${esc(initials(u.name))}</div><div style="flex:1;min-width:0"><strong>${tce(u.name)}</strong><span>${roleLabel(u.role)}${u.role === 'vip' && u.org ? ' · ' + tce(u.org) : ''}</span></div></div>
         <button class="btn" data-act="logout" style="width:100%;background:transparent;border-color:transparent;color:#9ec6b8;padding:.34rem .6rem;font-size:.78rem">${t('logout')}</button>
       </div>
     </aside>
@@ -2540,6 +2582,10 @@ function render() {
   pushAppHistoryIfChanged();
 }
 function viewContent() {
+  /* VIP can only access dashboard, reports, profile */
+  if (state.user.role === 'vip' && !['dashboard','reports','profile'].includes(state.view)) {
+    return vipDashboard();
+  }
   switch (state.view) {
     case 'dashboard': return dashboardView();
     case 'modules': return modulesView();
@@ -2639,6 +2685,8 @@ async function handleLogin(form) {
       return (xUser === idInput || xEmail === idInput) && xPass === passInput;
     });
     if (!u) { toast(t('msg_invalid_login'), 'bad'); return; }
+    if (u.status === 'pending') { toast('⏳ ' + t('msg_account_pending'), 'warn'); return; }
+    if (u.status === 'rejected') { toast('⛔ ' + t('msg_account_rejected'), 'bad'); return; }
     state.user = u; state.view = 'dashboard'; state.params = {};
     localStorage.setItem(SESSION_KEY, u.id);
     logAudit('Login', 'Sesi', u.id, u.name);
@@ -2653,6 +2701,7 @@ function handleRegister(form) {
   const name = form.name.value.trim();
   const username = form.username.value.trim();
   const email = form.email.value.trim().toLowerCase();
+  const org = form.org ? form.org.value.trim() : '';
   const pass = form.password.value;
   const cp = form.confirmPassword.value;
   if (!name || !username || !email || !pass) { toast(t('msg_required'), 'bad'); return; }
@@ -2661,22 +2710,58 @@ function handleRegister(form) {
   if (pass !== cp) { toast(t('password_mismatch'), 'bad'); return; }
   if (DB.users.find(x => String(x.username||'').toLowerCase() === username.toLowerCase())) { toast(t('username_taken'), 'bad'); return; }
   if (DB.users.find(x => String(x.email||'').toLowerCase() === email)) { toast(t('msg_email_taken'), 'bad'); return; }
-  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org: '', ic: '', phone: '', createdAt: nowISO() };
+  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org, ic: '', phone: '', status: 'pending', createdAt: nowISO() };
   DB.users.push(nu); saveDB();
-  state.user = nu; state.view = 'dashboard'; state.params = {}; state.loginMode = 'login';
-  localStorage.setItem(SESSION_KEY, nu.id);
-  logAudit('Register', 'Pengguna', nu.id, name);
-  try { history.replaceState({ view: 'dashboard', params: {}, cftp: true }, ''); lastPushedStateKey = stateKeyOf('dashboard', {}); } catch(e) {}
-  toast('✅ ' + t('register_success')); render();
+  state.loginMode = 'login';
+  logAudit('Register (Pending Approval)', 'Pengguna', nu.id, name);
+  toast('✅ ' + t('register_pending_success')); render();
 }
 
 /* =========================================================
    DASHBOARD
    ========================================================= */
 function dashboardView() {
+  if (state.user.role === 'vip') return vipDashboard();
   if (state.user.role === 'participant') return participantDashboard();
   if (state.user.role === 'trainer') return trainerDashboard();
   return adminDashboard();
+}
+function vipDashboard() {
+  const me = state.user;
+  const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && u.org === me.org);
+  const rows = parts.map(p => {
+    const mods = participantModules(p.id);
+    const acts = accessibleActivities(p.id);
+    const scored = acts.map(a => scoreFor(a, p.id)).filter(s => s.hasData);
+    const avgS = scored.length ? Math.round(avg(scored.map(s => s.overall))) : null;
+    return { p, mods: mods.length, acts: acts.length, done: scored.length, avg: avgS };
+  });
+  const allScores = rows.filter(r => r.avg !== null).map(r => r.avg);
+  const companyAvg = allScores.length ? Math.round(avg(allScores)) : null;
+  const competent = allScores.filter(x => x >= 70).length;
+  return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0">
+    <div class="card-head"><h2>🏢 ${t('vip_company_progress')}</h2><span class="pill">${tce(me.org || '—')}</span></div>
+    <p class="muted" style="font-size:.86rem;margin:0">${t('vip_access_denied').replace('Access restricted', 'Akses').replace('to your company employees only.', 'dikhususkan kepada pekerja syarikat anda sahaja.')}</p>
+  </div>
+  <div class="grid grid-4" style="margin-bottom:18px">
+    <div class="stat"><div class="label">${t('vip_participants')}</div><div class="value">${parts.length}</div><div class="sub">${tce(me.org || '')}</div></div>
+    <div class="stat"><div class="label">${t('rpt_summary_assessed')}</div><div class="value">${rows.filter(r => r.done > 0).length}</div></div>
+    <div class="stat"><div class="label">${t('vip_avg_company')}</div><div class="value">${companyAvg !== null ? companyAvg + '%' : '—'}</div></div>
+    <div class="stat"><div class="label">${t('stat_competent')}</div><div class="value">${competent}</div></div>
+  </div>
+  <div class="card"><div class="card-head"><h2>📊 ${t('vip_company_progress')}</h2><button class="btn btn-sm btn-primary" data-act="report-program">📊 ${t('vip_company_report')}</button></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${t('rpt_col_participant')}</th><th>${t('lbl_email')}</th><th>${t('lbl_module')}</th><th>${t('rpt_summary_activities')}</th><th>${t('rpt_summary_assessed')}</th><th>${t('rpt_col_average')}</th><th>${t('rpt_col_status')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${rows.map(r => `<tr><td><strong>${tce(r.p.name)}</strong></td><td>${esc(r.p.email)}</td><td>${r.mods}</td><td>${r.acts}</td><td>${r.done}</td><td><strong>${r.avg !== null ? r.avg + '%' : '—'}</strong></td><td>${badgeStatus(r.avg)}</td><td><div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm btn-primary" data-act="vip-view-progress" data-id="${r.p.id}">📊 ${t('vip_view_progress')}</button><button class="btn btn-sm" data-act="report-individual" data-pid="${r.p.id}" title="${t('rep_generate')}">📄</button></div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('vip_no_participants')}</div>`}</div>`;
+}
+function openVipParticipantProgress(pid) {
+  const p = DB.users.find(u => u.id === pid);
+  if (!p || p.org !== state.user.org) { toast(t('msg_no_access'), 'bad'); return; }
+  const acts = accessibleActivities(pid);
+  const rows = acts.map(a => ({ a, s: scoreFor(a, pid) }));
+  const scored = rows.filter(r => r.s.hasData);
+  const avgS = scored.length ? Math.round(avg(scored.map(r => r.s.overall))) : null;
+  openModal(`<h2>📊 ${tce(p.name)}</h2><p class="muted">${esc(p.email)} · ${tce(p.org || '')}</p>
+    <div class="meta-grid"><div class="meta-item"><div class="k">${t('stat_programs_enrolled')}</div><div class="v">${participantModules(pid).length}</div></div><div class="meta-item"><div class="k">${t('rpt_summary_activities')}</div><div class="v">${acts.length}</div></div><div class="meta-item"><div class="k">${t('rpt_summary_assessed')}</div><div class="v">${scored.length}</div></div><div class="meta-item"><div class="k">${t('rpt_col_average')}</div><div class="v">${avgS !== null ? avgS + '%' : '—'}</div></div></div>
+    ${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${t('rpt_col_activity')}</th><th>${t('rpt_col_module')}</th><th>${t('rpt_col_date')}</th><th>${t('rpt_col_quiz')}</th><th>${t('rpt_col_rubric')}</th><th>${t('rpt_col_score')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${rows.map(({ a, s }) => `<tr><td><strong>${tce(a.title)}</strong></td><td>${tce(moduleName(a.moduleId))}</td><td>${fmtDate(a.date)}</td><td>${s.quizPct !== null ? `${s.attempt.score}/${s.attempt.total} (${s.quizPct}%)` : '—'}</td><td>${s.practical ? s.practical.total.toFixed(1) + '%' : '—'}</td><td><strong>${s.overall !== null ? s.overall + '%' : '—'}</strong></td><td>${badgeStatus(s.overall)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_activity')}</div>`}
+    <div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button><button class="btn btn-primary" data-act="report-individual" data-pid="${pid}">${t('rep_generate')}</button></div>`, 'modal-lg');
 }
 function participantDashboard() {
   const me = state.user;
@@ -2736,17 +2821,19 @@ function trainerDashboard() {
 function adminDashboard() {
   const mods = sortModules(DB.modules);
   const acts = sortActs(DB.activities);
-  const parts = allParticipants(); const trs = allTrainers();
+  const parts = allParticipants(); const trs = allTrainers(); const vips = allVips();
+  const pending = DB.users.filter(u => u.status === 'pending');
   const recent = DB.audit.slice().sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 6);
   const totalMat = mods.reduce((s,m) => s + (m.materials||[]).length, 0);
   const totalTT = DB.timetables.length;
   const totalFE = (DB.finalExams || []).length;
   return `<div class="grid grid-4" style="margin-bottom:18px">
-    <div class="stat"><div class="label">${t('stat_users')}</div><div class="value">${DB.users.length}</div><div class="sub">${trs.length}T · ${parts.length}P</div></div>
+    <div class="stat"><div class="label">${t('stat_users')}</div><div class="value">${DB.users.length}</div><div class="sub">${trs.length}T · ${parts.length}P · ${vips.length}VIP</div></div>
     <div class="stat"><div class="label">${t('stat_modules')}</div><div class="value">${mods.length}</div><div class="sub">${t('stat_modules_active', mods.filter(m => m.published).length)}</div></div>
     <div class="stat"><div class="label">${t('stat_activities')}</div><div class="value">${acts.length}</div><div class="sub">${acts.filter(a => a.published).length} ${t('lbl_published').toLowerCase()}</div></div>
     <div class="stat"><div class="label">🎓 ${t('fe_title')}</div><div class="value">${totalFE}</div><div class="sub">📅 ${totalTT} · 📎 ${totalMat}</div></div>
   </div>
+  ${pending.length ? `<div class="info-box warn"><h4>⏳ ${t('usr_pending_title')} (${pending.length})</h4><p style="margin:4px 0 0"><button class="btn btn-sm btn-primary" data-act="nav" data-view="users" style="margin-top:6px">${t('nav_users')} →</button></p></div>` : ''}
   <div class="card"><div class="card-head"><h2>${t('aud_title')}</h2><button class="btn btn-sm" data-act="nav" data-view="audit">${t('btn_view')}</button></div><ul class="list-plain">${recent.map(e => `<li><strong>${esc(e.action)}</strong> — ${tce(e.details)}<br><small class="muted">${esc(e.actorName)} · ${fmtDateTime(e.at)}</small></li>`).join('') || `<li class="empty">${t('aud_empty')}</li>`}</ul></div>`;
 }
 
@@ -2924,13 +3011,13 @@ function openFinalExamQuestionsEditor(feid) {
   const fe = getFinalExam(feid); if (!fe) return;
   state.editingFinalExamId = feid;
   state.tempFeQuestions = JSON.parse(JSON.stringify(fe.questions || []));
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>🗂️ ${t('fe_questions')}</h2><p class="muted" style="margin:0">${tce(fe.title)}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-fe-questions">💾 ${t('btn_save')}</button></div></div><div id="feQuestionsSection"></div>`, 'modal-lg');
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>🗂️ ${t('fe_questions')}</h2><p class="muted" style="margin:0">${tce(fe.title)} · ${tce(moduleName(fe.moduleId))}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-fe-questions">💾 ${t('btn_save')}</button></div></div><div id="feQuestionsSection"></div>`, 'modal-lg');
   renderFeQuestionsBuilder();
 }
 function renderFeQuestionsBuilder() {
   const c = document.getElementById('feQuestionsSection'); if (!c) return;
   const qs = state.tempFeQuestions || [];
-  c.innerHTML = `<div class="quiz-builder">${qs.length ? qs.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="fe-q-up" data-idx="${i}" ${i===0?'disabled':''}>▲</button><button type="button" class="iconbtn" data-act="fe-q-down" data-idx="${i}" ${i===qs.length-1?'disabled':''}>▼</button><button type="button" class="iconbtn" data-act="fe-q-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="fe-q-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('fe_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="fe-q-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="fe-q-pick-bank">🗂️ ${t('qb_pick_bank')} (${DB.questionBank.length})</button><span class="pill" style="margin-left:auto">${qs.length} ${t('lbl_questions')}</span></div></div>`;
+  c.innerHTML = `<div class="quiz-builder">${qs.length ? qs.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="fe-q-up" data-idx="${i}" ${i===0?'disabled':''}>▲</button><button type="button" class="iconbtn" data-act="fe-q-down" data-idx="${i}" ${i===qs.length-1?'disabled':''}>▼</button><button type="button" class="iconbtn" data-act="fe-q-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="fe-q-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('fe_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="fe-q-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="fe-q-pick-bank">🗂️ ${t('qb_pick_bank')} (${DB.questionBank.filter(b => b.moduleId === (getFinalExam(state.editingFinalExamId)||{}).moduleId).length})</button><span class="pill" style="margin-left:auto">${qs.length} ${t('lbl_questions')}</span></div></div>`;
 }
 function handleSaveFeQuestions() {
   const fe = getFinalExam(state.editingFinalExamId); if (!fe) return;
@@ -2958,8 +3045,12 @@ function handleSaveFeInlineQuestion(form) {
   closeModal2(); renderFeQuestionsBuilder();
 }
 function openFeBankPicker() {
-  const cats = [...new Set(DB.questionBank.map(b => b.category).filter(Boolean))].sort();
+  const fe = getFinalExam(state.editingFinalExamId);
+  state.fePickerModuleId = fe ? fe.moduleId : null;
+  const pool = DB.questionBank.filter(b => !state.fePickerModuleId || b.moduleId === state.fePickerModuleId);
+  const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
   openModal2(`<h2>${t('qb_pick_from_bank')}</h2>
+    <div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.fePickerModuleId))}</strong></p></div>
     <div class="picker-toolbar"><input class="input" id="fePickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="fePickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select></div>
     <form data-form="fe-bank-picker"><div class="picker-list" id="fePickerList"></div><div class="modal-actions"><span class="pill" id="fePickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
   renderFePickerList();
@@ -2967,7 +3058,10 @@ function openFeBankPicker() {
 function renderFePickerList() {
   const q = (($('#fePickerSearch') || {}).value || '').toLowerCase();
   const cat = ($('#fePickerCategory') || {}).value || '';
-  const list = DB.questionBank.filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat);
+  const list = DB.questionBank
+    .filter(b => !state.fePickerModuleId || b.moduleId === state.fePickerModuleId)
+    .filter(b => !q || b.q.toLowerCase().includes(q))
+    .filter(b => !cat || b.category === cat);
   const c = $('#fePickerList'); if (!c) return;
   c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="fepick" value="${b.id}" data-fe-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${'ABCD'[i]}. ${tce(o)}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
   updateFePickerCount();
@@ -2980,7 +3074,7 @@ function handleFeBankPickerSubmit(form) {
   const ids = $$('input[name="fepick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
   const picked = DB.questionBank.filter(b => ids.includes(b.id));
-  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id }));
+  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId }));
   closeModal2(); renderFeQuestionsBuilder(); toast(t('qb_pick_added', picked.length));
 }
 function openFinalAssessModal(feid) {
@@ -3074,6 +3168,7 @@ function deleteModule(id) {
   DB.finalExams = (DB.finalExams || []).filter(x => x.moduleId !== id);
   DB.feAttempts = (DB.feAttempts || []).filter(x => !feids.includes(x.finalId));
   DB.fePractical = (DB.fePractical || []).filter(x => !feids.includes(x.finalId));
+  DB.questionBank = (DB.questionBank || []).filter(x => x.moduleId !== id);
   if (Array.isArray(DB.retests)) DB.retests = DB.retests.filter(x => !aids.includes(x.activityId));
   saveDB(); logAudit('Delete Module', 'Modul', id, m.name); toast(t('msg_deleted')); state.view = 'modules'; state.params = {}; render();
 }
@@ -3096,7 +3191,7 @@ function unenrollParticipant(mid, pid) {
 function openEnrollModal(mid) {
   const m = getModule(mid);
   const parts = allParticipants().filter(p => !isEnrolled(mid, p.id));
-  openModal2(`<h2>${t('enr_title')}</h2><p class="muted">${tce(m.name)}</p><form data-form="enroll-bulk" data-mid="${mid}">${parts.length ? `<div style="display:flex;gap:8px;margin-bottom:10px"><button type="button" class="btn btn-sm" data-act="enroll-select-all">${t('enr_select_all')}</button><button type="button" class="btn btn-sm" data-act="enroll-deselect-all">${t('enr_deselect_all')}</button></div><div class="picker-list">${parts.map(p => `<label class="picker-item"><input type="checkbox" name="enroll-pid" value="${p.id}" /><div><strong>${tce(p.name)}</strong><br><small class="muted">${esc(p.email)}</small></div></label>`).join('')}</div>` : `<div class="empty">${t('enr_none')}</div>`}<div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_close')}</button>${parts.length ? `<button type="submit" class="btn btn-primary">${t('btn_enroll')}</button>` : ''}</div></form>`);
+  openModal2(`<h2>${t('enr_title')}</h2><p class="muted">${tce(m.name)}</p><form data-form="enroll-bulk" data-mid="${mid}">${parts.length ? `<div style="display:flex;gap:8px;margin-bottom:10px"><button type="button" class="btn btn-sm" data-act="enroll-select-all">${t('enr_select_all')}</button><button type="button" class="btn btn-sm" data-act="enroll-deselect-all">${t('enr_deselect_all')}</button></div><div class="picker-list">${parts.map(p => `<label class="picker-item"><input type="checkbox" name="enroll-pid" value="${p.id}" /><div><strong>${tce(p.name)}</strong><br><small class="muted">${esc(p.email)}${p.org ? ' · ' + tce(p.org) : ''}</small></div></label>`).join('')}</div>` : `<div class="empty">${t('enr_none')}</div>`}<div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_close')}</button>${parts.length ? `<button type="submit" class="btn btn-primary">${t('btn_enroll')}</button>` : ''}</div></form>`);
 }
 function handleBulkEnroll(form) {
   const mid = form.dataset.mid;
@@ -3356,7 +3451,7 @@ function openQuizEditor(aid) {
   const act = getActivity(aid); if (!act) return;
   state.editingActivityId = aid;
   state.tempQuiz = JSON.parse(JSON.stringify(act.quiz || []));
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${t('qb_title')}</h2><p class="muted" style="margin:0">${tce(act.title)}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-quiz-config">💾 ${t('btn_save')}</button></div></div>
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${t('qb_title')}</h2><p class="muted" style="margin:0">${tce(act.title)} · 📦 ${tce(moduleName(act.moduleId))}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-quiz-config">💾 ${t('btn_save')}</button></div></div>
     ${state.retestContext ? `<div class="retest-banner">🔄 ${t('retest_title')} — ${tce(userName(state.retestContext.pid))}</div>` : ''}
     <div class="info-box" style="background:#f0f7ff;border-left-color:#3b82f6;color:#1e3a8a"><h4>⏱️ ${t('qb_settings_title')}</h4><p style="margin:0;font-size:.82rem">${t('qb_settings_hint')}</p></div>
     <div class="quiz-settings-grid" style="margin-bottom:16px"><div class="field" style="margin:0"><label>${t('qb_open_at')}</label><input class="input" type="datetime-local" id="quizOpenAt" value="${esc(toLocalInput(act.quizOpenAt))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_open_at_hint')}</small></div><div class="field" style="margin:0"><label>${t('qb_close_at')}</label><input class="input" type="datetime-local" id="quizCloseAt" value="${esc(toLocalInput(act.quizCloseAt))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_close_at_hint')}</small></div><div class="field" style="margin:0"><label>${t('qb_duration')}</label><input class="input" type="number" id="quizDuration" min="0" step="1" value="${act.quizDuration != null ? act.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_duration_hint')}</small></div></div>
@@ -3366,7 +3461,9 @@ function openQuizEditor(aid) {
 function renderQuizBuilder() {
   const c = document.getElementById('quizBuilderSection'); if (!c) return;
   const quiz = state.tempQuiz || [];
-  c.innerHTML = `<div class="quiz-builder">${quiz.length ? quiz.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="qb-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="qb-down" data-idx="${i}" ${i === quiz.length-1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="qb-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="qb-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('qb_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="qb-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="qb-pick-bank">🗂️ ${t('qb_pick_bank')} (${DB.questionBank.length})</button><span class="pill" style="margin-left:auto">${quiz.length} ${t('lbl_questions')}</span></div></div>`;
+  const act = getActivity(state.editingActivityId);
+  const bankCount = act ? DB.questionBank.filter(b => b.moduleId === act.moduleId).length : DB.questionBank.length;
+  c.innerHTML = `<div class="quiz-builder">${quiz.length ? quiz.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="qb-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="qb-down" data-idx="${i}" ${i === quiz.length-1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="qb-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="qb-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('qb_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="qb-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="qb-pick-bank">🗂️ ${t('qb_pick_bank')} — ${tce(moduleName(act ? act.moduleId : ''))} (${bankCount})</button><span class="pill" style="margin-left:auto">${quiz.length} ${t('lbl_questions')}</span></div></div>`;
 }
 function handleSaveQuizConfig() {
   const aid = state.editingActivityId; if (!aid) return;
@@ -3384,15 +3481,22 @@ function handleSaveQuizConfig() {
   } else if (rc) setTimeout(() => openRetestModal(rc.aid, rc.pid), 300);
 }
 function openBankPicker() {
-  const cats = [...new Set(DB.questionBank.map(b => b.category).filter(Boolean))].sort();
-  openModal2(`<h2>${t('qb_pick_from_bank')}</h2><div class="picker-toolbar"><input class="input" id="pickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="pickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select><select class="select" id="pickerDiff"><option value="">${t('qb_pick_all')}</option><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div><form data-form="bank-picker"><div class="picker-list" id="pickerList"></div><div class="modal-actions"><span class="pill" id="pickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
+  const act = getActivity(state.editingActivityId);
+  state.pickerModuleId = act ? act.moduleId : null;
+  const pool = DB.questionBank.filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId);
+  const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
+  openModal2(`<h2>${t('qb_pick_from_bank')}</h2><div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.pickerModuleId))}</strong> — ${pool.length} ${t('lbl_questions')}</p></div><div class="picker-toolbar"><input class="input" id="pickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="pickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select><select class="select" id="pickerDiff"><option value="">${t('qb_pick_all')}</option><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div><form data-form="bank-picker"><div class="picker-list" id="pickerList"></div><div class="modal-actions"><span class="pill" id="pickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
   renderPickerList();
 }
 function renderPickerList() {
   const q = (($('#pickerSearch') || {}).value || '').toLowerCase();
   const cat = ($('#pickerCategory') || {}).value || '';
   const diff = ($('#pickerDiff') || {}).value || '';
-  const list = DB.questionBank.filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff);
+  const list = DB.questionBank
+    .filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId)
+    .filter(b => !q || b.q.toLowerCase().includes(q))
+    .filter(b => !cat || b.category === cat)
+    .filter(b => !diff || b.difficulty === diff);
   const c = $('#pickerList'); if (!c) return;
   c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="pick" value="${b.id}" data-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${'ABCD'[i]}. ${tce(o)}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
   updatePickerCount();
@@ -3405,7 +3509,7 @@ function handleBankPickerSubmit(form) {
   const ids = $$('input[name="pick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
   const picked = DB.questionBank.filter(b => ids.includes(b.id));
-  picked.forEach(b => state.tempQuiz.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, category: b.category, difficulty: b.difficulty }));
+  picked.forEach(b => state.tempQuiz.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId, category: b.category, difficulty: b.difficulty }));
   closeModal2(); renderQuizBuilder(); toast(t('qb_pick_added', picked.length));
 }
 function openInlineQuestionEditor(idx) {
@@ -3420,7 +3524,14 @@ function handleSaveInlineQuestion(form) {
   const answer = Number(form.querySelector('input[name="answer"]:checked').value);
   const newQ = { q: form.question.value.trim(), options, answer };
   if (isEdit) state.tempQuiz[Number(idx)] = Object.assign({}, state.tempQuiz[Number(idx)], newQ);
-  else { if (form.saveToBank && form.saveToBank.checked) { const b = Object.assign({ id: uid('qb'), createdAt: nowISO() }, newQ, { category: form.category?.value.trim() || '', difficulty: form.difficulty?.value || 'Mudah' }); DB.questionBank.push(b); newQ.sourceBankId = b.id; saveDB(); } state.tempQuiz.push(newQ); }
+  else {
+    const act = getActivity(state.editingActivityId);
+    if (form.saveToBank && form.saveToBank.checked) {
+      const b = Object.assign({ id: uid('qb'), createdAt: nowISO(), moduleId: act ? act.moduleId : null }, newQ, { category: form.category?.value.trim() || '', difficulty: form.difficulty?.value || 'Mudah' });
+      DB.questionBank.push(b); newQ.sourceBankId = b.id; newQ.moduleId = b.moduleId; saveDB();
+    }
+    state.tempQuiz.push(newQ);
+  }
   closeModal2(); renderQuizBuilder();
 }
 
@@ -3484,17 +3595,41 @@ function handleSavePractical(form) {
    ========================================================= */
 function usersView() {
   const users = DB.users.slice().sort((a,b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
-  return `<div class="card"><div class="card-head"><h2>${t('usr_title')}</h2><button class="btn btn-primary" data-act="new-user">➕</button></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_role')}</th><th>${t('lbl_org')}</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td><span class="badge ${u.role === 'admin' ? 'info' : u.role === 'trainer' ? 'ok' : 'draft'}">${roleLabel(u.role)}</span></td><td>${tce(u.org || '—')}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="edit-user" data-id="${u.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-user" data-id="${u.id}" ${u.id === state.user.id ? 'disabled' : ''}>🗑️</button></div></td></tr>`).join('')}</tbody></table></div></div>`;
+  const pending = users.filter(u => u.status === 'pending');
+  const statusBadge = (st) => {
+    if (st === 'pending') return `<span class="badge warn">⏳ ${t('usr_status_pending')}</span>`;
+    if (st === 'rejected') return `<span class="badge bad">⛔ ${t('usr_status_rejected')}</span>`;
+    return `<span class="badge ok">✓ ${t('usr_status_approved')}</span>`;
+  };
+  return `${pending.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>⏳ ${t('usr_pending_title')} (${pending.length})</h2></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_org')}</th><th>${t('lbl_date')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${pending.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td>${tce(u.org || '—')}</td><td>${fmtDate(u.createdAt)}</td><td><div class="toolbar"><button class="btn btn-sm btn-primary" data-act="approve-user" data-id="${u.id}">✅ ${t('usr_approve')}</button><button class="btn btn-sm btn-danger" data-act="reject-user" data-id="${u.id}">✖ ${t('usr_reject')}</button></div></td></tr>`).join('')}</tbody></table></div></div>` : ''}
+  <div class="card"><div class="card-head"><h2>${t('usr_title')}</h2><button class="btn btn-primary" data-act="new-user">➕</button></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_role')}</th><th>${t('usr_status')}</th><th>${t('lbl_org')}</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td><span class="badge ${u.role === 'admin' ? 'info' : u.role === 'trainer' ? 'ok' : u.role === 'vip' ? 'info' : 'draft'}">${roleLabel(u.role)}</span></td><td>${statusBadge(u.status)}</td><td>${tce(u.org || '—')}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="edit-user" data-id="${u.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-user" data-id="${u.id}" ${u.id === state.user.id ? 'disabled' : ''}>🗑️</button></div></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+function approveUser(id) {
+  const u = DB.users.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm(t('confirm_approve_user', u.name))) return;
+  u.status = 'approved';
+  saveDB(); logAudit('Approve User', 'Pengguna', id, u.name);
+  toast('✅ ' + t('msg_user_approved')); render();
+}
+function rejectUser(id) {
+  const u = DB.users.find(x => x.id === id);
+  if (!u) return;
+  if (!confirm(t('confirm_reject_user', u.name))) return;
+  u.status = 'rejected';
+  saveDB(); logAudit('Reject User', 'Pengguna', id, u.name);
+  toast('✖ ' + t('msg_user_rejected')); render();
 }
 function openUserForm(user) {
   const isEdit = !!user;
-  const u = user || { name:'', username:'', email:'', password:'', role:'participant', org:'', ic:'', phone:'' };
+  const u = user || { name:'', username:'', email:'', password:'', role:'participant', org:'', ic:'', phone:'', status:'approved' };
   openModal(`<h2>${isEdit ? t('usr_edit') : t('usr_new')}</h2>
     <form data-form="user" data-id="${isEdit ? u.id : ''}">
       <div class="grid2"><div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(u.name)}" /></div><div class="field"><label>${t('username')} *</label><input class="input" name="username" required pattern="[A-Za-z0-9_]{3,}" value="${esc(u.username||'')}" /></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${t('lbl_password')} *</label><input class="input" name="password" required value="${esc(u.password)}" /></div></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_role')}</label><select class="select" name="role">${['participant','trainer','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select></div><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" value="${esc(u.org || '')}" /></div><div class="field"><label>${t('phone')}</label><input class="input" name="phone" value="${esc(u.phone || '')}" /></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_role')}</label><select class="select" name="role">${['participant','trainer','vip','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select></div><div class="field"><label>${t('usr_status')}</label><select class="select" name="status"><option value="approved" ${u.status === 'approved' ? 'selected' : ''}>${t('usr_status_approved')}</option><option value="pending" ${u.status === 'pending' ? 'selected' : ''}>${t('usr_status_pending')}</option><option value="rejected" ${u.status === 'rejected' ? 'selected' : ''}>${t('usr_status_rejected')}</option></select></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div><div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" value="${esc(u.org || '')}" /></div></div>
+      <div class="grid2"><div class="field"><label>${t('phone')}</label><input class="input" name="phone" value="${esc(u.phone || '')}" /></div><div></div></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
 }
@@ -3502,14 +3637,16 @@ function handleSaveUser(form) {
   const id = form.dataset.id;
   const name = form.name.value.trim(); const username = form.username.value.trim(); const email = form.email.value.trim().toLowerCase();
   const password = form.password.value; const role = form.role.value; const ic = form.ic.value.trim(); const org = form.org.value.trim(); const phone = form.phone.value.trim();
+  const status = form.status.value;
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
+  if (role === 'vip' && !org) { toast(t('usr_org_required'), 'bad'); return; }
   const dupU = DB.users.find(u => u.id !== id && String(u.username||'').toLowerCase() === username.toLowerCase());
   if (dupU) { toast(t('username_taken'), 'bad'); return; }
   const dupE = DB.users.find(u => u.id !== id && String(u.email||'').toLowerCase() === email);
   if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-  if (id) { const u = DB.users.find(x => x.id === id); if (!u) return; Object.assign(u, { name, username, email, password, role, ic, org, phone }); saveDB(); logAudit('Update User', 'Pengguna', id, name); toast(t('msg_updated')); }
-  else { const nu = { id: uid('u'), name, username, email, password, role, ic, org, phone, createdAt: nowISO() }; DB.users.push(nu); saveDB(); logAudit('Create User', 'Pengguna', nu.id, name); toast(t('msg_created')); }
+  if (id) { const u = DB.users.find(x => x.id === id); if (!u) return; Object.assign(u, { name, username, email, password, role, ic, org, phone, status }); saveDB(); logAudit('Update User', 'Pengguna', id, name); toast(t('msg_updated')); }
+  else { const nu = { id: uid('u'), name, username, email, password, role, ic, org, phone, status: status || 'approved', createdAt: nowISO() }; DB.users.push(nu); saveDB(); logAudit('Create User', 'Pengguna', nu.id, name); toast(t('msg_created')); }
   closeModal(); render();
 }
 function deleteUser(id) {
@@ -3531,6 +3668,7 @@ function deleteUser(id) {
     DB.finalExams = (DB.finalExams||[]).filter(x => !mids.includes(x.moduleId));
     DB.feAttempts = (DB.feAttempts||[]).filter(x => !feids.includes(x.finalId));
     DB.fePractical = (DB.fePractical||[]).filter(x => !feids.includes(x.finalId));
+    DB.questionBank = (DB.questionBank || []).filter(x => !mids.includes(x.moduleId));
     if (Array.isArray(DB.retests)) DB.retests = DB.retests.filter(x => !aids.includes(x.activityId));
   }
   if (u.role === 'participant') {
@@ -3550,9 +3688,17 @@ function auditView() {
   return `<div class="card"><div class="card-head"><h2>${t('aud_title')}</h2><span class="muted">${entries.length}</span></div><div class="table-wrap"><table><thead><tr><th>${t('aud_time')}</th><th>${t('aud_user')}</th><th>${t('aud_action')}</th><th>${t('aud_details')}</th></tr></thead><tbody>${entries.map(e => `<tr><td style="white-space:nowrap">${fmtDateTime(e.at)}</td><td>${tce(e.actorName)}</td><td><span class="badge info">${esc(e.action)}</span></td><td><small>${tce(e.details)}</small></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function reportsView() {
+  const isVip = state.user.role === 'vip';
   const isParticipant = state.user.role === 'participant';
+  if (isVip) {
+    const me = state.user;
+    const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && u.org === me.org).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0"><div class="card-head"><h2>📄 ${t('rep_title')}</h2><span class="pill">${tce(me.org || '—')}</span></div><p class="muted" style="margin:0">${t('vip_access_denied')}</p></div>
+    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button></div>
+    <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div>${parts.length ? `<div class="toolbar"><select class="select" id="reportParticipant" style="max-width:340px">${parts.map(p => `<option value="${p.id}">${tce(p.name)}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div>` : `<div class="empty">${t('vip_no_participants')}</div>`}</div>`;
+  }
   const parts = allParticipants();
-  return `<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div>${isParticipant ? `<button class="btn btn-primary" data-act="report-individual" data-pid="${state.user.id}">${t('rep_generate')}</button>` : `<div class="toolbar"><select class="select" id="reportParticipant" style="max-width:340px">${parts.map(p => `<option value="${p.id}">${tce(p.name)}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div>`}</div>${isParticipant ? '' : `<div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')}</button></div>`}`;
+  return `<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div>${isParticipant ? `<button class="btn btn-primary" data-act="report-individual" data-pid="${state.user.id}">${t('rep_generate')}</button>` : `<div class="toolbar"><select class="select" id="reportParticipant" style="max-width:340px">${parts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div>`}</div>${isParticipant ? '' : `<div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')}</button></div>`}`;
 }
 const PRINT_CSS = `*{box-sizing:border-box}body{font-family:Arial;padding:26px;font-size:12px;line-height:1.5}.rpt-head{display:flex;justify-content:space-between;border-bottom:3px solid #0b6b53;padding-bottom:12px;margin-bottom:18px}.rpt-head h1{font-size:17px;margin:0;color:#0b6b53}.rpt-head p{margin:0;font-size:11px;color:#555}.rpt-logo{width:52px;height:52px;border-radius:10px;background:#0b6b53;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:17px}h2{font-size:13px;color:#0b6b53;margin:18px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:11px}th{background:#e8f2ee}.summary{display:flex;gap:10px;margin:10px 0}.summary .box{flex:1;border:1px solid #bbb;border-radius:6px;padding:8px;text-align:center}.summary .n{font-size:16px;font-weight:bold;color:#0b6b53}.summary .l{font-size:9px;color:#666;text-transform:uppercase}.foot{margin-top:26px;border-top:1px solid #ccc;padding-top:10px;font-size:10px;color:#666}@media print{body{padding:0}@page{margin:16mm}}`;
 function tagFor(o) {
@@ -3576,13 +3722,13 @@ function individualReportHTML(pid) {
     <table><thead><tr><th>#</th><th>${t('rpt_col_activity')}</th><th>${t('rpt_col_module')}</th><th>${t('rpt_col_date')}</th><th>${t('rpt_col_quiz')}</th><th>${t('rpt_col_rubric')}</th><th>${t('rpt_col_score')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${rows.map(({ a, s }, i) => `<tr><td>${i+1}</td><td><b>${tce(a.title)}</b></td><td>${tce(moduleName(a.moduleId))}</td><td>${fmtDate(a.date)}</td><td>${s.quizPct !== null ? `${s.attempt.score}/${s.attempt.total} (${s.quizPct}%)` : '—'}</td><td>${s.practical ? `${s.practical.total.toFixed(1)}%` : '—'}</td><td><b>${s.overall !== null ? s.overall + '%' : '—'}</b></td><td>${tagFor(s.overall)}</td></tr>`).join('')}</tbody></table>
     <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
-function programReportHTML() {
-  const parts = allParticipants();
+function programReportHTML(orgFilter) {
+  const parts = allParticipants().filter(p => !orgFilter || p.org === orgFilter).sort((a,b) => (a.name||'').localeCompare(b.name||''));
   const mods = sortModules(DB.modules);
   const ds = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
   const per = parts.map(p => { const acts = accessibleActivities(p.id); const scores = acts.map(a => scoreFor(a, p.id)).filter(s => s.hasData); const a = scores.length ? Math.round(avg(scores.map(s => s.overall))) : null; return { p, done: scores.length, avg: a }; });
   return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('rpt_report_title')}</title><style>${PRINT_CSS}</style></head><body>
-    <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('rpt_program_title')}</p></div><div class="rpt-logo">CF</div></div>
+    <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('rpt_program_title')}${orgFilter ? ' — ' + tce(orgFilter) : ''}</p></div><div class="rpt-logo">CF</div></div>
     <div class="summary"><div class="box"><div class="n">${parts.length}</div><div class="l">${t('rpt_program_participants')}</div></div><div class="box"><div class="n">${mods.length}</div><div class="l">${t('rpt_program_modules')}</div></div><div class="box"><div class="n">${DB.enrollments.length}</div><div class="l">${t('rpt_program_enrollment')}</div></div></div>
     <h2>${t('rpt_program_performance')}</h2>
     <table><thead><tr><th>#</th><th>${t('rpt_col_participant')}</th><th>${t('rpt_col_org')}</th><th>${t('rpt_col_assessed')}</th><th>${t('rpt_col_average')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${per.map((x, i) => `<tr><td>${i+1}</td><td>${tce(x.p.name)}</td><td>${tce(x.p.org || '—')}</td><td>${x.done}</td><td><b>${x.avg !== null ? x.avg + '%' : '—'}</b></td><td>${tagFor(x.avg)}</td></tr>`).join('')}</tbody></table>
@@ -3599,25 +3745,51 @@ function printHTML(html) {
    QUESTION BANK
    ========================================================= */
 function questionBankView() {
+  const isAdmin = state.user.role === 'admin';
+  const allowedModIds = (isAdmin ? DB.modules : myModules()).map(m => m.id);
+  const allBank = DB.questionBank.filter(b => isAdmin || allowedModIds.includes(b.moduleId));
   const q = (state.params.bankSearch || '').toLowerCase();
   const cat = state.params.bankCategory || '';
   const diff = state.params.bankDiff || '';
-  const categories = [...new Set(DB.questionBank.map(b => b.category).filter(Boolean))].sort();
-  const filtered = DB.questionBank.filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const modFilter = state.params.bankModule || '';
+  const categories = [...new Set(allBank.map(b => b.category).filter(Boolean))].sort();
+  const filtered = allBank
+    .filter(b => !q || b.q.toLowerCase().includes(q))
+    .filter(b => !cat || b.category === cat)
+    .filter(b => !diff || b.difficulty === diff)
+    .filter(b => !modFilter || b.moduleId === modFilter)
+    .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const usage = (qid) => DB.activities.reduce((n, a) => n + (a.quiz||[]).filter(x => x.sourceBankId === qid).length, 0);
-  return `<div class="card"><div class="card-head"><h2>${t('bank_title')}</h2><button class="btn btn-primary" data-act="new-question">➕</button></div><div class="toolbar" style="margin-bottom:14px"><input class="input" style="max-width:320px" placeholder="${t('bank_search')}" value="${esc(state.params.bankSearch || '')}" data-input="bank-search" /><select class="select" style="max-width:200px" data-change="bank-category"><option value="">${t('bank_all')}</option>${categories.map(c => `<option value="${esc(c)}" ${cat === c ? 'selected' : ''}>${tce(c)}</option>`).join('')}</select><select class="select" style="max-width:160px" data-change="bank-diff"><option value="">${t('bank_all')}</option>${['Mudah','Sederhana','Sukar'].map(d => `<option value="${d}" ${diff === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select><span class="pill">${filtered.length}</span></div>${filtered.length ? `<div class="bank-list">${filtered.map(b => `<div class="bank-item"><div class="bank-item-head"><div style="flex:1"><div class="question-text">${tce(b.q)}</div><div class="opts">${b.options.map((o, i) => `<span class="${i === b.answer ? 'correct' : ''}">${'ABCD'[i]}. ${tce(o)}</span>`).join('')}</div><div class="bank-meta">${b.category ? `<span class="badge info">${tce(b.category)}</span>` : ''}${b.difficulty ? `<span class="badge ${b.difficulty === 'Sukar' ? 'bad' : b.difficulty === 'Sederhana' ? 'warn' : 'ok'}">${tce(b.difficulty)}</span>` : ''}<span class="badge draft">${t('bank_used', usage(b.id))}</span></div></div><div class="toolbar"><button class="btn btn-sm" data-act="edit-question" data-id="${b.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-question" data-id="${b.id}">🗑️</button></div></div></div>`).join('')}</div>` : `<div class="empty">${t('bank_no_questions')}</div>`}</div>`;
+  const modsForFilter = isAdmin ? sortModules(DB.modules) : myModules();
+  return `<div class="card"><div class="card-head"><div><h2>${t('bank_title')}</h2><small class="muted">${t('bank_all_modules')} · ${allBank.length} ${t('lbl_questions')}</small></div><button class="btn btn-primary" data-act="new-question">➕</button></div>
+    <div class="toolbar" style="margin-bottom:14px">
+      <input class="input" style="max-width:260px" placeholder="${t('bank_search')}" value="${esc(state.params.bankSearch || '')}" data-input="bank-search" />
+      <select class="select" style="max-width:220px" data-change="bank-module"><option value="">📦 ${t('bank_all_modules')}</option>${modsForFilter.map(m => `<option value="${m.id}" ${modFilter === m.id ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select>
+      <select class="select" style="max-width:180px" data-change="bank-category"><option value="">${t('bank_all')}</option>${categories.map(c => `<option value="${esc(c)}" ${cat === c ? 'selected' : ''}>${tce(c)}</option>`).join('')}</select>
+      <select class="select" style="max-width:150px" data-change="bank-diff"><option value="">${t('bank_all')}</option>${['Mudah','Sederhana','Sukar'].map(d => `<option value="${d}" ${diff === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select>
+      <span class="pill">${filtered.length}</span>
+    </div>
+    ${filtered.length ? `<div class="bank-list">${filtered.map(b => `<div class="bank-item"><div class="bank-item-head"><div style="flex:1"><div class="question-text">${tce(b.q)}</div><div class="opts">${b.options.map((o, i) => `<span class="${i === b.answer ? 'correct' : ''}">${'ABCD'[i]}. ${tce(o)}</span>`).join('')}</div><div class="bank-meta"><span class="badge info">📦 ${tce(moduleName(b.moduleId))}</span>${b.category ? `<span class="badge draft">${tce(b.category)}</span>` : ''}${b.difficulty ? `<span class="badge ${b.difficulty === 'Sukar' ? 'bad' : b.difficulty === 'Sederhana' ? 'warn' : 'ok'}">${tce(b.difficulty)}</span>` : ''}<span class="badge draft">${t('bank_used', usage(b.id))}</span></div></div><div class="toolbar"><button class="btn btn-sm" data-act="edit-question" data-id="${b.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-question" data-id="${b.id}">🗑️</button></div></div></div>`).join('')}</div>` : `<div class="empty">${t('bank_no_questions')}</div>`}</div>`;
 }
 function openQuestionForm(bq) {
   const isEdit = !!bq;
-  const b = bq || { q:'', options:['','','',''], answer:0, category:'', difficulty:'Mudah' };
-  openModal2(`<h2>${isEdit ? t('bank_edit') : t('bank_new')}</h2><form data-form="bank-question" data-id="${isEdit ? b.id : ''}"><div class="field"><label>${t('bank_question')} *</label><input class="input" name="question" required value="${esc(b.q)}" /></div><div class="field"><label>${t('bank_options')} *</label>${b.options.map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === b.answer ? 'checked' : ''} required /><span class="qopt-marker">${'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(o)}" /></div>`).join('')}</div><div class="grid2"><div class="field"><label>${t('bank_category')}</label><input class="input" name="category" value="${esc(b.category||'')}" /></div><div class="field"><label>${t('bank_level')}</label><select class="select" name="difficulty">${['Mudah','Sederhana','Sukar'].map(d => `<option ${b.difficulty === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select></div></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div></form>`);
+  const isAdmin = state.user.role === 'admin';
+  const modsAvail = isAdmin ? sortModules(DB.modules) : myModules();
+  if (!modsAvail.length) { toast(t('msg_no_module'), 'bad'); return; }
+  const b = bq || { q:'', options:['','','',''], answer:0, category:'', difficulty:'Mudah', moduleId: state.params.bankModule || modsAvail[0].id };
+  openModal2(`<h2>${isEdit ? t('bank_edit') : t('bank_new')}</h2><form data-form="bank-question" data-id="${isEdit ? b.id : ''}">
+    <div class="field"><label>${t('bank_module')} *</label><select class="select" name="moduleId" required>${modsAvail.map(m => `<option value="${m.id}" ${b.moduleId === m.id ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>${t('bank_question')} *</label><input class="input" name="question" required value="${esc(b.q)}" /></div>
+    <div class="field"><label>${t('bank_options')} *</label>${b.options.map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === b.answer ? 'checked' : ''} required /><span class="qopt-marker">${'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(o)}" /></div>`).join('')}</div>
+    <div class="grid2"><div class="field"><label>${t('bank_category')}</label><input class="input" name="category" value="${esc(b.category||'')}" /></div><div class="field"><label>${t('bank_level')}</label><select class="select" name="difficulty">${['Mudah','Sederhana','Sukar'].map(d => `<option ${b.difficulty === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select></div></div>
+    <div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div></form>`);
 }
 function handleSaveBankQuestion(form) {
   const id = form.dataset.id;
   const options = [0,1,2,3].map(i => form[`opt${i}`].value.trim());
   if (options.filter(Boolean).length < 2) { toast(t('qb_options_required'), 'bad'); return; }
   const answer = Number(form.querySelector('input[name="answer"]:checked').value);
-  const data = { q: form.question.value.trim(), options, answer, category: form.category.value.trim(), difficulty: form.difficulty.value };
+  const data = { q: form.question.value.trim(), options, answer, category: form.category.value.trim(), difficulty: form.difficulty.value, moduleId: form.moduleId.value };
   if (id) { Object.assign(DB.questionBank.find(x => x.id === id), data); saveDB(); logAudit('Update Bank Question', 'Bank Soalan', id, 'Updated'); }
   else { const nq = Object.assign({ id: uid('qb'), createdAt: nowISO() }, data); DB.questionBank.push(nq); saveDB(); logAudit('Create Bank Question', 'Bank Soalan', nq.id, 'New'); }
   closeModal2(); toast(t('bank_saved')); render();
@@ -3696,6 +3868,7 @@ async function handleUploadCertificate(form) {
 }
 function viewCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
+  if (state.user.role === 'vip') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
   if (cert.fileId) { const url = cert.previewUrl || ('https://drive.google.com/file/d/' + cert.fileId + '/preview'); const w = window.open(url, '_blank'); if (!w) toast('⚠️ ' + t('mat_popup_blocked'), 'bad'); return; }
@@ -3704,6 +3877,7 @@ function viewCertificate(pid) {
 }
 async function downloadCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
+  if (state.user.role === 'vip') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
   const filename = cert.originalName || (cert.name + '.pdf');
@@ -3830,9 +4004,29 @@ document.addEventListener('click', (e) => {
     case 'new-user': openUserForm(null); break;
     case 'edit-user': openUserForm(DB.users.find(u => u.id === id)); break;
     case 'delete-user': deleteUser(id); break;
-    case 'report-individual': printHTML(individualReportHTML(tgt.dataset.pid)); break;
-    case 'report-individual-selected': { const sel = $('#reportParticipant'); if (sel) printHTML(individualReportHTML(sel.value)); break; }
-    case 'report-program': printHTML(programReportHTML()); break;
+    case 'approve-user': approveUser(id); break;
+    case 'reject-user': rejectUser(id); break;
+    case 'vip-view-progress': openVipParticipantProgress(id); break;
+    case 'report-individual': {
+      const pid = tgt.dataset.pid;
+      if (state.user.role === 'vip') {
+        const p = DB.users.find(u => u.id === pid);
+        if (!p || p.org !== state.user.org) { toast(t('msg_no_access'), 'bad'); break; }
+      }
+      printHTML(individualReportHTML(pid)); break;
+    }
+    case 'report-individual-selected': {
+      const sel = $('#reportParticipant'); if (!sel) break;
+      if (state.user.role === 'vip') {
+        const p = DB.users.find(u => u.id === sel.value);
+        if (!p || p.org !== state.user.org) { toast(t('msg_no_access'), 'bad'); break; }
+      }
+      printHTML(individualReportHTML(sel.value)); break;
+    }
+    case 'report-program': {
+      const org = state.user.role === 'vip' ? state.user.org : null;
+      printHTML(programReportHTML(org)); break;
+    }
     case 'new-question': openQuestionForm(null); break;
     case 'edit-question': openQuestionForm(DB.questionBank.find(x => x.id === id)); break;
     case 'delete-question': deleteBankQuestion(id); break;
@@ -3898,6 +4092,7 @@ document.addEventListener('change', (e) => {
   const tgt = e.target.closest('[data-change]');
   if (tgt && tgt.dataset.change === 'bank-category') { state.params.bankCategory = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'bank-diff') { state.params.bankDiff = tgt.value; render(); return; }
+  if (tgt && tgt.dataset.change === 'bank-module') { state.params.bankModule = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-activity') { state.params.gradingActivity = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'activity-method') { const field = document.getElementById('rubricTemplateField'); if (field) field.style.display = tgt.value.includes('Praktikal') ? 'block' : 'none'; return; }
   if (tgt && tgt.dataset.change === 'activity-rubric') { const aid = tgt.dataset.aid; const a = getActivity(aid); if (a) { a.rubricId = tgt.value || null; a.updatedAt = nowISO(); saveDB(); logAudit('Assign Rubric', 'Aktiviti', aid, tgt.value ? getRubric(a).name : 'None'); toast(tgt.value ? t('rb_saved') : t('msg_deleted')); render(); } return; }
@@ -3967,6 +4162,7 @@ window.addEventListener('focus', async () => {
     if (res.ok && res.state && Array.isArray(res.state.users)) {
       if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
         DB = res.state;
+        migrateDB();
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
         render();
       }
@@ -3983,6 +4179,7 @@ setInterval(async () => {
     if (res.ok && res.state && Array.isArray(res.state.users)) {
       if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
         DB = res.state;
+        migrateDB();
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
         render();
         toast('🔄 Data dikemas kini dari server');
