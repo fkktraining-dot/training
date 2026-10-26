@@ -1043,6 +1043,27 @@ const I18N = {
     rb_col_marks: 'Markah', rb_col_desc: 'Penerangan', rb_not_yet: 'Belum ada rubrik',
     rb_level: 'Level', rb_level_excellent: 'Cemerlang', rb_level_good: 'Baik',
     rb_level_fair: 'Sederhana', rb_level_weak: 'Lemah', rb_level_fail: 'Gagal',
+    /* === RUBRIK APPROVAL (BARU) === */
+    rb_pending_approval: '⏳ Menunggu Kelulusan',
+    rb_approved: '✓ Diluluskan',
+    rb_rejected: '✖ Ditolak',
+    rb_approve_title: 'Kelulusan Rubrik',
+    rb_approve_hint: 'Fasilitator telah mencipta/mengubah rubrik. Sila semak dan luluskan.',
+    rb_approve_btn: 'Luluskan',
+    rb_reject_btn: 'Tolak',
+    rb_reject_reason: 'Sebab Penolakan',
+    rb_approved_msg: 'Rubrik diluluskan.',
+    rb_rejected_msg: 'Rubrik ditolak.',
+    rb_confirm_approve: 'Luluskan rubrik ini?',
+    rb_confirm_reject: 'Tolak rubrik ini?',
+    rb_facilitator_note: 'Sebagai fasilitator, rubrik yang anda cipta perlu diluluskan oleh jurulatih sebelum boleh digunakan secara rasmi.',
+    rb_pending_note: 'Rubrik ini menunggu kelulusan jurulatih.',
+    rb_no_pending: 'Tiada rubrik menunggu kelulusan.',
+    rb_submitted_by: 'Dicipta oleh',
+    rb_view_only: 'Lihat Sahaja',
+    rb_cannot_edit: 'Anda tiada akses untuk mengubah rubrik ini.',
+    rb_own_only_edit: 'Hanya pencipta rubrik atau pentadbir boleh mengubah rubrik ini.',
+    /* ============================== */
     bank_title: 'Bank Soalan', bank_new: 'Soalan Baharu', bank_edit: 'Edit Soalan',
     bank_question: 'Soalan', bank_options: 'Pilihan', bank_answer: 'Jawapan',
     bank_category: 'Kategori', bank_level: 'Tahap', bank_search: 'Cari…', bank_all: 'Semua',
@@ -1484,6 +1505,27 @@ const I18N = {
     rb_col_marks: 'Marks', rb_col_desc: 'Description', rb_not_yet: 'No rubric yet',
     rb_level: 'Level', rb_level_excellent: 'Excellent', rb_level_good: 'Good',
     rb_level_fair: 'Fair', rb_level_weak: 'Weak', rb_level_fail: 'Fail',
+    /* === RUBRIC APPROVAL (NEW) === */
+    rb_pending_approval: '⏳ Pending Approval',
+    rb_approved: '✓ Approved',
+    rb_rejected: '✖ Rejected',
+    rb_approve_title: 'Rubric Approvals',
+    rb_approve_hint: 'Facilitator has created/modified a rubric. Please review and approve.',
+    rb_approve_btn: 'Approve',
+    rb_reject_btn: 'Reject',
+    rb_reject_reason: 'Rejection Reason',
+    rb_approved_msg: 'Rubric approved.',
+    rb_rejected_msg: 'Rubric rejected.',
+    rb_confirm_approve: 'Approve this rubric?',
+    rb_confirm_reject: 'Reject this rubric?',
+    rb_facilitator_note: 'As facilitator, rubrics you create require trainer approval before they can be used officially.',
+    rb_pending_note: 'This rubric is awaiting trainer approval.',
+    rb_no_pending: 'No rubrics pending approval.',
+    rb_submitted_by: 'Created by',
+    rb_view_only: 'View Only',
+    rb_cannot_edit: 'You do not have access to edit this rubric.',
+    rb_own_only_edit: 'Only the rubric creator or administrator can edit this rubric.',
+    /* ============================= */
     bank_title: 'Question Bank', bank_new: 'New Question', bank_edit: 'Edit Question',
     bank_question: 'Question', bank_options: 'Options', bank_answer: 'Answer',
     bank_category: 'Category', bank_level: 'Level', bank_search: 'Search…', bank_all: 'All',
@@ -2136,17 +2178,25 @@ function migrateDB() {
     m.forEach((actIds, pid) => actIds.forEach(aid => { const a = (DB.activities||[]).find(x => x.id === aid); if (a && a.moduleId) ensure(a.moduleId, pid); }));
   }
   if (!Array.isArray(DB.rubrics)) DB.rubrics = [];
+  /* === RUBRIK APPROVAL FIELDS (BARU) === */
+  (DB.rubrics || []).forEach(rb => {
+    if (rb.approvalStatus === undefined) rb.approvalStatus = 'approved';
+    if (rb.reviewedBy === undefined) rb.reviewedBy = null;
+    if (rb.reviewedAt === undefined) rb.reviewedAt = null;
+    if (rb.reviewRemarks === undefined) rb.reviewRemarks = '';
+  });
+  /* ===================================== */
   if (Array.isArray(DB.rubricTemplates)) {
     DB.rubricTemplates.forEach(tmpl => {
       if (!DB.rubrics.find(r => r.id === tmpl.id)) {
-        DB.rubrics.push({ id: tmpl.id, name: tmpl.name, description: tmpl.description || '', criteria: tmpl.criteria || [], createdBy: tmpl.createdBy || 'migration', createdAt: tmpl.createdAt || nowISO(), updatedAt: tmpl.updatedAt || nowISO() });
+        DB.rubrics.push({ id: tmpl.id, name: tmpl.name, description: tmpl.description || '', criteria: tmpl.criteria || [], createdBy: tmpl.createdBy || 'migration', createdAt: tmpl.createdAt || nowISO(), updatedAt: tmpl.updatedAt || nowISO(), approvalStatus: 'approved', reviewedBy: null, reviewedAt: null, reviewRemarks: '' });
       }
     });
     delete DB.rubricTemplates;
   }
   (DB.activities || []).forEach(a => {
     if (a.rubric && Array.isArray(a.rubric) && a.rubric.length && !a.rubricId) {
-      const newRb = { id: uid('rb'), name: 'Rubric — ' + a.title, description: 'Rubric for activity ' + a.title, criteria: JSON.parse(JSON.stringify(a.rubric)), createdBy: 'migration', createdAt: nowISO(), updatedAt: nowISO() };
+      const newRb = { id: uid('rb'), name: 'Rubric — ' + a.title, description: 'Rubric for activity ' + a.title, criteria: JSON.parse(JSON.stringify(a.rubric)), createdBy: 'migration', createdAt: nowISO(), updatedAt: nowISO(), approvalStatus: 'approved', reviewedBy: null, reviewedAt: null, reviewRemarks: '' };
       DB.rubrics.push(newRb); a.rubricId = newRb.id; delete a.rubric;
     }
   });
@@ -2177,7 +2227,6 @@ function migrateDB() {
       delete fe.moduleId;
       delete fe.questions;
     }
-    // ensure fields
     fe.moduleConfigs.forEach(mc => {
       if (!Array.isArray(mc.questions)) mc.questions = [];
       if (typeof mc.questionCount !== 'number') mc.questionCount = mc.questions.length;
@@ -2231,13 +2280,13 @@ function seedDB() {
     { id:'mod_4', name:'Modul 4 — Analisis Kuantitatif', description:'Analisis titrimetri asid-bes dan pengiraan kepekatan.', trainerId:'u_tr2', facilitatorId:'u_tr1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [] }
   ];
   const rubrics = [
-    { id:'rb_1', name:'Rubrik Asas Praktikal Makmal', description:'Rubrik umum untuk penilaian praktikal kimia.',
+    { id:'rb_1', name:'Rubrik Asas Praktikal Makmal', description:'Rubrik umum untuk penilaian praktikal kimia.', approvalStatus:'approved', reviewedBy:'u_tr1', reviewedAt:now, reviewRemarks:'',
       criteria: [
         { name:'Persediaan & Keselamatan', weight:25, levels:[{label:'Cemerlang',mark:5,description:'Lengkap & selamat.'},{label:'Baik',mark:4,description:'Hampir lengkap.'},{label:'Sederhana',mark:3,description:'Ada kecuaian.'},{label:'Lemah',mark:2,description:'Banyak kesilapan.'},{label:'Gagal',mark:1,description:'Tidak selamat.'}]},
         { name:'Teknik & Ketepatan', weight:45, levels:[{label:'Cemerlang',mark:5,description:'Tepat & konsisten.'},{label:'Baik',mark:4,description:'Ralat kecil.'},{label:'Sederhana',mark:3,description:'Ralat sederhana.'},{label:'Lemah',mark:2,description:'Ralat besar.'},{label:'Gagal',mark:1,description:'Tidak boleh.'}]},
         { name:'Pengiraan & Pelaporan', weight:30, levels:[{label:'Cemerlang',mark:5,description:'Tepat & lengkap.'},{label:'Baik',mark:4,description:'Ralat kecil.'},{label:'Sederhana',mark:3,description:'Sebahagian.'},{label:'Lemah',mark:2,description:'Banyak ralat.'},{label:'Gagal',mark:1,description:'Tidak lengkap.'}]}
       ], createdBy:'u_admin', createdAt:now, updatedAt:now },
-    { id:'rb_2', name:'Rubrik Titrasi Asid-Bes', description:'Khusus untuk eksperimen titrasi asid-bes.',
+    { id:'rb_2', name:'Rubrik Titrasi Asid-Bes', description:'Khusus untuk eksperimen titrasi asid-bes.', approvalStatus:'approved', reviewedBy:'u_tr2', reviewedAt:now, reviewRemarks:'',
       criteria: [
         { name:'Persediaan Radas', weight:20, levels:[{label:'Cemerlang',mark:5,description:'Sedia & bersih.'},{label:'Baik',mark:4,description:'Pembetulan kecil.'},{label:'Sederhana',mark:3,description:'Kurang bersih.'},{label:'Lemah',mark:2,description:'Bimbingan.'},{label:'Gagal',mark:1,description:'Tidak sedia.'}]},
         { name:'Teknik Titrasi', weight:40, levels:[{label:'Cemerlang',mark:5,description:'Terkawal.'},{label:'Baik',mark:4,description:'Baik.'},{label:'Sederhana',mark:3,description:'Tidak konsisten.'},{label:'Lemah',mark:2,description:'Banyak ralat.'},{label:'Gagal',mark:1,description:'Tidak boleh.'}]},
@@ -2315,7 +2364,6 @@ function seedDB() {
   ];
   const certificates = [];
   const finalExams = [
-    /* Multi-module theory exam (fe_1) — Modules 1 + 2 */
     { id:'fe_1', title:'Peperiksaan Akhir Teori — Kimia Asas',
       description:'Peperiksaan akhir teori merangkumi Modul 1 dan Modul 2.',
       type:'theory',
@@ -2333,7 +2381,6 @@ function seedDB() {
       ],
       openAt: addDays(7) + 'T09:00', closeAt: addDays(7) + 'T11:00', duration: 60,
       rubricId: null, published: true, createdBy:'u_admin', createdAt:now, updatedAt:now },
-    /* Practical exam (fe_2) — Module 4 */
     { id:'fe_2', title:'Peperiksaan Akhir Praktikal — Titrasi',
       description:'Sesi praktikal peperiksaan akhir bagi Modul 4.',
       type:'practical',
@@ -2342,7 +2389,6 @@ function seedDB() {
       ],
       openAt: addDays(10) + 'T09:00', closeAt: addDays(10) + 'T12:00', duration: null,
       rubricId:'rb_2', published: true, createdBy:'u_admin', createdAt:now, updatedAt:now },
-    /* Draft multi-module theory exam awaiting trainer submissions (fe_3) */
     { id:'fe_3', title:'Peperiksaan Akhir Teori Komprehensif',
       description:'Peperiksaan akhir teori merangkumi Modul 1, 2 dan 4. Menunggu jurulatih hantar soalan.',
       type:'theory',
@@ -2888,7 +2934,6 @@ function renderStandaloneFinal(feid) {
   if (!fe.published) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_not_published')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
   const viewer = state.user;
   if (viewer.role === 'participant') {
-    // Participant must be enrolled in at least one of the exam's modules
     const examMids = feModuleIds(fe);
     const isEnrolledAny = examMids.some(mid => isEnrolled(mid, viewer.id));
     if (!isEnrolledAny) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_not_enrolled')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
@@ -2905,7 +2950,6 @@ function renderStandaloneFinal(feid) {
     }
     return;
   }
-  // Preview for admin/trainer
   const allQ = feQuestionsAll(fe);
   app.innerHTML = `<div class="standalone-wrap"><div style="width:100%;max-width:760px"><div class="preview-banner">👁️ ${t('quiz_preview')}</div><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${fe.type === 'theory' ? t('fe_type_theory') : t('fe_type_practical')} · ${allQ.length} ${t('lbl_questions')}</p></div></div>
@@ -3283,6 +3327,9 @@ function navItems() {
   if (r === 'trainer') {
     const pa = pendingApprovalCountFor(state.user.id);
     const pq = trainerPendingQuestionsCount(state.user.id);
+    const pendingRubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'pending' && {
+      // check if trainer of some module that uses this rubric OR just trainer role
+    }).length;
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
       { v:'modules', label:t('nav_modules_own'), icon:'📦' },
@@ -3517,6 +3564,7 @@ function facilitatorDashboard() {
     .filter(pa => pa.submittedBy === me.id)
     .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
     .slice(0, 6);
+  const myPendingRubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'pending' && rb.createdBy === me.id);
 
   const statusBadge = (st) => {
     if (st === 'pending') return `<span class="badge warn">⏳ ${t('fac_submission_pending')}</span>`;
@@ -3540,6 +3588,17 @@ function facilitatorDashboard() {
     <div class="stat"><div class="label">${t('fac_stat_assessments')}</div><div class="value">${assessmentCount}</div></div>
     <div class="stat"><div class="label">${t('fac_stat_pending')}</div><div class="value" style="color:${pendingCount ? 'var(--warn)' : 'var(--brand)'}">${pendingCount}</div></div>
   </div>
+
+  ${myPendingRubrics.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5">
+    <div class="card-head"><h2>📏 ${t('rb_approve_title')} (${myPendingRubrics.length})</h2></div>
+    <p class="muted" style="font-size:.85rem">${t('rb_facilitator_note')}</p>
+    ${myPendingRubrics.map(rb => `<div class="pending-quiz-card" style="border-color:#f0d98a">
+      <div style="flex:1;min-width:200px">
+        <div class="pq-title">📏 ${tce(rb.name)}</div>
+        <div class="pq-meta">${(rb.criteria||[]).length} ${t('rb_criteria_label')} · ⏳ ${t('rb_pending_approval')}</div>
+      </div>
+    </div>`).join('')}
+  </div>` : ''}
 
   ${mods.length ? `<div class="card">
     <div class="card-head"><div><h2>📦 ${t('fac_my_modules')}</h2><small class="muted">${t('fac_my_modules_hint')}</small></div></div>
@@ -3680,8 +3739,10 @@ function trainerDashboard() {
   const feCount = (DB.finalExams || []).filter(fe => mods.some(m => m.id === fe.moduleId)).length;
   const paCount = pendingApprovalCountFor(state.user.id);
   const pendingQs = trainerPendingQuestionSubmissions(state.user.id);
+  const myPendingRubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'pending');
 
   return `${pendingQs.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📝 ${t('fe_pending_questions_title')} (${pendingQs.length})</h2></div><p class="muted" style="font-size:.85rem;margin-bottom:12px">${t('fe_pending_questions_hint')}</p>${pendingQs.map(({fe, mc, m}) => { const qCount = (mc.questions||[]).length; return `<div class="pending-quiz-card" style="border-color:#f0d98a"><div style="flex:1;min-width:200px"><div class="pq-title">🎓 ${tce(fe.title)}</div><div class="pq-meta">📦 ${tce(m.name)} · ${qCount} / ${mc.questionCount} ${t('lbl_questions')}</div></div><button class="btn btn-primary btn-sm" data-act="fe-edit-module-questions" data-feid="${fe.id}" data-mid="${mc.moduleId}">➕ ${t('qb_add_question')}</button></div>`; }).join('')}</div>` : ''}
+  ${myPendingRubrics.length ? `<div class="info-box warn"><h4>📏 ${t('rb_approve_title')} (${myPendingRubrics.length})</h4><p style="margin:4px 0 0">${t('rb_approve_hint')} <button class="btn btn-sm btn-primary" data-act="nav" data-view="rubrik" style="margin-left:6px">${t('btn_view')} →</button></p></div>` : ''}
   <div class="grid grid-4" style="margin-bottom:18px">
     <div class="stat"><div class="label">${t('stat_modules')}</div><div class="value">${mods.length}</div></div>
     <div class="stat"><div class="label">${t('stat_activities')}</div><div class="value">${acts.length}</div><div class="sub">${t('stat_published_drafts', pub, drafts)}</div></div>
@@ -3703,12 +3764,14 @@ function adminDashboard() {
   const totalMat = mods.reduce((s,m) => s + (m.materials||[]).length, 0);
   const totalTT = DB.timetables.length;
   const totalFE = (DB.finalExams || []).length;
+  const pendingRubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'pending').length;
   return `<div class="grid grid-4" style="margin-bottom:18px">
     <div class="stat"><div class="label">${t('stat_users')}</div><div class="value">${DB.users.length}</div><div class="sub">${trs.length}T · ${facs.length}F · ${parts.length}P · ${vips.length}VIP</div></div>
     <div class="stat"><div class="label">${t('stat_modules')}</div><div class="value">${mods.length}</div><div class="sub">${t('stat_modules_active', mods.filter(m => m.published).length)}</div></div>
     <div class="stat"><div class="label">${t('stat_activities')}</div><div class="value">${acts.length}</div><div class="sub">${acts.filter(a => a.published).length} ${t('lbl_published').toLowerCase()}</div></div>
-    <div class="stat"><div class="label">🎓 ${t('fe_title')}</div><div class="value">${totalFE}</div><div class="sub">📅 ${totalTT} · 📎 ${totalMat}${paAll ? ' · 📥 ' + paAll : ''}</div></div>
+    <div class="stat"><div class="label">🎓 ${t('fe_title')}</div><div class="value">${totalFE}</div><div class="sub">📅 ${totalTT} · 📎 ${totalMat}${paAll ? ' · 📥 ' + paAll : ''}${pendingRubrics ? ' · 📏 ' + pendingRubrics : ''}</div></div>
   </div>
+  ${pendingRubrics ? `<div class="info-box warn"><h4>📏 ${t('rb_approve_title')} (${pendingRubrics})</h4><p style="margin:4px 0 0">${t('rb_approve_hint')} <button class="btn btn-sm btn-primary" data-act="nav" data-view="rubrik" style="margin-left:6px">${t('btn_view')} →</button></p></div>` : ''}
   ${paAll ? `<div class="info-box warn"><h4>📥 ${t('pa_title')} (${paAll})</h4><p style="margin:4px 0 0"><button class="btn btn-sm btn-primary" data-act="nav" data-view="approvals" style="margin-top:6px">${t('pa_review')} →</button></p></div>` : ''}
   ${pending.length ? `<div class="info-box warn"><h4>⏳ ${t('usr_pending_title')} (${pending.length})</h4><p style="margin:4px 0 0"><button class="btn btn-sm btn-primary" data-act="nav" data-view="users" style="margin-top:6px">${t('nav_users')} →</button></p></div>` : ''}
   <div class="card"><div class="card-head"><h2>${t('aud_title')}</h2><button class="btn btn-sm" data-act="nav" data-view="audit">${t('btn_view')}</button></div><ul class="list-plain">${recent.map(e => `<li><strong>${esc(e.action)}</strong> — ${tce(e.details)}<br><small class="muted">${esc(e.actorName)} · ${fmtDateTime(e.at)}</small></li>`).join('') || `<li class="empty">${t('aud_empty')}</li>`}</ul></div>`;
@@ -4025,7 +4088,7 @@ function openFinalExamForm(fe, presetModuleId) {
 
   state.tempModuleConfigs = f.moduleConfigs;
 
-  const rubrics = (DB.rubrics || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const rubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'approved').slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   openModal(`<h2>🎓 ${isEdit ? t('fe_edit') : t('fe_new_title')}</h2>
     <form data-form="final-exam" data-id="${isEdit ? f.id : ''}">
@@ -4365,6 +4428,7 @@ function openFinalPracticalForm(feid, pid) {
   const examMids = feModuleIds(fe);
   const isFac = state.user.role === 'facilitator' || examMids.some(mid => isFacilitatorOf(mid, state.user.id));
   openModal(`<h2>${t('pf_title')}</h2><p class="muted">${tce(p.name)} — ${tce(fe.title)}${rb ? ' · <strong>' + tce(rb.name) + '</strong>' : ''}</p>
+    ${rb && rb.approvalStatus !== 'approved' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rb_pending_note')}</p></div>` : ''}
     ${isFac ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : ''}
     ${pending ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('pa_pending')} — ${fmtDateTime(pending.submittedAt)}</p></div>` : ''}
     <form data-form="final-practical" data-feid="${feid}" data-pid="${pid}">
@@ -4509,7 +4573,7 @@ function activitiesView() {
   const acts = isAdmin ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
   const drafts = acts.filter(a => !a.published).length;
   const canCreate = isAdmin || state.user.role === 'trainer';
-  return `<div class="card"><div class="card-head"><h2>${isAdmin ? t('nav_activities') : (isFac ? t('nav_activities') : t('title_activities_mine'))}</h2><div class="toolbar">${canCreate ? `<button class="btn btn-primary" data-act="new-activity">➕ ${t('lbl_activity')}</button>` : ''}<button class="btn" data-act="nav" data-view="modules">📦 ${t('lbl_module')}</button></div></div>${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}${acts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_title')}</th><th>${t('lbl_module')}</th><th>${t('lbl_trainer')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_rubric')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${acts.map(a => { const rb = getRubric(a); return `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${tce(userName(a.trainerId))}</td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span>${a.quizDuration ? ` <small class="muted">⏱️${a.quizDuration}m</small>` : ''}</td><td>${rb ? `<span class="badge ok">${tce(rb.name)}</span>` : `<span class="badge warn">${t('act_rubric_none')}</span>`}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${t('lbl_draft')}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canCreate ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}${canCreate ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canCreate ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button><button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_activity')}</div>`}</div>`;
+  return `<div class="card"><div class="card-head"><h2>${isAdmin ? t('nav_activities') : (isFac ? t('nav_activities') : t('title_activities_mine'))}</h2><div class="toolbar">${canCreate ? `<button class="btn btn-primary" data-act="new-activity">➕ ${t('lbl_activity')}</button>` : ''}<button class="btn" data-act="nav" data-view="modules">📦 ${t('lbl_module')}</button></div></div>${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}${acts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_title')}</th><th>${t('lbl_module')}</th><th>${t('lbl_trainer')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_rubric')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${acts.map(a => { const rb = getRubric(a); return `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${tce(userName(a.trainerId))}</td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span>${a.quizDuration ? ` <small class="muted">⏱️${a.quizDuration}m</small>` : ''}</td><td>${rb ? `<span class="badge ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}">${tce(rb.name)}${rb.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : `<span class="badge warn">${t('act_rubric_none')}</span>`}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${t('lbl_draft')}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canCreate ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}${canCreate ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canCreate ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button><button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_activity')}</div>`}</div>`;
 }
 function participantActivitiesView() {
   const me = state.user;
@@ -4527,6 +4591,7 @@ function activityDetailView() {
   if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(act.id)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   if (isParticipant) { if (!act.published) return `<div class="card"><div class="empty">${t('msg_not_published')}</div></div>`; if (!isEnrolled(act.moduleId, state.user.id)) return `<div class="card"><div class="empty">${t('msg_not_enrolled')}</div></div>`; }
   const canEdit = isAdmin || isOwner;
+  const canEditRubric = ['admin','trainer','facilitator'].includes(state.user.role);
   const rubric = getRubricCriteria(act);
   const rubricObj = getRubric(act);
   const pendingRetest = isParticipant ? hasPendingRetest(act.id, state.user.id) : false;
@@ -4547,9 +4612,9 @@ function activityDetailView() {
   } else if (isParticipant) {
     quizSection = `<div class="card"><div class="empty">${t('act_no_quiz', fmtDate(act.date))}</div></div>`;
   }
-  const pracInfo = isParticipant && !prac && rubric.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge info">${tce(rubricObj.name)}</span>` : ''}</div><div class="info-box warn"><h4>🕐 ${t('act_practical_wait', fmtDate(act.date))}</h4><p style="margin:0">${t('act_practical_eval_hint')}</p></div><div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td><small class="muted">${c.levels.map(l => `${tce(l.label)} (${l.mark})`).join(' · ')}</small></td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div></div>` : '';
+  const pracInfo = isParticipant && !prac && rubric.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge ${rubricObj.approvalStatus === 'approved' ? 'info' : 'warn'}">${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : ''}</div><div class="info-box warn"><h4>🕐 ${t('act_practical_wait', fmtDate(act.date))}</h4><p style="margin:0">${t('act_practical_eval_hint')}</p></div><div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td><small class="muted">${c.levels.map(l => `${tce(l.label)} (${l.mark})`).join(' · ')}</small></td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div></div>` : '';
   const pracSection = isParticipant && prac ? `<div class="card"><div class="card-head"><h2>📏 ${t('act_practical_eval')}</h2><span class="badge ${prac.total >= 70 ? 'ok' : 'warn'}">${Math.round(prac.total)}%</span></div><div class="table-wrap"><table><thead><tr><th>${t('rb_col_name')}</th><th style="text-align:center">${t('rb_weights')}</th><th style="text-align:center">${t('rb_col_marks')}</th><th style="text-align:center">%</th></tr></thead><tbody>${rubric.map((c, i) => { const mark = prac.scores[i] ?? 0; const mx = Math.max(...c.levels.map(l => l.mark)); const p = mx > 0 ? Math.round((mark / mx) * c.weight) : 0; return `<tr><td>${tce(c.name)}</td><td style="text-align:center">${c.weight}%</td><td style="text-align:center"><strong>${mark}</strong></td><td><div class="progress" style="min-width:100px"><span style="width:${p}%"></span></div></td></tr>`; }).join('')}<tr style="background:#f4f9f7"><td><strong>${t('act_practical_total')}</strong></td><td style="text-align:center"><strong>100%</strong></td><td style="text-align:center"><strong>${prac.scores.reduce((s,v) => s+v, 0)}</strong></td><td style="text-align:center"><strong>${Math.round(prac.total)}%</strong></td></tr></tbody></table></div>${prac.remarks ? `<p style="margin-top:10px"><strong>${t('lbl_remarks')}:</strong> ${tce(prac.remarks)}</p>` : ''}</div>` : '';
-  return `<div class="card"><div class="card-head"><div><h2>${tce(act.title)}</h2><small class="muted">📦 ${tce(moduleName(act.moduleId))} · 👤 ${tce(userName(act.trainerId))}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="activities">←</button>${canEdit ? `<button class="btn btn-sm ${act.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${act.id}">${act.published ? '🚫 ' + t('btn_unpublish') : '✅ ' + t('btn_publish')}</button><button class="btn btn-sm" data-act="edit-activity" data-id="${act.id}">✏️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${act.id}">📏</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️</button>` : ''}</div></div>${canEdit && !act.published ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p style="margin:0">${t('act_publish_warn')}</p></div>` : ''}<div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_date')}</div><div class="v">${fmtDate(act.date)}</div></div><div class="meta-item"><div class="k">${t('lbl_duration')}</div><div class="v">${act.duration} ${t('lbl_hours')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${act.published ? '✅ ' + t('lbl_published') : '⚠️ ' + t('lbl_draft')}</div></div><div class="meta-item"><div class="k">${t('lbl_quiz')}</div><div class="v">${(act.quiz||[]).length}${act.quizDuration ? ` · ⏱️ ${act.quizDuration}m` : ''}</div></div></div><h3>${t('act_objectives')}</h3><p>${tce(act.objectives)}</p><h3>${t('act_instructions')}</h3><p>${tce(act.instructions)}</p><h3>${t('act_materials')}</h3><p>${tce(act.materials)}</p><h3>${t('act_rubric_section')} ${rubricObj ? `<small class="muted" style="font-weight:400">— ${tce(rubricObj.name)}</small>` : ''}</h3>${rubric.length ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td>${c.levels.map(l => `<span class="badge draft" style="margin-right:4px">${tce(l.label)} (${l.mark})</span>`).join('')}</td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted">${t('act_rubric_none_hint')}</p>`}</div>
+  return `<div class="card"><div class="card-head"><div><h2>${tce(act.title)}</h2><small class="muted">📦 ${tce(moduleName(act.moduleId))} · 👤 ${tce(userName(act.trainerId))}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="activities">←</button>${canEdit ? `<button class="btn btn-sm ${act.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${act.id}">${act.published ? '🚫 ' + t('btn_unpublish') : '✅ ' + t('btn_publish')}</button><button class="btn btn-sm" data-act="edit-activity" data-id="${act.id}">✏️</button>` : ''}${canEditRubric ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${act.id}">📏</button>` : ''}${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️</button>` : ''}</div></div>${canEdit && !act.published ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p style="margin:0">${t('act_publish_warn')}</p></div>` : ''}<div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_date')}</div><div class="v">${fmtDate(act.date)}</div></div><div class="meta-item"><div class="k">${t('lbl_duration')}</div><div class="v">${act.duration} ${t('lbl_hours')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${act.published ? '✅ ' + t('lbl_published') : '⚠️ ' + t('lbl_draft')}</div></div><div class="meta-item"><div class="k">${t('lbl_quiz')}</div><div class="v">${(act.quiz||[]).length}${act.quizDuration ? ` · ⏱️ ${act.quizDuration}m` : ''}</div></div></div><h3>${t('act_objectives')}</h3><p>${tce(act.objectives)}</p><h3>${t('act_instructions')}</h3><p>${tce(act.instructions)}</p><h3>${t('act_materials')}</h3><p>${tce(act.materials)}</p><h3>${t('act_rubric_section')} ${rubricObj ? `<small class="muted" style="font-weight:400">— ${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳ ' + t('rb_pending_approval') : ''}</small>` : ''}</h3>${rubric.length ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td>${c.levels.map(l => `<span class="badge draft" style="margin-right:4px">${tce(l.label)} (${l.mark})</span>`).join('')}</td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted">${t('act_rubric_none_hint')}</p>`}</div>
   ${mod && (mod.materials||[]).length ? `<div class="card" style="background:#fbfdfc"><div class="card-head"><h2>📎 ${t('act_module_materials')}</h2><span class="badge info">${mod.materials.length}</span></div><p class="muted" style="font-size:.85rem">${t('act_module_materials_hint')} <strong>${tce(mod.name)}</strong></p><div class="material-list">${mod.materials.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type)}</div><div class="mat-body"><div class="mat-name">${tce(mat.name)}</div><div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.fileId ? ' · ☁️ Drive' : ''}</div></div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${mod.id}" data-matid="${mat.id}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${mod.id}" data-matid="${mat.id}">⬇️</button></div></div>`).join('')}</div></div>` : ''}
   ${quizSection}${pracInfo}${pracSection}`;
 }
@@ -4562,7 +4627,7 @@ function openActivityForm(act, presetModuleId) {
   if (!avail.length) { openModal(`<h2>${t('act_new')}</h2><div class="info-box warn"><h4>${t('msg_no_module')}</h4><p>${isAdmin ? t('msg_select_module_first') : t('act_no_module_assigned')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button></div>`); return; }
   const preMod = a.moduleId && avail.find(m => m.id === a.moduleId) ? a.moduleId : avail[0].id;
   const isPractical = a.method && a.method.includes('Praktikal');
-  const rubrics = (DB.rubrics || []).slice().sort((x,y) => (x.name||'').localeCompare(y.name||''));
+  const rubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'approved').slice().sort((x,y) => (x.name||'').localeCompare(y.name||''));
   openModal(`<h2>${isEdit ? t('act_edit') : t('act_new')}</h2>
     <form data-form="activity" data-id="${isEdit ? a.id : ''}">
       <div class="field"><label>${t('lbl_module')} *</label><select class="select" name="moduleId" required>${avail.map(m => `<option value="${m.id}" ${preMod === m.id ? 'selected' : ''}>${tce(m.name)}${m.published ? '' : ' (' + t('lbl_draft') + ')'}</option>`).join('')}</select></div>
@@ -4694,27 +4759,190 @@ async function deleteMaterial(mid, matid) {
 }
 
 /* =========================================================
-   RUBRIC
+   RUBRIK (UPDATED: Peserta tidak boleh edit, Facilitator perlu kelulusan Trainer)
    ========================================================= */
 function rubricView() {
+  // === PESERTA TIDAK DIBENARKAN AKSES ===
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) {
+    return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  }
+  const isFacilitator = state.user.role === 'facilitator';
+  const isReviewer = ['admin','trainer'].includes(state.user.role);
   const rubrics = (DB.rubrics || []).slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const practicalActs = sortActs(DB.activities.filter(a => a.method && a.method.includes('Praktikal') && (state.user.role === 'admin' || canTrainerAccessActivity(a.id))));
+  const practicalActs = sortActs(DB.activities.filter(a =>
+    a.method && a.method.includes('Praktikal') &&
+    (state.user.role === 'admin' || canTrainerAccessActivity(a.id))));
   const usedByCount = (rid) => DB.activities.filter(a => a.rubricId === rid).length;
-  return `<div class="card"><div class="card-head"><div><h2>📏 ${t('rb_title')}</h2><small class="muted">${t('rb_sub')}</small></div><button class="btn btn-primary" data-act="new-rubric">${t('rb_new')}</button></div>${rubrics.length ? `<div class="module-grid">${rubrics.map(rb => { const tw = (rb.criteria||[]).reduce((s,c) => s+c.weight, 0); const used = usedByCount(rb.id); return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(rb.name)}</div><span class="badge ${tw === 100 ? 'ok' : 'warn'}">${tw}%</span></div><div class="m-desc">${tce(rb.description || '')}</div><div class="m-stats"><div><strong>${(rb.criteria||[]).length}</strong><span>${t('rb_criteria_label')}</span></div><div><strong>${used}</strong><span>${t('rb_used_count', used)}</span></div></div><div class="toolbar"><button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('btn_edit')}</button><button class="btn btn-sm btn-danger" data-act="delete-rubric" data-id="${rb.id}" ${used ? 'disabled title="' + esc(t('rb_used_warning')) + '"' : ''}>🗑️</button></div></div>`; }).join('')}</div>` : `<div class="empty">${t('rb_none_hint')}</div>`}</div>
-  <div class="card"><div class="card-head"><h2>🎯 ${t('rb_assign_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('rb_assign_hint')}</p>${practicalActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th><th style="width:280px">${t('lbl_rubric')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${practicalActs.map(a => { const rb = getRubric(a); return `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td><select class="select" style="min-width:240px" data-change="activity-rubric" data-aid="${a.id}"><option value="">— ${t('act_rubric_none')} —</option>${rubrics.map(r => `<option value="${r.id}" ${a.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select></td><td>${rb ? `<button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('rb_edit')}</button>` : `<button class="btn btn-sm btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_new_rubric')}</button>`}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('rb_no_practical')}</div>`}</div>
-  <div class="card"><div class="card-head"><h2>📊 ${t('rb_grading_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('rb_grading_hint')}</p>${practicalActs.length ? practicalActs.map(a => { const rb = getRubric(a); const parts = enrolledParticipants(a.moduleId); return `<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px"><div><strong>${tce(a.title)}</strong> <small class="muted">— ${tce(moduleName(a.moduleId))}</small></div><span class="badge ${rb ? 'ok' : 'warn'}">${rb ? tce(rb.name) : t('act_rubric_none')}</span></div>${!rb ? `<div class="info-box warn" style="margin-bottom:8px"><p style="margin:0">${t('grad_no_rubric')}</p></div>` : `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_status')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(({ user }) => { const pr = getPractical(a.id, user.id); const pct = pr ? Math.round(pr.total) : null; return `<tr><td>${tce(user.name)}</td><td>${pct !== null ? pct + '%' : '—'}</td><td>${badgeStatus(pct)}</td><td><button class="btn btn-sm" data-act="practical-form" data-aid="${a.id}" data-pid="${user.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button></td></tr>`; }).join('')}</tbody></table></div>`}</div>`; }).join('') : `<div class="empty">${t('rb_no_practical')}</div>`}</div>`;
+  const approvedRubrics = rubrics.filter(r => r.approvalStatus === 'approved');
+  const pendingRubrics = rubrics.filter(r => r.approvalStatus === 'pending');
+
+  const statusBadge = (rb) => {
+    if (rb.approvalStatus === 'pending') return `<span class="badge warn">⏳ ${t('rb_pending_approval')}</span>`;
+    if (rb.approvalStatus === 'rejected') return `<span class="badge bad">✖ ${t('rb_rejected')}</span>`;
+    return `<span class="badge ok">✓ ${t('rb_approved')}</span>`;
+  };
+
+  return `
+    ${isReviewer && pendingRubrics.length ? `
+    <div class="card" style="border-color:#f0d98a;background:#fffdf5">
+      <div class="card-head"><h2>⏳ ${t('rb_approve_title')} (${pendingRubrics.length})</h2></div>
+      <p class="muted" style="font-size:.85rem">${t('rb_approve_hint')}</p>
+      ${pendingRubrics.map(rb => `<div class="approval-card">
+        <div class="ap-head">
+          <div>
+            <div class="ap-title">📏 ${tce(rb.name)}</div>
+            <div class="ap-meta">${tce(rb.description || '')}</div>
+            <div class="ap-meta">📤 ${t('rb_submitted_by')}: <strong>${tce(userName(rb.createdBy))}</strong> · ${fmtDateTime(rb.updatedAt || rb.createdAt)}</div>
+          </div>
+          <span class="badge warn">⏳ ${t('rb_pending_approval')}</span>
+        </div>
+        <table class="ap-crit-table">
+          <thead><tr><th>${t('rb_col_name')}</th><th>${t('rb_col_weight')}</th></tr></thead>
+          <tbody>${(rb.criteria||[]).map(c => `<tr><td>${tce(c.name)}</td><td>${c.weight}%</td></tr>`).join('')}</tbody>
+        </table>
+        <div class="ap-actions">
+          <button class="btn btn-sm btn-danger" data-act="reject-rubric" data-id="${rb.id}">✖ ${t('rb_reject_btn')}</button>
+          <button class="btn btn-sm btn-primary" data-act="approve-rubric" data-id="${rb.id}">✅ ${t('rb_approve_btn')}</button>
+        </div>
+      </div>`).join('')}
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-head">
+        <div><h2>📏 ${t('rb_title')}</h2><small class="muted">${t('rb_sub')}</small></div>
+        <button class="btn btn-primary" data-act="new-rubric">${t('rb_new')}</button>
+      </div>
+      ${isFacilitator ? `<div class="info-box warn" style="font-size:.82rem;margin-bottom:14px"><p style="margin:0">🧑‍🏫 ${t('rb_facilitator_note')}</p></div>` : ''}
+      ${rubrics.length ? `<div class="module-grid">${rubrics.map(rb => {
+        const tw = (rb.criteria||[]).reduce((s,c) => s+c.weight, 0);
+        const used = usedByCount(rb.id);
+        const isOwn = rb.createdBy === state.user.id;
+        const canEdit = !isFacilitator || isOwn;
+        const canDelete = !isFacilitator || (isOwn && rb.approvalStatus !== 'approved');
+        return `<div class="module-card">
+          <div class="m-head">
+            <div class="m-title">${tce(rb.name)}</div>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+              <span class="badge ${tw === 100 ? 'ok' : 'warn'}">${tw}%</span>
+              ${statusBadge(rb)}
+            </div>
+          </div>
+          <div class="m-desc">${tce(rb.description || '')}</div>
+          ${rb.approvalStatus === 'rejected' && rb.reviewRemarks
+            ? `<div class="m-desc" style="color:var(--bad);font-style:italic">✖ ${tce(rb.reviewRemarks)}</div>` : ''}
+          <div class="m-stats">
+            <div><strong>${(rb.criteria||[]).length}</strong><span>${t('rb_criteria_label')}</span></div>
+            <div><strong>${used}</strong><span>${t('rb_used_count', used)}</span></div>
+          </div>
+          <div class="toolbar">
+            ${canEdit
+              ? `<button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('btn_edit')}</button>`
+              : `<span class="badge draft" title="${esc(t('rb_own_only_edit'))}">🔒 ${t('rb_view_only')}</span>`}
+            ${canDelete ? `<button class="btn btn-sm btn-danger" data-act="delete-rubric" data-id="${rb.id}" ${used ? 'disabled title="' + esc(t('rb_used_warning')) + '"' : ''}>🗑️</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')}</div>` : `<div class="empty">${t('rb_none_hint')}</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>🎯 ${t('rb_assign_title')}</h2></div>
+      <p class="muted" style="font-size:.85rem">${t('rb_assign_hint')}</p>
+      ${practicalActs.length ? `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th>
+          <th style="width:280px">${t('lbl_rubric')}</th><th>${t('lbl_actions')}</th>
+        </tr></thead>
+        <tbody>${practicalActs.map(a => {
+          const rb = getRubric(a);
+          return `<tr>
+            <td><strong>${tce(a.title)}</strong></td>
+            <td><small class="muted">${tce(moduleName(a.moduleId))}</small></td>
+            <td>${isReviewer
+              ? `<select class="select" style="min-width:240px" data-change="activity-rubric" data-aid="${a.id}">
+                  <option value="">— ${t('act_rubric_none')} —</option>
+                  ${approvedRubrics.map(r => `<option value="${r.id}" ${a.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}
+                </select>`
+              : `<span class="badge ${rb ? (rb.approvalStatus === 'approved' ? 'ok' : 'warn') : 'warn'}">${rb ? tce(rb.name) + (rb.approvalStatus !== 'approved' ? ' ⏳' : '') : t('act_rubric_none')}</span>`}
+            </td>
+            <td>${rb
+              ? (isReviewer || rb.createdBy === state.user.id
+                  ? `<button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('rb_edit')}</button>`
+                  : `<span class="badge draft">🔒</span>`)
+              : (isReviewer
+                  ? `<button class="btn btn-sm btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_new_rubric')}</button>`
+                  : `<span class="badge draft">—</span>`)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>` : `<div class="empty">${t('rb_no_practical')}</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>📊 ${t('rb_grading_title')}</h2></div>
+      <p class="muted" style="font-size:.85rem">${t('rb_grading_hint')}</p>
+      ${practicalActs.length ? practicalActs.map(a => {
+        const rb = getRubric(a);
+        const parts = enrolledParticipants(a.moduleId);
+        return `<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <div><strong>${tce(a.title)}</strong> <small class="muted">— ${tce(moduleName(a.moduleId))}</small></div>
+            <span class="badge ${rb ? (rb.approvalStatus === 'approved' ? 'ok' : 'warn') : 'warn'}">${rb ? tce(rb.name) + (rb.approvalStatus !== 'approved' ? ' ⏳' : '') : t('act_rubric_none')}</span>
+          </div>
+          ${!rb ? `<div class="info-box warn" style="margin-bottom:8px"><p style="margin:0">${t('grad_no_rubric')}</p></div>`
+            : `<div class="table-wrap"><table><thead><tr>
+                <th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_status')}</th><th>${t('lbl_actions')}</th>
+              </tr></thead><tbody>${parts.map(({ user }) => {
+                const pr = getPractical(a.id, user.id);
+                const pct = pr ? Math.round(pr.total) : null;
+                return `<tr>
+                  <td>${tce(user.name)}</td><td>${pct !== null ? pct + '%' : '—'}</td>
+                  <td>${badgeStatus(pct)}</td>
+                  <td><button class="btn btn-sm" data-act="practical-form" data-aid="${a.id}" data-pid="${user.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button></td>
+                </tr>`;
+              }).join('')}</tbody></table></div>`}
+        </div>`;
+      }).join('') : `<div class="empty">${t('rb_no_practical')}</div>`}
+    </div>`;
 }
+
 function openRubricEditor(rubricId, assignToActivityId) {
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) {
+    toast(t('msg_no_access'), 'bad'); return;
+  }
   const isEdit = !!rubricId;
   const rb = isEdit ? DB.rubrics.find(r => r.id === rubricId) : null;
   if (isEdit && !rb) { toast(t('msg_not_found'), 'bad'); return; }
+  // Fasilitator hanya boleh edit rubrik sendiri
+  if (isEdit && state.user.role === 'facilitator' && rb.createdBy !== state.user.id) {
+    toast(t('rb_cannot_edit'), 'bad'); return;
+  }
   state.editingRubricId = rubricId || null;
-  state.tempRubric = isEdit ? JSON.parse(JSON.stringify(rb.criteria)) : [{ name:'', weight:100, levels:[{label:t('rb_level_excellent'),mark:5,description:''},{label:t('rb_level_good'),mark:4,description:''},{label:t('rb_level_fair'),mark:3,description:''},{label:t('rb_level_weak'),mark:2,description:''},{label:t('rb_level_fail'),mark:1,description:''}] }];
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${isEdit ? t('rb_edit') : t('rb_new_title')}</h2></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-rubric-config" data-aid="${assignToActivityId || ''}">💾 ${t('btn_save')}</button></div></div>
-    <div class="field"><label>${t('lbl_name')} *</label><input class="input" id="rubricName" value="${esc(isEdit ? rb.name : '')}" /></div>
-    <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" id="rubricDesc">${esc(isEdit ? (rb.description||'') : '')}</textarea></div>
-    <div class="info-box"><h4>💡 ${t('rb_guide_title')}</h4><ul><li>${t('rb_guide_1')}</li><li>${t('rb_guide_2')}</li></ul></div>
-    <div id="rubricBuilderContainer"></div>`, 'modal-xl');
+  state.tempRubric = isEdit
+    ? JSON.parse(JSON.stringify(rb.criteria))
+    : [{ name:'', weight:100, levels:[
+        {label:t('rb_level_excellent'),mark:5,description:''},
+        {label:t('rb_level_good'),mark:4,description:''},
+        {label:t('rb_level_fair'),mark:3,description:''},
+        {label:t('rb_level_weak'),mark:2,description:''},
+        {label:t('rb_level_fail'),mark:1,description:''}
+      ] }];
+  const isFac = state.user.role === 'facilitator';
+  const statusBanner = isEdit ? `<div class="info-box ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}" style="margin-bottom:12px">
+    <p style="margin:0">${rb.approvalStatus === 'approved' ? '✓ ' + t('rb_approved') : rb.approvalStatus === 'rejected' ? '✖ ' + t('rb_rejected') + (rb.reviewRemarks ? ' — ' + tce(rb.reviewRemarks) : '') : '⏳ ' + t('rb_pending_approval')}</p>
+    ${isFac ? `<p style="margin:4px 0 0;font-size:.8rem">${t('rb_facilitator_note')}</p>` : ''}
+  </div>` : (isFac ? `<div class="info-box warn" style="margin-bottom:12px"><p style="margin:0">🧑‍🏫 ${t('rb_facilitator_note')}</p></div>` : '');
+
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div><h2>${isEdit ? t('rb_edit') : t('rb_new_title')}</h2></div>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button>
+      <button type="button" class="btn btn-sm btn-primary" data-act="save-rubric-config" data-aid="${assignToActivityId || ''}">💾 ${t('btn_save')}</button>
+    </div>
+  </div>
+  ${statusBanner}
+  <div class="field"><label>${t('lbl_name')} *</label><input class="input" id="rubricName" value="${esc(isEdit ? rb.name : '')}" /></div>
+  <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" id="rubricDesc">${esc(isEdit ? (rb.description||'') : '')}</textarea></div>
+  <div class="info-box"><h4>💡 ${t('rb_guide_title')}</h4><ul><li>${t('rb_guide_1')}</li><li>${t('rb_guide_2')}</li></ul></div>
+  <div id="rubricBuilderContainer"></div>`, 'modal-xl');
   renderRubricBuilder();
 }
 function renderRubricBuilder() {
@@ -4724,23 +4952,103 @@ function renderRubricBuilder() {
   c.innerHTML = `<div class="rubric-builder">${rubric.map((cc, ci) => `<div class="rubric-criterion-card"><div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><input class="input" style="flex:1" value="${esc(cc.name)}" data-rb="name" data-ci="${ci}" placeholder="${t('rb_col_name')}" /><input class="input" type="number" style="width:80px" value="${cc.weight}" data-rb="weight" data-ci="${ci}" placeholder="%" min="0" /><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-crit" data-ci="${ci}">${t('btn_delete')}</button></div><table class="rubric-levels-table"><thead><tr><th style="width:120px">${t('rb_col_label')}</th><th style="width:80px">${t('rb_col_marks')}</th><th>${t('rb_col_desc')}</th><th style="width:40px"></th></tr></thead><tbody>${cc.levels.map((l, li) => `<tr><td><input class="input" style="font-size:12px;padding:4px" value="${esc(l.label)}" data-rb="l_label" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" type="number" style="font-size:12px;padding:4px" value="${l.mark}" data-rb="l_mark" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" style="font-size:12px;padding:4px" value="${esc(l.description)}" data-rb="l_desc" data-ci="${ci}" data-li="${li}" /></td><td><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-level" data-ci="${ci}" data-li="${li}">x</button></td></tr>`).join('')}</tbody></table><button type="button" class="btn btn-sm" style="margin-top:8px" data-act="rb-add-level" data-ci="${ci}">${t('rb_level_add')}</button></div>`).join('')}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px"><button type="button" class="btn btn-sm btn-primary" data-act="rb-add-crit">${t('rb_crit_add')}</button><div class="pill" style="${tw !== 100 ? 'background:#fdecea;color:var(--bad)' : ''}">${t('rb_total')}: ${tw}%</div></div></div>`;
 }
 function handleSaveRubricConfig(assignToActivityId) {
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) {
+    toast(t('msg_no_access'), 'bad'); return;
+  }
   if (!state.tempRubric) { toast(t('msg_required'), 'bad'); return; }
   const tw = state.tempRubric.reduce((s,c) => s + c.weight, 0);
   if (tw !== 100) { toast(t('rb_weight_error', tw), 'bad'); return; }
-  const nameEl = document.getElementById('rubricName'); const descEl = document.getElementById('rubricDesc');
-  const name = nameEl ? nameEl.value.trim() : ''; const desc = descEl ? descEl.value.trim() : '';
+  const nameEl = document.getElementById('rubricName');
+  const descEl = document.getElementById('rubricDesc');
+  const name = nameEl ? nameEl.value.trim() : '';
+  const desc = descEl ? descEl.value.trim() : '';
   if (!name) { toast(t('rb_name_required'), 'bad'); return; }
+
+  const isFac = state.user.role === 'facilitator';
+  const newStatus = isFac ? 'pending' : 'approved';
+  const reviewerId = isFac ? null : state.user.id;
+  const reviewedAt = isFac ? null : nowISO();
+
   let rubricId = state.editingRubricId;
-  if (rubricId) { const rb = DB.rubrics.find(r => r.id === rubricId); if (rb) { rb.name = name; rb.description = desc; rb.criteria = JSON.parse(JSON.stringify(state.tempRubric)); rb.updatedAt = nowISO(); } logAudit('Update Rubric', 'Rubrik', rubricId, name); }
-  else { const nr = { id: uid('rb'), name, description: desc, criteria: JSON.parse(JSON.stringify(state.tempRubric)), createdBy: state.user.id, createdAt: nowISO(), updatedAt: nowISO() }; DB.rubrics.push(nr); rubricId = nr.id; logAudit('Create Rubric', 'Rubrik', nr.id, name); }
-  if (assignToActivityId) { const act = getActivity(assignToActivityId); if (act) { act.rubricId = rubricId; act.updatedAt = nowISO(); } }
-  saveDB(); closeModal(); toast(t('rb_saved')); render();
+  if (rubricId) {
+    const rb = DB.rubrics.find(r => r.id === rubricId);
+    if (!rb) { toast(t('msg_not_found'), 'bad'); return; }
+    if (state.user.role === 'facilitator' && rb.createdBy !== state.user.id) {
+      toast(t('rb_own_only_edit'), 'bad'); return;
+    }
+    rb.name = name;
+    rb.description = desc;
+    rb.criteria = JSON.parse(JSON.stringify(state.tempRubric));
+    rb.updatedAt = nowISO();
+    rb.approvalStatus = newStatus;
+    rb.reviewedBy = reviewerId;
+    rb.reviewedAt = reviewedAt;
+    if (isFac) rb.reviewRemarks = '';
+    logAudit('Update Rubric', 'Rubrik', rubricId, name + (isFac ? ' (pending)' : ''));
+  } else {
+    const nr = {
+      id: uid('rb'), name, description: desc,
+      criteria: JSON.parse(JSON.stringify(state.tempRubric)),
+      createdBy: state.user.id, createdAt: nowISO(), updatedAt: nowISO(),
+      approvalStatus: newStatus, reviewedBy: reviewerId, reviewedAt, reviewRemarks: ''
+    };
+    DB.rubrics.push(nr); rubricId = nr.id;
+    logAudit('Create Rubric', 'Rubrik', nr.id, name + (isFac ? ' (pending)' : ''));
+  }
+  if (assignToActivityId) {
+    const act = getActivity(assignToActivityId);
+    if (act) { act.rubricId = rubricId; act.updatedAt = nowISO(); }
+  }
+  saveDB();
+  closeModal();
+  toast(isFac ? '⏳ ' + t('rb_pending_note') : '✅ ' + t('rb_saved'), isFac ? 'warn' : 'ok');
+  render();
 }
+
+function approveRubric(rubricId) {
+  if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
+  const rb = DB.rubrics.find(r => r.id === rubricId);
+  if (!rb) return;
+  rb.approvalStatus = 'approved';
+  rb.reviewedBy = state.user.id;
+  rb.reviewedAt = nowISO();
+  rb.reviewRemarks = '';
+  saveDB();
+  logAudit('Approve Rubric', 'Rubrik', rubricId, rb.name);
+  toast('✅ ' + t('rb_approved_msg'));
+  render();
+}
+function rejectRubric(rubricId, reason) {
+  if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
+  const rb = DB.rubrics.find(r => r.id === rubricId);
+  if (!rb) return;
+  rb.approvalStatus = 'rejected';
+  rb.reviewedBy = state.user.id;
+  rb.reviewedAt = nowISO();
+  rb.reviewRemarks = reason || '';
+  saveDB();
+  logAudit('Reject Rubric', 'Rubrik', rubricId, rb.name + (reason ? ' — ' + reason : ''));
+  toast(t('rb_rejected_msg'));
+  render();
+}
+
 function deleteRubric(id) {
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) {
+    toast(t('msg_no_access'), 'bad'); return;
+  }
   const rb = DB.rubrics.find(r => r.id === id); if (!rb) return;
+  // Fasilitator hanya boleh padam rubrik sendiri dan yang belum approved
+  if (state.user.role === 'facilitator') {
+    if (rb.createdBy !== state.user.id) { toast(t('rb_cannot_edit'), 'bad'); return; }
+    if (rb.approvalStatus === 'approved') { toast(t('rb_cannot_edit'), 'bad'); return; }
+  }
   const used = DB.activities.filter(a => a.rubricId === id);
-  if (used.length) { if (!confirm(t('confirm_delete_rubric', rb.name) + `\n\n(${used.length} activities)`)) return; used.forEach(a => { a.rubricId = null; }); }
-  else { if (!confirm(t('confirm_delete_rubric', rb.name))) return; }
+  if (used.length) {
+    if (!confirm(t('confirm_delete_rubric', rb.name) + `\n\n(${used.length} activities)`)) return;
+    used.forEach(a => { a.rubricId = null; });
+  } else {
+    if (!confirm(t('confirm_delete_rubric', rb.name))) return;
+  }
   DB.rubrics = DB.rubrics.filter(x => x.id !== id);
   saveDB(); logAudit('Delete Rubric', 'Rubrik', id, rb.name); toast(t('msg_deleted')); render();
 }
@@ -4873,6 +5181,7 @@ function openPracticalForm(aid, pid) {
   if (!rubric.length) { toast(t('pf_no_rubric'), 'bad'); return; }
   const isFac = state.user.role === 'facilitator' || isFacilitatorOf(act.moduleId, state.user.id);
   openModal(`<h2>${t('pf_title')}</h2><p class="muted">${tce(p.name)} — ${tce(act.title)}${rubricObj ? ' · <strong>' + tce(rubricObj.name) + '</strong>' : ''}</p>
+    ${rubricObj && rubricObj.approvalStatus !== 'approved' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rb_pending_note')}</p></div>` : ''}
     ${isFac ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : ''}
     ${pending ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('pa_pending')} — ${fmtDateTime(pending.submittedAt)} (${tce(userName(pending.submittedBy))})</p></div>` : ''}
     <form data-form="practical" data-aid="${aid}" data-pid="${pid}">
@@ -5374,15 +5683,56 @@ document.addEventListener('click', (e) => {
     case 'edit-rubric': openRubricEditor(id); break;
     case 'delete-rubric': deleteRubric(id); break;
     case 'new-rubric-and-assign': openRubricEditor(null, tgt.dataset.aid); break;
+    case 'approve-rubric': {
+      if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
+      if (!confirm(t('rb_confirm_approve'))) break;
+      approveRubric(id);
+      break;
+    }
+    case 'reject-rubric': {
+      if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
+      const reason = prompt(t('rb_reject_reason'));
+      if (reason === null) break;
+      if (!confirm(t('rb_confirm_reject'))) break;
+      rejectRubric(id, reason);
+      break;
+    }
     case 'edit-rubric-builder': {
+      if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
       const a = getActivity(id);
       if (!a) break;
       if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; }
-      if (a.rubricId) openRubricEditor(a.rubricId);
-      else openModal(`<h2>📏 ${t('act_rubric_section')}</h2><p class="muted">${tce(a.title)} — ${t('act_rubric_none_hint')}</p><div class="field"><label>${t('rb_pick_existing')}</label><select class="select" id="quickRubricSelect"><option value="">${t('rb_pick_none')}</option>${(DB.rubrics || []).map(rb => `<option value="${rb.id}">${tce(rb.name)}</option>`).join('')}</select></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_cancel')}</button><button class="btn btn-primary" data-act="quick-assign-rubric" data-aid="${a.id}">${t('rb_pick_apply')}</button><button class="btn btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_pick_new')}</button></div>`);
+      if (a.rubricId) {
+        openRubricEditor(a.rubricId);
+      } else {
+        const approvedRubrics = (DB.rubrics || []).filter(r => r.approvalStatus === 'approved');
+        openModal(`<h2>📏 ${t('act_rubric_section')}</h2>
+          <p class="muted">${tce(a.title)} — ${t('act_rubric_none_hint')}</p>
+          <div class="field"><label>${t('rb_pick_existing')}</label>
+            <select class="select" id="quickRubricSelect">
+              <option value="">${t('rb_pick_none')}</option>
+              ${approvedRubrics.map(rb => `<option value="${rb.id}">${tce(rb.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" data-act="close-modal">${t('btn_cancel')}</button>
+            <button class="btn btn-primary" data-act="quick-assign-rubric" data-aid="${a.id}">${t('rb_pick_apply')}</button>
+            <button class="btn btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_pick_new')}</button>
+          </div>`);
+      }
       break;
     }
-    case 'quick-assign-rubric': { const sel = document.getElementById('quickRubricSelect'); if (!sel || !sel.value) { toast(t('rb_no_rubric_selected'), 'bad'); break; } const a = getActivity(tgt.dataset.aid); if (a) { a.rubricId = sel.value; a.updatedAt = nowISO(); saveDB(); logAudit('Assign Rubric', 'Aktiviti', a.id, getRubric(a).name); } closeModal(); toast(t('rb_saved')); render(); break; }
+    case 'quick-assign-rubric': {
+      if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
+      const sel = document.getElementById('quickRubricSelect');
+      if (!sel || !sel.value) { toast(t('rb_no_rubric_selected'), 'bad'); break; }
+      const a = getActivity(tgt.dataset.aid);
+      if (a) {
+        a.rubricId = sel.value; a.updatedAt = nowISO();
+        saveDB(); logAudit('Assign Rubric', 'Aktiviti', a.id, getRubric(a).name);
+      }
+      closeModal(); toast(t('rb_saved')); render(); break;
+    }
     case 'save-rubric-config': handleSaveRubricConfig(tgt.dataset.aid || null); break;
     case 'rb-add-crit': state.tempRubric.push({ name:'', weight:10, levels:[{label:t('rb_level_good'),mark:5,description:''},{label:t('rb_level_fail'),mark:0,description:''}] }); renderRubricBuilder(); break;
     case 'rb-del-crit': state.tempRubric.splice(Number(tgt.dataset.ci), 1); renderRubricBuilder(); break;
@@ -5457,7 +5807,15 @@ document.addEventListener('change', (e) => {
   if (tgt && tgt.dataset.change === 'bank-module') { state.params.bankModule = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-activity') { state.params.gradingActivity = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'activity-method') { const field = document.getElementById('rubricTemplateField'); if (field) field.style.display = tgt.value.includes('Praktikal') ? 'block' : 'none'; return; }
-  if (tgt && tgt.dataset.change === 'activity-rubric') { const aid = tgt.dataset.aid; const a = getActivity(aid); if (a) { a.rubricId = tgt.value || null; a.updatedAt = nowISO(); saveDB(); logAudit('Assign Rubric', 'Aktiviti', aid, tgt.value ? getRubric(a).name : 'None'); toast(tgt.value ? t('rb_saved') : t('msg_deleted')); render(); } return; }
+  if (tgt && tgt.dataset.change === 'activity-rubric') {
+    const aid = tgt.dataset.aid; const a = getActivity(aid);
+    if (a) {
+      a.rubricId = tgt.value || null; a.updatedAt = nowISO();
+      saveDB(); logAudit('Assign Rubric', 'Aktiviti', aid, tgt.value ? getRubric(a).name : 'None');
+      toast(tgt.value ? t('rb_saved') : t('msg_deleted')); render();
+    }
+    return;
+  }
   // module config changes
   if (e.target.matches && e.target.matches('[data-mc-select]')) {
     const idx = Number(e.target.dataset.mcSelect);
