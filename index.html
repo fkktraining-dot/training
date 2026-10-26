@@ -418,11 +418,30 @@ function readExcelFile(file) {
   });
 }
 
+/* ✅ FIXED: getColIndex with prefix matching + BOM handling */
 function getColIndex(headers, ...aliases) {
-  const lower = (headers || []).map(h => String(h || '').toLowerCase().trim());
+  const normalized = (headers || []).map(h =>
+    String(h || '')
+      .replace(/^\uFEFF/, '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ')
+  );
   for (const a of aliases) {
-    const idx = lower.indexOf(String(a).toLowerCase().trim());
+    const aNorm = String(a).toLowerCase().trim().replace(/\s+/g, ' ');
+    const idx = normalized.indexOf(aNorm);
     if (idx !== -1) return idx;
+  }
+  const separators = [' ', '(', '/', '-', ':', '.', '[', '·'];
+  for (const a of aliases) {
+    const aNorm = String(a).toLowerCase().trim().replace(/\s+/g, ' ');
+    if (!aNorm) continue;
+    for (let i = 0; i < normalized.length; i++) {
+      const h = normalized[i];
+      for (const sep of separators) {
+        if (h.startsWith(aNorm + sep)) return i;
+      }
+    }
   }
   return -1;
 }
@@ -478,6 +497,7 @@ function downloadQuestionBankTemplate() {
   toast('✅ ' + t('excel_downloaded'));
 }
 
+/* ✅ FIXED: importQuestionBankExcel */
 async function importQuestionBankExcel(file) {
   if (!ensureXLSX()) return;
   const wb = await readExcelFile(file);
@@ -486,43 +506,73 @@ async function importQuestionBankExcel(file) {
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
   const headers = rows[0];
-  const iMod = getColIndex(headers, 'Modul', 'Module');
-  const iQ = getColIndex(headers, 'Soalan', 'Question');
-  const iA = getColIndex(headers, 'Pilihan A', 'Option A', 'A');
-  const iB = getColIndex(headers, 'Pilihan B', 'Option B', 'B');
-  const iC = getColIndex(headers, 'Pilihan C', 'Option C', 'C');
-  const iD = getColIndex(headers, 'Pilihan D', 'Option D', 'D');
-  const iAns = getColIndex(headers, 'Jawapan', 'Answer');
-  const iCat = getColIndex(headers, 'Kategori', 'Category');
-  const iDiff = getColIndex(headers, 'Tahap', 'Difficulty');
-  if (iQ === -1 || iAns === -1) { toast('⚠️ Kolum "Soalan"/"Jawapan" tidak dijumpai', 'bad'); return; }
+  const iMod  = getColIndex(headers, 'Modul', 'Module');
+  const iQ    = getColIndex(headers, 'Soalan', 'Question');
+  const iA    = getColIndex(headers, 'Pilihan A', 'Option A', 'A');
+  const iB    = getColIndex(headers, 'Pilihan B', 'Option B', 'B');
+  const iC    = getColIndex(headers, 'Pilihan C', 'Option C', 'C');
+  const iD    = getColIndex(headers, 'Pilihan D', 'Option D', 'D');
+  const iAns  = getColIndex(headers, 'Jawapan', 'Answer', 'Jawapan Betul', 'Correct Answer');
+  const iCat  = getColIndex(headers, 'Kategori', 'Category');
+  const iDiff = getColIndex(headers, 'Tahap', 'Difficulty', 'Level');
+
+  if (iQ === -1 || iAns === -1) {
+    toast('⚠️ Kolum "Soalan"/"Jawapan" tidak dijumpai. Header dikesan: ' + headers.join(' | '), 'bad');
+    return;
+  }
+
   const isAdmin = state.user.role === 'admin';
   const allowedMods = isAdmin ? DB.modules : myModules();
   if (!allowedMods.length) { toast('⚠️ ' + t('msg_no_module'), 'bad'); return; }
+
   let added = 0, skipped = 0;
   const errors = [];
+
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
-    const modName = String(row[iMod] || '').trim();
+    const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
     const q = String(row[iQ] || '').trim();
     const a = iA !== -1 ? String(row[iA] || '').trim() : '';
     const b = iB !== -1 ? String(row[iB] || '').trim() : '';
     const c = iC !== -1 ? String(row[iC] || '').trim() : '';
     const d = iD !== -1 ? String(row[iD] || '').trim() : '';
-    const ansStr = String(row[iAns] || '').trim().toUpperCase();
+
     if (!q) { skipped++; continue; }
-    const mod = allowedMods.find(m => m.name === modName || m.id === modName) ||
-                (allowedMods.length === 1 ? allowedMods[0] : null);
-    if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
+
+    const modNameLower = modName.toLowerCase();
+    const mod = allowedMods.find(m =>
+      String(m.name || '').toLowerCase() === modNameLower ||
+      String(m.id   || '').toLowerCase() === modNameLower
+    ) || (allowedMods.length === 1 ? allowedMods[0] : null);
+
+    if (!mod) {
+      errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`);
+      skipped++; continue;
+    }
+
+    const rawAns = String(row[iAns] || '').trim().toUpperCase();
     const ansMap = { A: 0, B: 1, C: 2, D: 3 };
-    let ansIdx = ansMap[ansStr];
+    let ansIdx = ansMap[rawAns];
     if (ansIdx === undefined) {
-      const n = Number(ansStr);
+      const cleaned = rawAns.replace(/^[\[(]+/, '').replace(/[\])).:;,\s]+$/, '').trim();
+      if (ansMap[cleaned] !== undefined) ansIdx = ansMap[cleaned];
+    }
+    if (ansIdx === undefined) {
+      const n = Number(rawAns);
       if (n >= 1 && n <= 4) ansIdx = n - 1;
     }
+
     const options = [a, b, c, d];
     const validOpts = options.filter(Boolean).length;
-    if (validOpts < 2 || ansIdx === undefined) { errors.push(`Baris ${r + 1}: pilihan/jawapan tidak sah`); skipped++; continue; }
+
+    if (validOpts < 2 || ansIdx === undefined) {
+      errors.push(`Baris ${r + 1}: pilihan/jawapan tidak sah (jawapan: "${rawAns}")`);
+      skipped++; continue;
+    }
+
+    const rawDiff = iDiff !== -1 ? String(row[iDiff] || '').trim() : 'Mudah';
+    const diffVal = ['Mudah', 'Sederhana', 'Sukar'].includes(rawDiff) ? rawDiff : 'Mudah';
+
     DB.questionBank.push({
       id: uid('qb'),
       moduleId: mod.id,
@@ -530,11 +580,12 @@ async function importQuestionBankExcel(file) {
       options,
       answer: ansIdx,
       category: iCat !== -1 ? String(row[iCat] || '').trim() : '',
-      difficulty: iDiff !== -1 && ['Mudah','Sederhana','Sukar'].includes(String(row[iDiff]).trim()) ? String(row[iDiff]).trim() : 'Mudah',
+      difficulty: diffVal,
       createdAt: nowISO()
     });
     added++;
   }
+
   saveDB();
   logAudit('Import Bank Soalan', 'Bank Soalan', 'bulk', `${added} soalan`);
   if (added) render();
@@ -579,7 +630,7 @@ async function importRubricExcel(file) {
   const iDesc = getColIndex(headers, 'Penerangan Rubrik', 'Rubric Description');
   const iCrit = getColIndex(headers, 'Nama Kriteria', 'Criteria', 'Criterion');
   const iW = getColIndex(headers, 'Berat (%)', 'Weight', 'Weight (%)');
-  if (iName === -1 || iCrit === -1) { toast('⚠️ Kolum "Nama Rubrik"/"Nama Kriteria" tidak dijumpai', 'bad'); return; }
+  if (iName === -1 || iCrit === -1) { toast('⚠️ Kolum "Nama Rubrik"/"Nama Kriteria" tidak dijumpai. Header: ' + headers.join(' | '), 'bad'); return; }
   const levelCols = [];
   for (let i = 0; i < 20; i++) {
     const li = getColIndex(headers, `Level ${i+1} Label`);
@@ -661,6 +712,7 @@ function downloadTimetableTemplate(mid) {
   toast('✅ ' + t('excel_downloaded'));
 }
 
+/* ✅ FIXED: importTimetableExcel */
 async function importTimetableExcel(file, defaultMid) {
   if (!ensureXLSX()) return;
   const wb = await readExcelFile(file);
@@ -668,49 +720,96 @@ async function importTimetableExcel(file, defaultMid) {
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
+
   const headers = rows[0];
-  const iMod = getColIndex(headers, 'Modul', 'Module');
-  const iDate = getColIndex(headers, 'Tarikh', 'Date');
-  const iStart = getColIndex(headers, 'Masa Mula', 'Start');
-  const iEnd = getColIndex(headers, 'Masa Tamat', 'End');
+  const iMod   = getColIndex(headers, 'Modul', 'Module');
+  const iDate  = getColIndex(headers, 'Tarikh', 'Date', 'Tarikh Sesi');
+  const iStart = getColIndex(headers, 'Masa Mula', 'Start', 'Start Time', 'Mula');
+  const iEnd   = getColIndex(headers, 'Masa Tamat', 'End', 'End Time', 'Tamat');
   const iTitle = getColIndex(headers, 'Tajuk', 'Topik', 'Title', 'Topic');
   const iInstr = getColIndex(headers, 'Pengajar', 'Instructor');
-  const iLoc = getColIndex(headers, 'Lokasi', 'Location');
-  const iNotes = getColIndex(headers, 'Catatan', 'Notes');
-  if (iDate === -1 || iTitle === -1) { toast('⚠️ Kolum Tarikh/Tajuk tidak dijumpai', 'bad'); return; }
+  const iLoc   = getColIndex(headers, 'Lokasi', 'Location');
+  const iNotes = getColIndex(headers, 'Catatan', 'Notes', 'Remarks');
+
+  if (iDate === -1 || iTitle === -1) {
+    toast('⚠️ Kolum Tarikh/Tajuk tidak dijumpai. Header dikesan: ' + headers.join(' | '), 'bad');
+    return;
+  }
+
   const isAdmin = state.user.role === 'admin';
   const allowedMods = isAdmin ? DB.modules : myModules();
   if (!allowedMods.length) { toast('⚠️ ' + t('msg_no_module'), 'bad'); return; }
+
+  const timeToMinutes = (t) => {
+    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    const h = Number(m[1]), mm = Number(m[2]);
+    if (h > 23 || mm > 59) return null;
+    return h * 60 + mm;
+  };
+
   let added = 0, skipped = 0;
   const errors = [];
+
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
     const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
     const dateRaw = row[iDate];
-    const start = String(row[iStart] || '').trim();
-    const end = String(row[iEnd] || '').trim();
-    const title = String(row[iTitle] || '').trim();
+    const start   = String(row[iStart] || '').trim();
+    const end     = String(row[iEnd]   || '').trim();
+    const title   = String(row[iTitle] || '').trim();
     if (!title) { skipped++; continue; }
+
     let dateStr = '';
-    if (typeof dateRaw === 'number') {
-      // Excel serial date
-      const d = XLSX.SSF.parse_date_code(dateRaw);
-      if (d) dateStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    if (dateRaw instanceof Date && !isNaN(dateRaw)) {
+      dateStr = dateRaw.toISOString().slice(0, 10);
+    } else if (typeof dateRaw === 'number') {
+      try {
+        const d = XLSX.SSF.parse_date_code(dateRaw);
+        if (d) dateStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+      } catch (e) { /* ignore */ }
     } else {
       dateStr = String(dateRaw || '').trim();
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { errors.push(`Baris ${r + 1}: tarikh tidak sah`); skipped++; continue; }
-    if (!/^\d{1,2}:\d{2}/.test(start) || !/^\d{1,2}:\d{2}/.test(end) || end <= start) {
-      errors.push(`Baris ${r + 1}: masa tidak sah`); skipped++; continue;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const dm = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dm) {
+        dateStr = `${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`;
+      }
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      errors.push(`Baris ${r + 1}: tarikh tidak sah (${dateStr || 'kosong'})`);
+      skipped++; continue;
+    }
+
+    const startMin = timeToMinutes(start);
+    const endMin   = timeToMinutes(end);
+    if (startMin === null || endMin === null) {
+      errors.push(`Baris ${r + 1}: format masa tidak sah`);
+      skipped++; continue;
+    }
+    if (endMin <= startMin) {
+      errors.push(`Baris ${r + 1}: masa tamat mesti selepas masa mula`);
+      skipped++; continue;
+    }
+
     let targetMid = defaultMid;
     if (modName) {
-      const mod = allowedMods.find(m => m.name === modName || m.id === modName);
-      if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
+      const modNameLower = modName.toLowerCase();
+      const mod = allowedMods.find(m =>
+        String(m.name || '').toLowerCase() === modNameLower ||
+        String(m.id   || '').toLowerCase() === modNameLower
+      );
+      if (!mod) {
+        errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`);
+        skipped++; continue;
+      }
       targetMid = mod.id;
     }
     if (!targetMid) { errors.push(`Baris ${r + 1}: tiada modul`); skipped++; continue; }
     if (!canManageTimetable(targetMid)) { errors.push(`Baris ${r + 1}: tiada akses ke modul`); skipped++; continue; }
+
     DB.timetables.push({
       id: uid('tt'),
       moduleId: targetMid,
@@ -719,14 +818,15 @@ async function importTimetableExcel(file, defaultMid) {
       endTime: end,
       title,
       instructor: iInstr !== -1 ? String(row[iInstr] || '').trim() : '',
-      location: iLoc !== -1 ? String(row[iLoc] || '').trim() : '',
-      notes: iNotes !== -1 ? String(row[iNotes] || '').trim() : '',
+      location:   iLoc   !== -1 ? String(row[iLoc]   || '').trim() : '',
+      notes:      iNotes !== -1 ? String(row[iNotes] || '').trim() : '',
       createdBy: state.user.id,
       createdAt: nowISO(),
       updatedAt: nowISO()
     });
     added++;
   }
+
   saveDB();
   logAudit('Import Jadual Waktu', 'Jadual', defaultMid || 'bulk', `${added} entri`);
   if (added) render();
@@ -2163,7 +2263,6 @@ async function forceSaveNow() {
   }
 }
 
-/* ⚡ CRITICAL SAVE — bypass debounce, immediate upload + visual feedback */
 async function saveCritical(baseMsg, type) {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   const b = document.getElementById('syncBadge');
@@ -2891,26 +2990,15 @@ function showSyncModal(opts) {
    ========================================================= */
 function handleLogoutClick() {
   const hasPending = pendingSaveSince > 0 || saveInFlight || !!saveTimer;
-  if (!hasPending) {
-    doLogout();
-    return;
-  }
+  if (!hasPending) { doLogout(); return; }
   const modal = showSyncModal({
     title: t('sync_upload_title'),
     desc: t('sync_upload_desc'),
-    onSkip: () => {
-      modal.close();
-      doLogout();
-    }
+    onSkip: () => { modal.close(); doLogout(); }
   });
   forceSaveNow().then(res => {
-    if (res.ok) {
-      modal.done(true);
-      setTimeout(() => { modal.close(); doLogout(); }, 900);
-    } else {
-      modal.done(false, (res.error || '') + ' — ' + t('msg_invalid_login'));
-      setTimeout(() => { modal.close(); doLogout(); }, 2600);
-    }
+    if (res.ok) { modal.done(true); setTimeout(() => { modal.close(); doLogout(); }, 900); }
+    else { modal.done(false, (res.error || '') + ' — ' + t('msg_invalid_login')); setTimeout(() => { modal.close(); doLogout(); }, 2600); }
   });
 }
 
@@ -3130,7 +3218,6 @@ function submitFinalAttempt(fe, pid, answers, isAuto) {
   const baseMsg = isAuto ? t('fe_auto_submit') : t('fe_score_format', score, allQ.length, pct);
   stopQuizTimer();
   renderStandaloneFinal(fe.id);
-  // ⚡ AUTOSAVE SERTA-MERTA — bypass debounce
   saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
 }
 function autoSubmitFinal(fe, pid) {
@@ -3209,7 +3296,6 @@ function submitQuizAttempt(act, pid, answers, isAuto) {
     : t('msg_quiz_submitted', score, act.quiz.length, pct) + (isNewBest && prevBest ? ` · 🏆 ${t('new_best_score')}` : '');
   stopQuizTimer();
   renderStandaloneQuiz(act.id);
-  // ⚡ AUTOSAVE SERTA-MERTA — bypass debounce 1200ms
   saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
 }
 function handleStandaloneQuizSubmit(act, pid, form) {
@@ -3656,9 +3742,6 @@ function dashboardView() {
   return adminDashboard();
 }
 
-/* =========================================================
-   VIP DASHBOARD — expanded read-only overview
-   ========================================================= */
 function vipDashboard() {
   const me = state.user;
   const allMods = sortModules(DB.modules);
@@ -4025,7 +4108,6 @@ function approvePendingApproval(paId) {
   saveDB();
   logAudit('Approve Correction', 'Penilaian', pa.type + ':' + pa.id, userName(pa.participantId));
   render();
-  // ⚡ AUTOSAVE SERTA-MERTA
   saveCritical('✅ ' + t('pa_approved_msg'));
 }
 function rejectPendingApproval(paId, reason) {
@@ -4776,7 +4858,6 @@ function handleSaveFinalPractical(form) {
     else { if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = []; DB.pendingApprovals.push({ id: uid('pa'), type: 'final-practical', moduleId: firstMid, finalId: feid, participantId: pid, data, submittedBy: state.user.id, submittedAt: nowISO(), status: 'pending', reviewedBy: null, reviewedAt: null, reviewRemarks: '' }); }
     saveDB(); logAudit('Submit Final Practical (Pending Approval)', 'Peperiksaan', `${feid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
     closeModal(); render();
-    // ⚡ AUTOSAVE SERTA-MERTA
     saveCritical('⏳ ' + t('pa_submitted_for_approval'), 'warn');
     return;
   }
@@ -4786,7 +4867,6 @@ function handleSaveFinalPractical(form) {
   if (Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = DB.pendingApprovals.filter(x => !(x.type === 'final-practical' && x.finalId === feid && x.participantId === pid && x.status === 'pending'));
   saveDB(); logAudit('Final Practical Marks', 'Peperiksaan', `${feid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
   closeModal(); render();
-  // ⚡ AUTOSAVE SERTA-MERTA
   saveCritical(t('pf_saved'));
 }
 
@@ -4884,7 +4964,6 @@ function handleBulkEnroll(form) {
   ids.forEach(pid => { if (!isEnrolled(mid, pid)) DB.enrollments.push({ id: uid('en'), moduleId: mid, participantId: pid, enrolledBy: state.user.id, enrolledAt: nowISO(), status: 'Aktif' }); });
   saveDB(); logAudit('Bulk Enrol', 'Enrolment', mid, `${ids.length} participants`);
   closeModal2(); render();
-  // ⚡ AUTOSAVE SERTA-MERTA
   saveCritical(t('msg_bulk_enrolled', ids.length));
 }
 
@@ -5650,7 +5729,6 @@ function handleSavePractical(form) {
     else { if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = []; DB.pendingApprovals.push({ id: uid('pa'), type: 'practical', moduleId: act.moduleId, activityId: aid, participantId: pid, data, submittedBy: state.user.id, submittedAt: nowISO(), status: 'pending', reviewedBy: null, reviewedAt: null, reviewRemarks: '' }); }
     saveDB(); logAudit('Submit Practical (Pending Approval)', 'Penilaian', `${aid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
     closeModal(); render();
-    // ⚡ AUTOSAVE SERTA-MERTA
     saveCritical('⏳ ' + t('pa_submitted_for_approval'), 'warn');
     return;
   }
@@ -5660,7 +5738,6 @@ function handleSavePractical(form) {
   if (Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = DB.pendingApprovals.filter(x => !(x.type === 'practical' && x.activityId === aid && x.participantId === pid && x.status === 'pending'));
   saveDB(); logAudit('Rubric Marks', 'Penilaian', `${aid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
   closeModal(); render();
-  // ⚡ AUTOSAVE SERTA-MERTA
   saveCritical(t('pf_saved'));
 }
 
@@ -6044,19 +6121,15 @@ document.addEventListener('click', (e) => {
       const newLang = currentLang === 'ms' ? 'en' : 'ms';
       const langLabelKey = newLang === 'ms' ? 'lang_name_ms' : 'lang_name_en';
       const langName = (I18N[newLang] && I18N[newLang][langLabelKey]) || (newLang === 'ms' ? 'Bahasa Melayu' : 'English');
-      // Prompt dalam bahasa yang BARU dipilih (ikut pilihan bahasa anda)
       const confirmTpl = (I18N[newLang] && I18N[newLang]['lang_switch_confirm']) || 'Switch to {0}?';
       const confirmMsg = confirmTpl.split('{0}').join(langName);
       if (!confirm(confirmMsg)) break;
-      // Padamkan draf borang dalam bahasa lama
       try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
       try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
-      // Tukar bahasa & render semula seluruh sistem
       currentLang = newLang;
       localStorage.setItem('cftp_lang', currentLang);
       document.documentElement.lang = currentLang;
       render();
-      // Toast dalam bahasa baru
       const switchedTpl = (I18N[newLang] && I18N[newLang]['lang_switched']) || 'Language switched to {0}.';
       toast('🌐 ' + switchedTpl.split('{0}').join(langName));
       break;
@@ -6270,7 +6343,6 @@ document.addEventListener('click', (e) => {
     case 'retest-edit-q': { if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const aid = tgt.dataset.aid, pid = tgt.dataset.pid; closeModal(); state.retestContext = { aid, pid }; openQuizEditor(aid); break; }
     case 'pa-approve': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } if (!confirm(t('pa_confirm_approve'))) break; approvePendingApproval(id); break; }
     case 'pa-reject': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const reason = prompt(t('pa_reject_reason')); if (reason === null) break; if (!confirm(t('pa_confirm_reject'))) break; rejectPendingApproval(id, reason); break; }
-    // ---------- EXCEL ----------
     case 'excel-qbank-download': downloadQuestionBankTemplate(); break;
     case 'excel-qbank-upload': pickExcelFile('.xlsx,.xls', (f) => importQuestionBankExcel(f)); break;
     case 'excel-rubric-download': downloadRubricTemplate(); break;
