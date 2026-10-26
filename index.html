@@ -418,7 +418,6 @@ function readExcelFile(file) {
   });
 }
 
-/* ✅ FIXED: getColIndex with prefix matching + BOM handling */
 function getColIndex(headers, ...aliases) {
   const normalized = (headers || []).map(h =>
     String(h || '')
@@ -497,7 +496,6 @@ function downloadQuestionBankTemplate() {
   toast('✅ ' + t('excel_downloaded'));
 }
 
-/* ✅ FIXED: importQuestionBankExcel */
 async function importQuestionBankExcel(file) {
   if (!ensureXLSX()) return;
   const wb = await readExcelFile(file);
@@ -712,7 +710,6 @@ function downloadTimetableTemplate(mid) {
   toast('✅ ' + t('excel_downloaded'));
 }
 
-/* ✅ FIXED: importTimetableExcel */
 async function importTimetableExcel(file, defaultMid) {
   if (!ensureXLSX()) return;
   const wb = await readExcelFile(file);
@@ -755,8 +752,8 @@ async function importTimetableExcel(file, defaultMid) {
     const row = rows[r];
     const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
     const dateRaw = row[iDate];
-    const start   = String(row[iStart] || '').trim();
-    const end     = String(row[iEnd]   || '').trim();
+    const start   = normalizeTimeStr(row[iStart]);
+    const end     = normalizeTimeStr(row[iEnd]);
     const title   = String(row[iTitle] || '').trim();
     if (!title) { skipped++; continue; }
 
@@ -1051,6 +1048,7 @@ const I18N = {
     lbl_inactive: 'Nyahaktif', lbl_enrolled: 'Berdaftar', lbl_available: 'Tersedia',
     lbl_weight: 'Berat', lbl_criteria: 'Kriteria', lbl_hours: 'jam', lbl_minutes: 'minit',
     lbl_no_deadline: 'Tanpa had', lbl_best: 'terbaik',
+    module_start_date: 'Tarikh Mula Modul',
     vip_read_only: '🔒 Paparan Sahaja (VIP)',
     vip_view_scores: 'Lihat Markah',
     vip_score_details: 'Butiran Markah',
@@ -1155,6 +1153,7 @@ const I18N = {
     tt_upcoming: 'Jadual Akan Datang', tt_no_upcoming: 'Tiada jadual akan datang.',
     tt_entries_count: '{0} jadual', tt_topic_placeholder: 'cth: Pengenalan Kimia',
     tt_location_placeholder: 'cth: Bilik Seminar A',
+    tt_download_pdf: 'Muat Turun PDF',
     act_new: 'Aktiviti Baharu', act_edit: 'Edit Aktiviti', act_publish_all: '✅ Terbit Semua',
     act_no_module: 'Tiada modul. Cipta modul dahulu.', act_no_module_assigned: 'Anda belum diassign ke modul.',
     act_publish_warn: 'Klik Terbitkan supaya peserta boleh akses.',
@@ -1407,6 +1406,8 @@ const I18N = {
     sync_beforeunload_msg: 'Data anda sedang dimuat naik ke sistem. Yakin mahu keluar?',
     sync_saved_ok: 'Data berjaya disimpan ke sistem.',
     sync_force_ok: 'Data dihantar ke sistem.',
+    sync_manual_title: 'Hantar data ke Google Sheets',
+    sync_manual_ok: '✅ Data berjaya dihantar ke Google Sheets.',
     dl_title: 'Memuat Turun',
     dl_preparing: 'Menyediakan muat turun…',
     dl_downloading: 'Memuat turun… {0}%',
@@ -1535,6 +1536,7 @@ const I18N = {
     lbl_active: 'Active', lbl_inactive: 'Inactive', lbl_enrolled: 'Enrolled',
     lbl_available: 'Available', lbl_weight: 'Weight', lbl_criteria: 'Criteria',
     lbl_hours: 'hrs', lbl_minutes: 'minutes', lbl_no_deadline: 'No deadline', lbl_best: 'best',
+    module_start_date: 'Module Start Date',
     vip_read_only: '🔒 View Only (VIP)',
     vip_view_scores: 'View Scores',
     vip_score_details: 'Score Details',
@@ -1641,6 +1643,7 @@ const I18N = {
     tt_no_upcoming: 'No upcoming timetable.', tt_entries_count: '{0} entries',
     tt_topic_placeholder: 'e.g. Introduction to Chemistry',
     tt_location_placeholder: 'e.g. Seminar Room A',
+    tt_download_pdf: 'Download PDF',
     act_new: 'New Activity', act_edit: 'Edit Activity', act_publish_all: '✅ Publish All',
     act_no_module: 'No modules. Create a module first.', act_no_module_assigned: 'You have no modules assigned.',
     act_publish_warn: 'Click Publish so participants can access.',
@@ -1892,6 +1895,8 @@ const I18N = {
     sync_beforeunload_msg: 'Your data is being uploaded. Are you sure you want to leave?',
     sync_saved_ok: 'Data saved successfully.',
     sync_force_ok: 'Data sent to system.',
+    sync_manual_title: 'Push data to Google Sheets',
+    sync_manual_ok: '✅ Data successfully sent to Google Sheets.',
     dl_title: 'Downloading',
     dl_preparing: 'Preparing download…',
     dl_downloading: 'Downloading… {0}%',
@@ -1984,6 +1989,39 @@ const toLocalInput = (s) => {
   const pad = (n) => String(n).padStart(2,'0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+/* Normalize time string from various sources (Date, ISO, HH:MM) to "HH:MM" */
+function normalizeTimeStr(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (val instanceof Date && !isNaN(val)) {
+    return String(val.getHours()).padStart(2, '0') + ':' + String(val.getMinutes()).padStart(2, '0');
+  }
+  const s = String(val).trim();
+  const isoM = s.match(/T(\d{2}):(\d{2})/);
+  if (isoM) return isoM[1] + ':' + isoM[2];
+  const hm = s.match(/^(\d{1,2}):(\d{2})/);
+  if (hm) return String(hm[1]).padStart(2, '0') + ':' + hm[2];
+  return s;
+}
+
+/* Format time string to 12-hour e.g. "1:30 PM" */
+function fmtTime12(timeStr) {
+  if (!timeStr) return '';
+  const s = String(timeStr).trim();
+  let h = 0, m = 0;
+  const isoM = s.match(/T(\d{2}):(\d{2})/);
+  if (isoM) { h = Number(isoM[1]); m = Number(isoM[2]); }
+  else {
+    const hm = s.match(/^(\d{1,2}):(\d{2})/);
+    if (!hm) return s;
+    h = Number(hm[1]); m = Number(hm[2]);
+  }
+  if (h > 23 || m > 59) return s;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+}
+
 const initials = (n) => (n||'?').split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0,2).map(w => w[0].toUpperCase()).join('') || '?';
 const roleLabel = (r) => ({ admin: t('role_admin'), trainer: t('role_trainer'), facilitator: t('role_facilitator'), participant: t('role_participant'), vip: t('role_vip') }[r] || r);
 const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
@@ -2263,6 +2301,28 @@ async function forceSaveNow() {
   }
 }
 
+/* Manual sync triggered by the ☁️ button in the topbar */
+async function manualSyncNow() {
+  const btn = document.getElementById('syncNowBtn');
+  const b = document.getElementById('syncBadge');
+  if (btn) { btn.disabled = true; btn.textContent = '⟳'; }
+  if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  try {
+    const res = await driveAPI('saveState', { state: DB });
+    if (!res.ok) throw new Error(res.error || 'Save failed');
+    pendingSaveSince = 0;
+    updateBeforeUnload();
+    if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
+    toast(t('sync_manual_ok'), 'ok');
+  } catch (err) {
+    if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
+    toast('⚠️ ' + (err.message || t('msg_autosave_failed')), 'bad');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '☁️'; }
+  }
+}
+
 async function saveCritical(baseMsg, type) {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   const b = document.getElementById('syncBadge');
@@ -2371,13 +2431,14 @@ function migrateDB() {
     (DB.activities || []).forEach(a => { if (a.module && !nameMap.has(a.module)) nameMap.set(a.module, a.trainerId || 'u_tr1'); });
     DB.modules = []; let idx = 0;
     nameMap.forEach((trainerId, name) => {
-      idx++; DB.modules.push({ id:'mod_'+idx, name, description:'', trainerId, facilitatorId:null, createdBy:'u_admin', createdAt:nowISO(), updatedAt:nowISO(), published:true, materials: [] });
+      idx++; DB.modules.push({ id:'mod_'+idx, name, description:'', trainerId, facilitatorId:null, createdBy:'u_admin', createdAt:nowISO(), updatedAt:nowISO(), published:true, materials: [], startDate: null });
     });
     (DB.activities || []).forEach(a => { const m = DB.modules.find(mm => mm.name === a.module); if (m) a.moduleId = m.id; });
   }
   (DB.modules || []).forEach(m => {
     if (!Array.isArray(m.materials)) m.materials = [];
     if (m.facilitatorId === undefined) m.facilitatorId = null;
+    if (m.startDate === undefined) m.startDate = null;
   });
   (DB.activities || []).forEach(a => { const m = (DB.modules || []).find(mm => mm.id === a.moduleId); if (m) a.trainerId = m.trainerId; });
   if (!Array.isArray(DB.enrollments)) {
@@ -2417,6 +2478,12 @@ function migrateDB() {
   if (!Array.isArray(DB.fePractical)) DB.fePractical = [];
   if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = [];
   if (!Array.isArray(DB.retests)) DB.retests = [];
+
+  /* Normalize any legacy timetable times (e.g. "1899-12-30T01:34:35.000Z") to "HH:MM" */
+  (DB.timetables || []).forEach(x => {
+    if (x.startTime) x.startTime = normalizeTimeStr(x.startTime);
+    if (x.endTime) x.endTime = normalizeTimeStr(x.endTime);
+  });
 
   (DB.finalExams || []).forEach(fe => {
     if (!Array.isArray(fe.moduleConfigs)) {
@@ -2469,6 +2536,8 @@ function seedQuestionBank() {
 
 function seedDB() {
   const now = nowISO();
+  const today0 = new Date();
+  const addDays0 = (n) => { const d = new Date(today0); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
   const users = [
     { id:'u_admin', username:'admin', name:'Pentadbir Sistem', email:'admin@cftp.my', password:'admin123', role:'admin', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
     { id:'u_tr1', username:'trainer', name:'Pn. Nurul Aina binti Hassan', email:'trainer@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
@@ -2483,10 +2552,10 @@ function seedDB() {
     { id:'u_p6', username:'nurul', name:'Nurul Izzah binti Kamal', email:'nurul@petrokimia.my', password:'participant123', role:'participant', ic:'930712-10-4422', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now }
   ];
   const modules = [
-    { id:'mod_1', name:'Modul 1 — Asas Kimia', description:'Pengenalan konsep asas kimia, atom, molekul dan stoikiometri.', trainerId:'u_tr1', facilitatorId:'u_tr2', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [] },
-    { id:'mod_2', name:'Modul 2 — Keselamatan Makmal', description:'Pengurusan keselamatan bahan kimia, MSDS dan prosedur kecemasan.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [] },
-    { id:'mod_3', name:'Modul 3 — Teknik Makmal', description:'Teknik penyediaan larutan dan penggunaan radas analitik.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:false, materials: [] },
-    { id:'mod_4', name:'Modul 4 — Analisis Kuantitatif', description:'Analisis titrimetri asid-bes dan pengiraan kepekatan.', trainerId:'u_tr2', facilitatorId:'u_tr1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [] }
+    { id:'mod_1', name:'Modul 1 — Asas Kimia', description:'Pengenalan konsep asas kimia, atom, molekul dan stoikiometri.', trainerId:'u_tr1', facilitatorId:'u_tr2', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(1) },
+    { id:'mod_2', name:'Modul 2 — Keselamatan Makmal', description:'Pengurusan keselamatan bahan kimia, MSDS dan prosedur kecemasan.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(3) },
+    { id:'mod_3', name:'Modul 3 — Teknik Makmal', description:'Teknik penyediaan larutan dan penggunaan radas analitik.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:false, materials: [], startDate: addDays0(10) },
+    { id:'mod_4', name:'Modul 4 — Analisis Kuantitatif', description:'Analisis titrimetri asid-bes dan pengiraan kepekatan.', trainerId:'u_tr2', facilitatorId:'u_tr1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(4) }
   ];
   const rubrics = [
     { id:'rb_1', name:'Rubrik Asas Praktikal Makmal', description:'Rubrik umum untuk penilaian praktikal kimia.', approvalStatus:'approved', reviewedBy:'u_tr1', reviewedAt:now, reviewRemarks:'',
@@ -2562,8 +2631,7 @@ function seedDB() {
     { id:'en_7', moduleId:'mod_1', participantId:'u_p6', enrolledBy:'u_p6', enrolledAt:'2026-02-04T09:15:00.000Z', status:'Aktif' }
   ];
   const audit = [];
-  const today = new Date();
-  const addDays = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); };
+  const addDays = addDays0;
   const timetables = [
     { id:'tt_1', moduleId:'mod_1', date: addDays(1), startTime:'09:00', endTime:'10:30', title:'Pengenalan Kimia & Atom', instructor:'Pn. Nurul Aina binti Hassan', location:'Bilik Seminar A', notes:'Bawa jadual berkala.', createdBy:'u_tr1', createdAt:now, updatedAt:now },
     { id:'tt_2', moduleId:'mod_1', date: addDays(1), startTime:'11:00', endTime:'12:30', title:'Stoikiometri Asas', instructor:'Pn. Nurul Aina binti Hassan', location:'Bilik Seminar A', notes:'', createdBy:'u_tr1', createdAt:now, updatedAt:now },
@@ -2622,7 +2690,15 @@ function logAudit(action, entity, entityId, details) {
 }
 
 const sortActs = (arr) => arr.slice().sort((a, b) => a.order - b.order);
-const sortModules = (arr) => arr.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+/* Sort modules by startDate (ascending, nulls last), then name */
+const sortModules = (arr) => arr.slice().sort((a, b) => {
+  const da = a.startDate || '9999-12-31';
+  const db = b.startDate || '9999-12-31';
+  if (da !== db) return da.localeCompare(db);
+  return (a.name || '').localeCompare(b.name || '');
+});
+
 const allTrainers = () => DB.users.filter(u => u.role === 'trainer' && u.status === 'approved');
 const allFacilitators = () => DB.users.filter(u => u.role === 'facilitator' && u.status === 'approved');
 const allTrainersAndFacilitators = () => DB.users.filter(u => (u.role === 'trainer' || u.role === 'facilitator') && u.status === 'approved');
@@ -3571,6 +3647,7 @@ function titleFor(v) {
 }
 function shell() {
   const u = state.user;
+  const showManualSync = ['admin','trainer','facilitator'].includes(u.role);
   return `<div class="shell">
     <aside class="sidebar">
       <div class="brand"><div class="logo">CF</div><div><strong>${t('app_brand')}</strong><span>${t('app_brand_sub')}</span></div></div>
@@ -3581,7 +3658,16 @@ function shell() {
       </div>
     </aside>
     <div class="main">
-      <header class="topbar"><h1>${esc(titleFor(state.view))}</h1><div class="tb-right">${langToggleHtml()}<span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span><span class="pill role-pill">${roleLabel(u.role)}</span><button class="btn btn-sm topbar-logout" data-act="logout" title="${esc(t('logout'))}" aria-label="${esc(t('logout'))}">🚪</button></div></header>
+      <header class="topbar">
+        <h1>${esc(titleFor(state.view))}</h1>
+        <div class="tb-right">
+          ${showManualSync ? `<button class="btn btn-sm" id="syncNowBtn" data-act="manual-sync" title="${esc(t('sync_manual_title'))}" aria-label="${esc(t('sync_manual_title'))}">☁️</button>` : ''}
+          ${langToggleHtml()}
+          <span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span>
+          <span class="pill role-pill">${roleLabel(u.role)}</span>
+          <button class="btn btn-sm topbar-logout" data-act="logout" title="${esc(t('logout'))}" aria-label="${esc(t('logout'))}">🚪</button>
+        </div>
+      </header>
       <main id="view"></main>
     </div>
   </div>`;
@@ -3862,7 +3948,7 @@ function participantDashboard() {
   ${renderFinalExamNotificationWidget(me.id)}
   ${pendingQuizzes.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📝 ${t('pending_quiz_title')} (${pendingQuizzes.length})</h2></div><p class="muted" style="font-size:.85rem;margin-bottom:12px">${t('pending_quiz_hint')}</p>${pendingQuizzes.map(a => { const w = quizWindowStatus(a); const retest = hasPendingRetest(a.id, me.id); const attempt = getAttempt(a.id, me.id); const statusBadge = retest ? `<span class="badge info">🔄 ${t('retest_pending_badge')}</span>` : (w.state === 'not-open' ? `<span class="badge draft">🕐 ${t('status_not_open')}</span>` : w.state === 'closed' ? `<span class="badge bad">🔒 ${t('status_closed')}</span>` : `<span class="badge ok">✓ ${t('status_open')}</span>`); const btnLabel = w.state === 'open' ? (retest ? '🔄 ' + t('retest_take') + ' →' : t('quiz_take') + ' →') : t('quiz_view') + ' →'; const bestNote = attempt ? ` · 🏆 ${Math.round(attempt.score/attempt.total*100)}%` : ''; return `<div class="pending-quiz-card" style="${retest ? 'border-color:var(--brand-2);background:linear-gradient(135deg,#e8f5ec,#fff)' : ''}"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(a.title)} ${statusBadge}</div><div class="pq-meta">${tce(moduleName(a.moduleId))} · ${a.quiz.length} ${t('lbl_questions')} · ${fmtDate(a.date)}${a.quizDuration ? ` · ⏱️ ${a.quizDuration} ${t('lbl_minutes')}` : ''}${a.quizOpenAt && w.state === 'not-open' ? ` · ${t('quiz_open_at')}: ${fmtDT(a.quizOpenAt)}` : ''}${a.quizCloseAt ? ` · ${t('quiz_close_at')}: ${fmtDT(a.quizCloseAt)}` : ''}${bestNote}</div></div><button class="btn btn-primary btn-sm" data-act="open-quiz-tab" data-id="${a.id}">${btnLabel}</button></div>`; }).join('')}</div>` : ''}
   ${renderUpcomingTimetableWidget(me.id)}
-  ${myMods.length ? `<div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">${t('nav_programs')}</button></div><div class="module-grid">${myMods.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const modScores = modActs.map(a => scoreFor(a, me.id)).filter(s => s.hasData); const modAvg = modScores.length ? Math.round(avg(modScores.map(s => s.overall))) : null; const mats = (m.materials||[]).length; const ttCount = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div><div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${modScores.length}</strong><span>${t('rpt_summary_assessed')}</span></div><div><strong>${modAvg !== null ? modAvg + '%' : '—'}</strong><span>${t('rpt_summary_average')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div>${ttCount ? `<div><strong>${ttCount}</strong><span>📅</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div></div>` : `<div class="card"><div class="empty">${t('modules_no_modules_enrolled')} <button class="btn btn-primary btn-sm" data-act="nav" data-view="programs" style="margin-left:8px">${t('nav_programs')}</button></div></div>`}
+  ${myMods.length ? `<div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">${t('nav_programs')}</button></div><div class="module-grid">${myMods.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const modScores = modActs.map(a => scoreFor(a, me.id)).filter(s => s.hasData); const modAvg = modScores.length ? Math.round(avg(modScores.map(s => s.overall))) : null; const mats = (m.materials||[]).length; const ttCount = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${modScores.length}</strong><span>${t('rpt_summary_assessed')}</span></div><div><strong>${modAvg !== null ? modAvg + '%' : '—'}</strong><span>${t('rpt_summary_average')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div>${ttCount ? `<div><strong>${ttCount}</strong><span>📅</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div></div>` : `<div class="card"><div class="empty">${t('modules_no_modules_enrolled')} <button class="btn btn-primary btn-sm" data-act="nav" data-view="programs" style="margin-left:8px">${t('nav_programs')}</button></div></div>`}
   <div class="card"><div class="card-head"><h2>${t('lbl_activity')}</h2></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_practical')}</th><th>${t('lbl_score')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${rows.map(({ a, s }) => `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${quizBadge(a, me.id)}</td><td>${practicalBadge(a, me.id)}</td><td><strong>${s.overall !== null ? s.overall + '%' : '—'}</strong></td><td>${badgeStatus(s.overall)}</td><td><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_open')}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_activity')}</div>`}</div>`;
 }
 function renderFinalExamNotificationWidget(pid) {
@@ -3878,7 +3964,7 @@ function upcomingTimetableFor(pid, limit) {
 function renderUpcomingTimetableWidget(pid) {
   const entries = upcomingTimetableFor(pid, 5);
   if (!entries.length) return '';
-  return `<div class="card" style="border-color:#b8e0cf;background:linear-gradient(180deg,#f7fdfa,#fff)"><div class="card-head"><h2>📅 ${t('tt_upcoming')}</h2><span class="badge info">${entries.length}</span></div><div class="timetable-list">${entries.map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time"><div class="tt-date-mini">${fmtDate(e.date)}${isTodayDate(e.date) ? ' · ' + t('tt_today') : ''}</div><div>${esc(e.startTime)} — ${esc(e.endTime)}</div></div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div><div class="tt-meta">${tce(moduleName(e.moduleId))}${e.instructor ? ' · 👤 ' + tce(e.instructor) : ''}${e.location ? ' · 📍 ' + tce(e.location) : ''}</div>${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div><button class="btn btn-sm" data-act="open-module" data-id="${e.moduleId}">${t('btn_open')}</button></div>`).join('')}</div></div>`;
+  return `<div class="card" style="border-color:#b8e0cf;background:linear-gradient(180deg,#f7fdfa,#fff)"><div class="card-head"><h2>📅 ${t('tt_upcoming')}</h2><span class="badge info">${entries.length}</span></div><div class="timetable-list">${entries.map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time"><div class="tt-date-mini">${fmtDate(e.date)}${isTodayDate(e.date) ? ' · ' + t('tt_today') : ''}</div><div>${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div></div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div><div class="tt-meta">${tce(moduleName(e.moduleId))}${e.instructor ? ' · 👤 ' + tce(e.instructor) : ''}${e.location ? ' · 📍 ' + tce(e.location) : ''}</div>${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div><button class="btn btn-sm" data-act="open-module" data-id="${e.moduleId}">${t('btn_open')}</button></div>`).join('')}</div></div>`;
 }
 function trainerDashboard() {
   const mods = myModules();
@@ -3902,7 +3988,7 @@ function trainerDashboard() {
   </div>
   ${paCount ? `<div class="info-box warn"><h4>📥 ${t('pa_title')} (${paCount})</h4><p style="margin:4px 0 0">${t('pa_sub')} <button class="btn btn-sm btn-primary" data-act="nav" data-view="approvals" style="margin-left:6px">${t('pa_review')} →</button></p></div>` : ''}
   ${drafts ? `<div class="info-box warn"><h4>⚠️ ${t('modules_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}
-  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div><div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
+  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
 }
 function adminDashboard() {
   const mods = sortModules(DB.modules);
@@ -3995,7 +4081,7 @@ function facilitatorDashboard() {
         <div class="fm-icon">📦</div>
         <div class="fm-body">
           <div class="fm-name">${tce(m.name)}</div>
-          <div class="fm-meta">👤 ${t('lbl_trainer')}: ${tce(userName(m.trainerId))}${m.published ? ' · <span class="badge ok" style="font-size:.65rem">' + t('lbl_active') + '</span>' : ' · <span class="badge draft" style="font-size:.65rem">' + t('lbl_draft') + '</span>'}</div>
+          <div class="fm-meta">👤 ${t('lbl_trainer')}: ${tce(userName(m.trainerId))}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}${m.published ? ' · <span class="badge ok" style="font-size:.65rem">' + t('lbl_active') + '</span>' : ' · <span class="badge draft" style="font-size:.65rem">' + t('lbl_draft') + '</span>'}</div>
           <div class="fm-stats">
             <span><strong>${acts.length}</strong> ${t('lbl_activities')}</span>
             <span><strong>${parts.length}</strong> ${t('lbl_participants')}</span>
@@ -4137,7 +4223,7 @@ function modulesView() {
         ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
     </div>
-    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div><div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')}</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${m.id}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${m.id}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
+    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')}</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${m.id}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${m.id}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
   </div>`;
 }
 
@@ -4151,8 +4237,15 @@ function renderTimetableSection(m, canEdit) {
   const byDate = {};
   entries.forEach(e => { if (!byDate[e.date]) byDate[e.date] = []; byDate[e.date].push(e); });
   const dates = Object.keys(byDate).sort();
+  const pdfBtn = `<button class="btn btn-sm" data-act="download-timetable-pdf" data-mid="${m.id}" title="${esc(t('tt_download_pdf'))}">📄 PDF</button>`;
   const excelBtns = canEdit ? `<button class="btn btn-sm" data-act="excel-timetable-download" data-mid="${m.id}" title="${esc(t('excel_template_download'))}">📥 Template</button><button class="btn btn-sm" data-act="excel-timetable-upload" data-mid="${m.id}" title="${esc(t('excel_import_upload'))}">📤 Import</button>` : '';
-  return `<div class="card"><div class="card-head"><div><h2>📅 ${t('tt_title')} (${entries.length})</h2><small class="muted">${t('tt_sub')}</small></div>${canEdit ? `<div class="toolbar">${excelBtns}<button class="btn btn-sm btn-primary" data-act="new-timetable" data-mid="${m.id}">${t('tt_add')}</button></div>` : ''}</div>${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${esc(e.startTime)} — ${esc(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
+  const addBtn = canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-timetable" data-mid="${m.id}">${t('tt_add')}</button>` : '';
+  return `<div class="card">
+    <div class="card-head">
+      <div><h2>📅 ${t('tt_title')} (${entries.length})</h2><small class="muted">${t('tt_sub')}</small></div>
+      <div class="toolbar">${pdfBtn}${excelBtns}${addBtn}</div>
+    </div>
+    ${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
 }
 
 /* =========================================================
@@ -4173,7 +4266,7 @@ function vipModuleDetailView(m) {
     <div class="card-head">
       <div>
         <h2>${tce(m.name)}</h2>
-        <small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}</small>
+        <small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}</small>
       </div>
       <div class="toolbar">
         <button class="btn btn-sm" data-act="nav" data-view="modules">←</button>
@@ -4182,6 +4275,7 @@ function vipModuleDetailView(m) {
     </div>
     <p>${tce(m.description || '')}</p>
     <div class="meta-grid">
+      <div class="meta-item"><div class="k">📅 ${t('module_start_date')}</div><div class="v">${m.startDate ? fmtDate(m.startDate) : '—'}</div></div>
       <div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div>
       <div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div>
       <div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${ttCount}</div></div>
@@ -4268,11 +4362,11 @@ function moduleDetailView() {
   if (isParticipant) {
     if (!enrolled) return `<div class="card"><div class="card-head"><h2>${tce(m.name)}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">←</button></div><p>${t('modules_no_modules_enrolled')}</p><button class="btn btn-primary" data-act="enroll-module" data-id="${m.id}">${t('modules_enroll_now')}</button></div>`;
     const myActs = modActs.filter(a => a.published);
-    return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)}</h2><small class="muted">${trainerFacilitatorLine(m)}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="programs">←</button><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div></div><p>${tce(m.description || '')}</p><h3>${t('modules_activity_section')} (${myActs.length})</h3>${myActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_practical')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${myActs.map(a => { const s = scoreFor(a, state.user.id); return `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td>${quizBadge(a, state.user.id)}</td><td>${practicalBadge(a, state.user.id)}</td><td>${badgeStatus(s.overall)}</td><td><button class="btn btn-sm btn-primary" data-act="open-activity" data-id="${a.id}">${t('btn_open')}</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>${renderMaterialsSection(m, false)}${renderTimetableSection(m, canEditTT)}`;
+    return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)}</h2><small class="muted">${trainerFacilitatorLine(m)}${m.startDate ? ' · 📅 ' + t('module_start_date') + ': ' + fmtDate(m.startDate) : ''}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="programs">←</button><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div></div><p>${tce(m.description || '')}</p><h3>${t('modules_activity_section')} (${myActs.length})</h3>${myActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_practical')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${myActs.map(a => { const s = scoreFor(a, state.user.id); return `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td>${quizBadge(a, state.user.id)}</td><td>${practicalBadge(a, state.user.id)}</td><td>${badgeStatus(s.overall)}</td><td><button class="btn btn-sm btn-primary" data-act="open-activity" data-id="${a.id}">${t('btn_open')}</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>${renderMaterialsSection(m, false)}${renderTimetableSection(m, canEditTT)}`;
   }
   const drafts = modActs.filter(a => !a.published);
   const finals = moduleFinalExams(m.id);
-  return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</h2><small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="modules">←</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕ ${t('lbl_activity')}</button>` : ''}</div></div><p>${tce(m.description || '')}</p><div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div><div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div><div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${moduleTimetable(m.id).length}</div></div><div class="meta-item"><div class="k">🎓 ${t('fe_title')}</div><div class="v">${finals.length}</div></div><div class="meta-item"><div class="k">${t('lbl_materials')}</div><div class="v">${(m.materials||[]).length}</div></div><div class="meta-item"><div class="k">${t('lbl_draft')}</div><div class="v" style="${drafts.length ? 'color:var(--warn)' : ''}">${drafts.length}</div></div></div>${drafts.length ? `<div class="info-box warn" style="margin-bottom:0"><h4>⚠️ ${t('modules_draft_warn', drafts.length)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}</div>
+  return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</h2><small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="modules">←</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕ ${t('lbl_activity')}</button>` : ''}</div></div><p>${tce(m.description || '')}</p><div class="meta-grid"><div class="meta-item"><div class="k">📅 ${t('module_start_date')}</div><div class="v">${m.startDate ? fmtDate(m.startDate) : '—'}</div></div><div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div><div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div><div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${moduleTimetable(m.id).length}</div></div><div class="meta-item"><div class="k">🎓 ${t('fe_title')}</div><div class="v">${finals.length}</div></div><div class="meta-item"><div class="k">${t('lbl_materials')}</div><div class="v">${(m.materials||[]).length}</div></div><div class="meta-item"><div class="k">${t('lbl_draft')}</div><div class="v" style="${drafts.length ? 'color:var(--warn)' : ''}">${drafts.length}</div></div></div>${drafts.length ? `<div class="info-box warn" style="margin-bottom:0"><h4>⚠️ ${t('modules_draft_warn', drafts.length)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}</div>
   ${renderTimetableSection(m, canEditTT)}
   ${renderMaterialsSection(m, canEditMaterial)}
   <div class="card"><div class="card-head"><h2>${t('modules_activity_section')} (${modActs.length})</h2><div class="toolbar">${drafts.length && canEdit ? `<button class="btn btn-sm btn-primary" data-act="publish-all-module" data-id="${m.id}">${t('act_publish_all')} (${drafts.length})</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕</button>` : ''}</div></div>${modActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${modActs.map(a => `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span> ${a.quizDuration ? `<small class="muted">⏱️ ${a.quizDuration}m</small>` : ''}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${t('lbl_draft')}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canEdit ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}" title="${t('quiz_preview')}">👁️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>
@@ -4291,9 +4385,11 @@ function openTimetableForm(mid, entryId) {
   const e = isEdit ? DB.timetables.find(x => x.id === entryId) : null;
   if (isEdit && !e) { toast(t('msg_not_found'), 'bad'); return; }
   const v = isEdit ? e : { date: todayISO(), startTime: '09:00', endTime: '10:30', title: '', instructor: userName(m.trainerId) || '', location: '', notes: '' };
+  const startVal = normalizeTimeStr(v.startTime) || '09:00';
+  const endVal = normalizeTimeStr(v.endTime) || '10:30';
   openModal(`<h2>${isEdit ? t('tt_edit') : t('tt_new')}</h2><p class="muted">${tce(m.name)}</p>
     <form data-form="timetable" data-mid="${mid}" data-tid="${isEdit ? e.id : ''}">
-      <div class="grid2"><div class="field"><label>${t('tt_date')} *</label><input class="input" type="date" name="date" required value="${esc(v.date)}" /></div><div class="field"><label>${t('tt_instructor')}</label><input class="input" name="instructor" value="${esc(v.instructor || '')}" /></div><div class="field"><label>${t('tt_start')} *</label><input class="input" type="time" name="startTime" required value="${esc(v.startTime)}" /></div><div class="field"><label>${t('tt_end')} *</label><input class="input" type="time" name="endTime" required value="${esc(v.endTime)}" /></div></div>
+      <div class="grid2"><div class="field"><label>${t('tt_date')} *</label><input class="input" type="date" name="date" required value="${esc(v.date)}" /></div><div class="field"><label>${t('tt_instructor')}</label><input class="input" name="instructor" value="${esc(v.instructor || '')}" /></div><div class="field"><label>${t('tt_start')} *</label><input class="input" type="time" name="startTime" required value="${esc(startVal)}" /></div><div class="field"><label>${t('tt_end')} *</label><input class="input" type="time" name="endTime" required value="${esc(endVal)}" /></div></div>
       <div class="field"><label>${t('tt_topic')} *</label><input class="input" name="title" required value="${esc(v.title)}" placeholder="${esc(t('tt_topic_placeholder'))}" /></div>
       <div class="field"><label>${t('tt_location')}</label><input class="input" name="location" value="${esc(v.location || '')}" placeholder="${esc(t('tt_location_placeholder'))}" /></div>
       <div class="field"><label>${t('tt_notes')}</label><textarea class="textarea" name="notes">${esc(v.notes || '')}</textarea></div>
@@ -4305,7 +4401,10 @@ function handleSaveTimetable(form) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
   if (!canManageTimetable(mid)) { toast(t('msg_no_access'), 'bad'); return; }
-  const date = form.date.value, startTime = form.startTime.value, endTime = form.endTime.value, title = form.title.value.trim();
+  const date = form.date.value;
+  const startTime = normalizeTimeStr(form.startTime.value);
+  const endTime = normalizeTimeStr(form.endTime.value);
+  const title = form.title.value.trim();
   if (!date) { toast(t('tt_date_required'), 'bad'); return; }
   if (!title) { toast(t('tt_topic_required'), 'bad'); return; }
   if (endTime <= startTime) { toast(t('tt_invalid_time'), 'bad'); return; }
@@ -4877,26 +4976,37 @@ function programsView() {
   const me = state.user;
   const avail = availableModules(me.id);
   const enrolled = participantModules(me.id);
-  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div><div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>
-  <div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')} (${enrolled.length})</h2></div>${enrolled.length ? `<div class="module-grid">${enrolled.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div><div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
+  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>
+  <div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')} (${enrolled.length})</h2></div>${enrolled.length ? `<div class="module-grid">${enrolled.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
 }
 function openModuleForm(mod) {
   const isEdit = !!mod;
-  const m = mod || { name:'', description:'', trainerId: (allTrainers()[0] || {}).id, facilitatorId: null, published: true };
+  const m = mod || { name:'', description:'', trainerId: (allTrainers()[0] || {}).id, facilitatorId: null, published: true, startDate: '' };
   const facOptions = allTrainersAndFacilitators();
   openModal(`<h2>${isEdit ? t('form_edit') + ' ' + t('lbl_module') : t('form_new') + ' ' + t('lbl_module')}</h2>
     <form data-form="module" data-id="${isEdit ? m.id : ''}">
       <div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(m.name)}" /></div>
       <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" name="description">${esc(m.description)}</textarea></div>
+      <div class="grid2">
+        <div class="field"><label>📅 ${t('module_start_date')}</label><input class="input" type="date" name="startDate" value="${esc(m.startDate || '')}" /><small class="muted" style="display:block;margin-top:4px">${currentLang === 'en' ? 'Modules are sorted by this date' : 'Modul disusun mengikut tarikh ini'}</small></div>
+        <div class="field"><label>${t('lbl_status')}</label><select class="select" name="published"><option value="true" ${m.published ? 'selected' : ''}>${t('lbl_active')}</option><option value="false" ${!m.published ? 'selected' : ''}>${t('lbl_draft')}</option></select></div>
+      </div>
       <div class="grid2"><div class="field"><label>👤 ${t('lbl_trainer')} *</label><select class="select" name="trainerId" required>${allTrainers().map(tr => `<option value="${tr.id}" ${m.trainerId === tr.id ? 'selected' : ''}>${tce(tr.name)}</option>`).join('')}</select></div><div class="field"><label>🧑‍🏫 ${t('lbl_facilitator')}</label><select class="select" name="facilitatorId"><option value="">— ${t('form_no_facilitator')} —</option>${facOptions.map(tr => `<option value="${tr.id}" ${m.facilitatorId === tr.id ? 'selected' : ''}>${tce(tr.name)}${tr.role === 'facilitator' ? ' (F)' : ''}</option>`).join('')}</select></div></div>
-      <div class="field"><label>${t('lbl_status')}</label><select class="select" name="published"><option value="true" ${m.published ? 'selected' : ''}>${t('lbl_active')}</option><option value="false" ${!m.published ? 'selected' : ''}>${t('lbl_draft')}</option></select></div>
       <div class="info-box" style="font-size:.82rem"><p style="margin:0">💡 ${t('pa_facilitator_note')}</p></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
 }
 function handleSaveModule(form) {
   const id = form.dataset.id;
-  const data = { name: form.name.value.trim(), description: form.description.value.trim(), trainerId: form.trainerId.value, facilitatorId: (form.facilitatorId && form.facilitatorId.value) || null, published: form.published.value === 'true', updatedAt: nowISO() };
+  const data = {
+    name: form.name.value.trim(),
+    description: form.description.value.trim(),
+    trainerId: form.trainerId.value,
+    facilitatorId: (form.facilitatorId && form.facilitatorId.value) || null,
+    published: form.published.value === 'true',
+    startDate: (form.startDate && form.startDate.value) || null,
+    updatedAt: nowISO()
+  };
   if (!data.name) { toast(t('msg_required'), 'bad'); return; }
   if (id) {
     const m = getModule(id); const oldTrainerId = m.trainerId;
@@ -5895,6 +6005,34 @@ function programReportHTML(orgFilter) {
     <table><thead><tr><th>#</th><th>${t('rpt_col_participant')}</th><th>${t('rpt_col_org')}</th><th>${t('rpt_col_assessed')}</th><th>${t('rpt_col_average')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${per.map((x, i) => `<tr><td>${i+1}</td><td>${tce(x.p.name)}</td><td>${tce(x.p.org || '—')}</td><td>${x.done}</td><td><b>${x.avg !== null ? x.avg + '%' : '—'}</b></td><td>${tagFor(x.avg)}</td></tr>`).join('')}</tbody></table>
     <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
+
+/* Timetable PDF report */
+function timetableReportHTML(mid) {
+  const m = getModule(mid);
+  if (!m) return '';
+  const entries = moduleTimetable(mid);
+  const byDate = {};
+  entries.forEach(e => { if (!byDate[e.date]) byDate[e.date] = []; byDate[e.date].push(e); });
+  const dates = Object.keys(byDate).sort();
+  const ds = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
+  const rows = dates.map(date => {
+    const dayEntries = byDate[date].map(e => `<tr>
+      <td>${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</td>
+      <td><b>${tce(e.title)}</b></td>
+      <td>${tce(e.instructor || '—')}</td>
+      <td>${tce(e.location || '—')}</td>
+      <td>${tce(e.notes || '')}</td>
+    </tr>`).join('');
+    return `<tr><td colspan="5" style="background:#e8f2ee;font-weight:bold;color:#0b6b53">${fmtDateLong(date)}${isTodayDate(date) ? ' · ' + t('tt_today') : ''}</td></tr>${dayEntries}`;
+  }).join('');
+  return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('tt_title')}</title><style>${PRINT_CSS}</style></head><body>
+    <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('tt_title')} — ${tce(m.name)}</p></div><div class="rpt-logo">CF</div></div>
+    <table><tr><td><b>${t('lbl_module')}:</b> ${tce(m.name)}</td><td><b>${t('lbl_trainer')}:</b> ${tce(userName(m.trainerId))}</td></tr><tr><td><b>${t('module_start_date')}:</b> ${m.startDate ? fmtDate(m.startDate) : '—'}</td><td><b>${t('lbl_facilitator')}:</b> ${m.facilitatorId ? tce(userName(m.facilitatorId)) : '—'}</td></tr><tr><td><b>${t('tt_entries_count', entries.length)}</b></td><td><b>${t('lbl_date')}:</b> ${ds}</td></tr></table>
+    <h2>${t('tt_title')}</h2>
+    <table><thead><tr><th style="width:130px">${t('quiz_time')}</th><th>${t('tt_topic')}</th><th>${t('tt_instructor')}</th><th>${t('tt_location')}</th><th>${t('tt_notes')}</th></tr></thead><tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:#888">${t('tt_no_entries')}</td></tr>`}</tbody></table>
+    <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
+}
+
 function printHTML(html) {
   const frame = $('#printFrame');
   const doc = frame.contentWindow.document;
@@ -6117,13 +6255,11 @@ document.addEventListener('click', (e) => {
   if (!tgt) return;
   const act = tgt.dataset.act, id = tgt.dataset.id;
   switch (act) {
+    case 'manual-sync': manualSyncNow(); break;
     case 'toggle-lang': {
       const newLang = currentLang === 'ms' ? 'en' : 'ms';
       const langLabelKey = newLang === 'ms' ? 'lang_name_ms' : 'lang_name_en';
       const langName = (I18N[newLang] && I18N[newLang][langLabelKey]) || (newLang === 'ms' ? 'Bahasa Melayu' : 'English');
-      const confirmTpl = (I18N[newLang] && I18N[newLang]['lang_switch_confirm']) || 'Switch to {0}?';
-      const confirmMsg = confirmTpl.split('{0}').join(langName);
-      if (!confirm(confirmMsg)) break;
       try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
       try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
       currentLang = newLang;
@@ -6215,6 +6351,14 @@ document.addEventListener('click', (e) => {
     case 'report-program': {
       const org = state.user.role === 'vip' ? state.user.org : null;
       printHTML(programReportHTML(org)); break;
+    }
+    case 'download-timetable-pdf': {
+      const mid = tgt.dataset.mid;
+      const m = getModule(mid);
+      if (!m) { toast(t('msg_not_found'), 'bad'); break; }
+      printHTML(timetableReportHTML(mid));
+      logAudit('Print Timetable', 'Jadual', mid, m.name);
+      break;
     }
     case 'new-question': openQuestionForm(null); break;
     case 'edit-question': openQuestionForm(DB.questionBank.find(x => x.id === id)); break;
