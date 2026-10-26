@@ -1166,6 +1166,13 @@ const I18N = {
     msg_published: 'Diterbitkan.', msg_unpublished: 'Dinyahterbitkan.',
     msg_saved_practical: 'Markah disimpan.', msg_draft_only: 'Tiada draf.',
     msg_yes: 'Ya', msg_no: 'Tidak',
+    msg_autosaved: 'Markah disimpan ke sistem',
+    msg_autosave_failed: 'Gagal simpan ke sistem',
+    msg_saving_now: 'Menyimpan ke sistem…',
+    lang_switch_confirm: 'Tukar ke {0}?\n\nSemua kandungan sistem akan dipaparkan dalam {0}.\nDraf borang sedia ada (login/daftar) akan dipadamkan.',
+    lang_switched: 'Bahasa ditukar ke {0}.',
+    lang_name_ms: 'Bahasa Melayu',
+    lang_name_en: 'Bahasa Inggeris',
     qb_title: 'Bina Soalan Kuiz', qb_settings_title: 'Tetapan Masa Kuiz',
     qb_settings_hint: 'Tetapkan bila kuiz boleh dibuka dan berapa lama peserta diberi masa menjawab. Jika kosong, kuiz sentiasa terbuka dan tanpa had masa.',
     qb_open_at: 'Tarikh & Masa Dibuka', qb_close_at: 'Tarikh & Masa Ditutup',
@@ -1646,6 +1653,13 @@ const I18N = {
     msg_published: 'Published.', msg_unpublished: 'Unpublished.',
     msg_saved_practical: 'Marks saved.', msg_draft_only: 'No drafts.',
     msg_yes: 'Yes', msg_no: 'No',
+    msg_autosaved: 'Marks saved to system',
+    msg_autosave_failed: 'Failed to save to system',
+    msg_saving_now: 'Saving to system…',
+    lang_switch_confirm: 'Switch to {0}?\n\nAll system content will be displayed in {0}.\nExisting form drafts (login/register) will be cleared.',
+    lang_switched: 'Language switched to {0}.',
+    lang_name_ms: 'Malay',
+    lang_name_en: 'English',
     qb_title: 'Build Quiz Questions', qb_settings_title: 'Quiz Time Settings',
     qb_settings_hint: 'Set when the quiz opens and how long participants have to answer. If left blank, the quiz is always open with no time limit.',
     qb_open_at: 'Open Date & Time', qb_close_at: 'Close Date & Time',
@@ -2147,6 +2161,23 @@ async function forceSaveNow() {
     saveInFlight = false;
     updateBeforeUnload();
   }
+}
+
+/* ⚡ CRITICAL SAVE — bypass debounce, immediate upload + visual feedback */
+async function saveCritical(baseMsg, type) {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  const b = document.getElementById('syncBadge');
+  if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = t('msg_saving_now'); }
+  const result = await forceSaveNow();
+  if (result.ok) {
+    if (baseMsg) toast(baseMsg + ' · ✅ ' + t('msg_autosaved'), type || 'ok');
+    if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
+  } else {
+    if (baseMsg) toast(baseMsg + ' · ⚠️ ' + t('msg_autosave_failed'), 'warn');
+    else toast('⚠️ ' + t('msg_autosave_failed'), 'bad');
+    if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + (result.error || ''); }
+  }
+  return result;
 }
 
 function hideSplash() {
@@ -3096,8 +3127,11 @@ function submitFinalAttempt(fe, pid, answers, isAuto) {
   try { window.opener && window.opener.postMessage({ type:'quiz-submitted' }, '*'); } catch(e) {}
   try { localStorage.removeItem(feStartKeyFor(fe.id, pid)); } catch(e) {}
   const pct = Math.round(score / allQ.length * 100);
-  toast(isAuto ? t('fe_auto_submit') : t('fe_score_format', score, allQ.length, pct), isAuto ? 'warn' : 'ok');
-  stopQuizTimer(); renderStandaloneFinal(fe.id);
+  const baseMsg = isAuto ? t('fe_auto_submit') : t('fe_score_format', score, allQ.length, pct);
+  stopQuizTimer();
+  renderStandaloneFinal(fe.id);
+  // ⚡ AUTOSAVE SERTA-MERTA — bypass debounce
+  saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
 }
 function autoSubmitFinal(fe, pid) {
   const allQ = feQuestionsAll(fe);
@@ -3170,8 +3204,13 @@ function submitQuizAttempt(act, pid, answers, isAuto) {
   const pct = Math.round(score / act.quiz.length * 100);
   const newBest = getAttempt(act.id, pid);
   const isNewBest = !prevBest || (newBest && newBest.id !== prevBest.id);
-  toast(isAuto ? t('msg_quiz_auto_submit', score, act.quiz.length, pct) : t('msg_quiz_submitted', score, act.quiz.length, pct) + (isNewBest && prevBest ? ` · 🏆 ${t('new_best_score')}` : ''), isAuto ? 'warn' : 'ok');
-  stopQuizTimer(); renderStandaloneQuiz(act.id);
+  const baseMsg = isAuto
+    ? t('msg_quiz_auto_submit', score, act.quiz.length, pct)
+    : t('msg_quiz_submitted', score, act.quiz.length, pct) + (isNewBest && prevBest ? ` · 🏆 ${t('new_best_score')}` : '');
+  stopQuizTimer();
+  renderStandaloneQuiz(act.id);
+  // ⚡ AUTOSAVE SERTA-MERTA — bypass debounce 1200ms
+  saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
 }
 function handleStandaloneQuizSubmit(act, pid, form) {
   const answers = act.quiz.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
@@ -3985,7 +4024,9 @@ function approvePendingApproval(paId) {
   pa.status = 'approved'; pa.reviewedBy = state.user.id; pa.reviewedAt = nowISO();
   saveDB();
   logAudit('Approve Correction', 'Penilaian', pa.type + ':' + pa.id, userName(pa.participantId));
-  toast('✅ ' + t('pa_approved_msg')); render();
+  render();
+  // ⚡ AUTOSAVE SERTA-MERTA
+  saveCritical('✅ ' + t('pa_approved_msg'));
 }
 function rejectPendingApproval(paId, reason) {
   const pa = (DB.pendingApprovals || []).find(x => x.id === paId);
@@ -4734,14 +4775,19 @@ function handleSaveFinalPractical(form) {
     if (pa) { pa.data = data; pa.submittedAt = nowISO(); }
     else { if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = []; DB.pendingApprovals.push({ id: uid('pa'), type: 'final-practical', moduleId: firstMid, finalId: feid, participantId: pid, data, submittedBy: state.user.id, submittedAt: nowISO(), status: 'pending', reviewedBy: null, reviewedAt: null, reviewRemarks: '' }); }
     saveDB(); logAudit('Submit Final Practical (Pending Approval)', 'Peperiksaan', `${feid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
-    closeModal(); toast('⏳ ' + t('pa_submitted_for_approval'), 'warn'); render(); return;
+    closeModal(); render();
+    // ⚡ AUTOSAVE SERTA-MERTA
+    saveCritical('⏳ ' + t('pa_submitted_for_approval'), 'warn');
+    return;
   }
   let rec = (DB.fePractical || []).find(x => x.finalId === feid && x.participantId === pid);
   if (rec) { rec.scores = scores; rec.total = totalPct; rec.remarks = remarks; rec.by = state.user.id; rec.at = nowISO(); }
   else DB.fePractical.push({ id: uid('fep'), finalId: feid, participantId: pid, scores, total: totalPct, remarks, by: state.user.id, at: nowISO() });
   if (Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = DB.pendingApprovals.filter(x => !(x.type === 'final-practical' && x.finalId === feid && x.participantId === pid && x.status === 'pending'));
   saveDB(); logAudit('Final Practical Marks', 'Peperiksaan', `${feid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
-  closeModal(); toast(t('pf_saved')); render();
+  closeModal(); render();
+  // ⚡ AUTOSAVE SERTA-MERTA
+  saveCritical(t('pf_saved'));
 }
 
 /* =========================================================
@@ -4836,7 +4882,10 @@ function handleBulkEnroll(form) {
   const ids = $$('input[name="enroll-pid"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('msg_must_select_one'), 'bad'); return; }
   ids.forEach(pid => { if (!isEnrolled(mid, pid)) DB.enrollments.push({ id: uid('en'), moduleId: mid, participantId: pid, enrolledBy: state.user.id, enrolledAt: nowISO(), status: 'Aktif' }); });
-  saveDB(); logAudit('Bulk Enrol', 'Enrolment', mid, `${ids.length} participants`); toast(t('msg_bulk_enrolled', ids.length)); closeModal2(); render();
+  saveDB(); logAudit('Bulk Enrol', 'Enrolment', mid, `${ids.length} participants`);
+  closeModal2(); render();
+  // ⚡ AUTOSAVE SERTA-MERTA
+  saveCritical(t('msg_bulk_enrolled', ids.length));
 }
 
 /* =========================================================
@@ -5600,14 +5649,19 @@ function handleSavePractical(form) {
     if (pa) { pa.data = data; pa.submittedAt = nowISO(); }
     else { if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = []; DB.pendingApprovals.push({ id: uid('pa'), type: 'practical', moduleId: act.moduleId, activityId: aid, participantId: pid, data, submittedBy: state.user.id, submittedAt: nowISO(), status: 'pending', reviewedBy: null, reviewedAt: null, reviewRemarks: '' }); }
     saveDB(); logAudit('Submit Practical (Pending Approval)', 'Penilaian', `${aid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
-    closeModal(); toast('⏳ ' + t('pa_submitted_for_approval'), 'warn'); render(); return;
+    closeModal(); render();
+    // ⚡ AUTOSAVE SERTA-MERTA
+    saveCritical('⏳ ' + t('pa_submitted_for_approval'), 'warn');
+    return;
   }
   let rec = DB.practical.find(x => x.activityId === aid && x.participantId === pid);
   if (rec) { rec.scores = scores; rec.total = totalPct; rec.remarks = remarks; rec.by = state.user.id; rec.at = nowISO(); }
   else DB.practical.push({ id: uid('pr'), activityId: aid, participantId: pid, scores, total: totalPct, remarks, by: state.user.id, at: nowISO() });
   if (Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = DB.pendingApprovals.filter(x => !(x.type === 'practical' && x.activityId === aid && x.participantId === pid && x.status === 'pending'));
   saveDB(); logAudit('Rubric Marks', 'Penilaian', `${aid}:${pid}`, `${userName(pid)}: ${totalPct.toFixed(1)}%`);
-  closeModal(); toast(t('pf_saved')); render();
+  closeModal(); render();
+  // ⚡ AUTOSAVE SERTA-MERTA
+  saveCritical(t('pf_saved'));
 }
 
 /* =========================================================
@@ -5986,7 +6040,27 @@ document.addEventListener('click', (e) => {
   if (!tgt) return;
   const act = tgt.dataset.act, id = tgt.dataset.id;
   switch (act) {
-    case 'toggle-lang': { currentLang = currentLang === 'ms' ? 'en' : 'ms'; localStorage.setItem('cftp_lang', currentLang); document.documentElement.lang = currentLang; render(); break; }
+    case 'toggle-lang': {
+      const newLang = currentLang === 'ms' ? 'en' : 'ms';
+      const langLabelKey = newLang === 'ms' ? 'lang_name_ms' : 'lang_name_en';
+      const langName = (I18N[newLang] && I18N[newLang][langLabelKey]) || (newLang === 'ms' ? 'Bahasa Melayu' : 'English');
+      // Prompt dalam bahasa yang BARU dipilih (ikut pilihan bahasa anda)
+      const confirmTpl = (I18N[newLang] && I18N[newLang]['lang_switch_confirm']) || 'Switch to {0}?';
+      const confirmMsg = confirmTpl.split('{0}').join(langName);
+      if (!confirm(confirmMsg)) break;
+      // Padamkan draf borang dalam bahasa lama
+      try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
+      try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
+      // Tukar bahasa & render semula seluruh sistem
+      currentLang = newLang;
+      localStorage.setItem('cftp_lang', currentLang);
+      document.documentElement.lang = currentLang;
+      render();
+      // Toast dalam bahasa baru
+      const switchedTpl = (I18N[newLang] && I18N[newLang]['lang_switched']) || 'Language switched to {0}.';
+      toast('🌐 ' + switchedTpl.split('{0}').join(langName));
+      break;
+    }
     case 'toggle-pwd': {
       const wrapper = tgt.closest('.password-wrapper');
       if (wrapper) {
