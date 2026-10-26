@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Chemical Fundamentals Training Programme Malaysia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --brand:#0b6b53; --brand-2:#12a37f; --brand-3:#e6f4ef;
@@ -389,6 +390,350 @@ function fileToBase64(file) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/* =========================================================
+   EXCEL HELPERS (SheetJS)
+   ========================================================= */
+function ensureXLSX() {
+  if (typeof XLSX === 'undefined') {
+    toast('⚠️ ' + t('excel_library_missing'), 'bad');
+    return false;
+  }
+  return true;
+}
+
+function readExcelFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        resolve(wb);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = () => reject(new Error('FileReader error'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function getColIndex(headers, ...aliases) {
+  const lower = (headers || []).map(h => String(h || '').toLowerCase().trim());
+  for (const a of aliases) {
+    const idx = lower.indexOf(String(a).toLowerCase().trim());
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function pickExcelFile(accept, onPicked) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = accept || '.xlsx,.xls';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    document.body.removeChild(input);
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast('⚠️ Fail terlalu besar. Had: 15 MB', 'bad'); return;
+    }
+    try { await onPicked(file); }
+    catch (e) {
+      console.error('Excel import error:', e);
+      toast('❌ ' + t('excel_import_error') + ': ' + (e.message || 'Unknown'), 'bad');
+    }
+  }, { once: true });
+  input.click();
+}
+
+/* =========================================================
+   EXCEL TEMPLATES
+   ========================================================= */
+function downloadQuestionBankTemplate() {
+  if (!ensureXLSX()) return;
+  const isAdmin = state.user.role === 'admin';
+  const mods = isAdmin ? sortModules(DB.modules) : myModules();
+  const headers = [
+    'Modul', 'Soalan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
+    'Jawapan (A/B/C/D)', 'Kategori', 'Tahap (Mudah/Sederhana/Sukar)'
+  ];
+  const sampleRows = (mods[0] ? [
+    [mods[0].name, 'Apakah simbol kimia bagi Natrium?', 'N', 'Na', 'Ni', 'K', 'B', 'Kimia Asas', 'Mudah'],
+    [mods[0].name, 'Apakah nilai pH bagi larutan neutral pada 25°C?', '0', '5', '7', '14', 'C', 'Kimia Asas', 'Mudah']
+  ] : [['Modul 1', 'Contoh soalan?', 'A', 'B', 'C', 'D', 'A', 'Kategori', 'Mudah']]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+  ws['!cols'] = [{wch:28},{wch:50},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:20},{wch:26}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Soalan');
+  const refWs = XLSX.utils.aoa_to_sheet([
+    ['Senarai Modul Yang Sah (salin ke kolum "Modul")'],
+    ...mods.map(m => [m.name])
+  ]);
+  refWs['!cols'] = [{wch:50}];
+  XLSX.utils.book_append_sheet(wb, refWs, 'Rujukan Modul');
+  XLSX.writeFile(wb, 'template-bank-soalan.xlsx');
+  toast('✅ ' + t('excel_downloaded'));
+}
+
+async function importQuestionBankExcel(file) {
+  if (!ensureXLSX()) return;
+  const wb = await readExcelFile(file);
+  const sheetName = wb.SheetNames.find(n => /soalan|question/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
+  const headers = rows[0];
+  const iMod = getColIndex(headers, 'Modul', 'Module');
+  const iQ = getColIndex(headers, 'Soalan', 'Question');
+  const iA = getColIndex(headers, 'Pilihan A', 'Option A', 'A');
+  const iB = getColIndex(headers, 'Pilihan B', 'Option B', 'B');
+  const iC = getColIndex(headers, 'Pilihan C', 'Option C', 'C');
+  const iD = getColIndex(headers, 'Pilihan D', 'Option D', 'D');
+  const iAns = getColIndex(headers, 'Jawapan', 'Answer');
+  const iCat = getColIndex(headers, 'Kategori', 'Category');
+  const iDiff = getColIndex(headers, 'Tahap', 'Difficulty');
+  if (iQ === -1 || iAns === -1) { toast('⚠️ Kolum "Soalan"/"Jawapan" tidak dijumpai', 'bad'); return; }
+  const isAdmin = state.user.role === 'admin';
+  const allowedMods = isAdmin ? DB.modules : myModules();
+  if (!allowedMods.length) { toast('⚠️ ' + t('msg_no_module'), 'bad'); return; }
+  let added = 0, skipped = 0;
+  const errors = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const modName = String(row[iMod] || '').trim();
+    const q = String(row[iQ] || '').trim();
+    const a = iA !== -1 ? String(row[iA] || '').trim() : '';
+    const b = iB !== -1 ? String(row[iB] || '').trim() : '';
+    const c = iC !== -1 ? String(row[iC] || '').trim() : '';
+    const d = iD !== -1 ? String(row[iD] || '').trim() : '';
+    const ansStr = String(row[iAns] || '').trim().toUpperCase();
+    if (!q) { skipped++; continue; }
+    const mod = allowedMods.find(m => m.name === modName || m.id === modName) ||
+                (allowedMods.length === 1 ? allowedMods[0] : null);
+    if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
+    const ansMap = { A: 0, B: 1, C: 2, D: 3 };
+    let ansIdx = ansMap[ansStr];
+    if (ansIdx === undefined) {
+      const n = Number(ansStr);
+      if (n >= 1 && n <= 4) ansIdx = n - 1;
+    }
+    const options = [a, b, c, d];
+    const validOpts = options.filter(Boolean).length;
+    if (validOpts < 2 || ansIdx === undefined) { errors.push(`Baris ${r + 1}: pilihan/jawapan tidak sah`); skipped++; continue; }
+    DB.questionBank.push({
+      id: uid('qb'),
+      moduleId: mod.id,
+      q,
+      options,
+      answer: ansIdx,
+      category: iCat !== -1 ? String(row[iCat] || '').trim() : '',
+      difficulty: iDiff !== -1 && ['Mudah','Sederhana','Sukar'].includes(String(row[iDiff]).trim()) ? String(row[iDiff]).trim() : 'Mudah',
+      createdAt: nowISO()
+    });
+    added++;
+  }
+  saveDB();
+  logAudit('Import Bank Soalan', 'Bank Soalan', 'bulk', `${added} soalan`);
+  if (added) render();
+  if (errors.length) console.warn('Import warnings:', errors);
+  if (added && skipped) toast(`✅ ${added} soalan diimport, ${skipped} dilangkau`, 'warn');
+  else if (added) toast('✅ ' + t('excel_import_success', added));
+  else toast('⚠️ Tiada soalan diimport. ' + (errors[0] || ''), 'bad');
+}
+
+function downloadRubricTemplate() {
+  if (!ensureXLSX()) return;
+  const headers = [
+    'Nama Rubrik', 'Penerangan Rubrik', 'Nama Kriteria', 'Berat (%)',
+    'Level 1 Label', 'Level 1 Markah', 'Level 1 Penerangan',
+    'Level 2 Label', 'Level 2 Markah', 'Level 2 Penerangan',
+    'Level 3 Label', 'Level 3 Markah', 'Level 3 Penerangan',
+    'Level 4 Label', 'Level 4 Markah', 'Level 4 Penerangan',
+    'Level 5 Label', 'Level 5 Markah', 'Level 5 Penerangan'
+  ];
+  const sample = [
+    ['Rubrik Contoh', 'Rubrik demonstrasi', 'Persediaan & Keselamatan', 30, 'Cemerlang', 5, 'Lengkap & selamat', 'Baik', 4, 'Hampir lengkap', 'Sederhana', 3, 'Ada kecuaian', 'Lemah', 2, 'Banyak kesilapan', 'Gagal', 1, 'Tidak selamat'],
+    ['Rubrik Contoh', 'Rubrik demonstrasi', 'Teknik & Ketepatan', 70, 'Cemerlang', 5, 'Tepat & konsisten', 'Baik', 4, 'Ralat kecil', 'Sederhana', 3, 'Ralat sederhana', 'Lemah', 2, 'Ralat besar', 'Gagal', 1, 'Tidak boleh']
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  ws['!cols'] = headers.map((h, i) => ({ wch: i <= 3 ? 22 : (i % 3 === 1 ? 10 : 20) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Rubrik');
+  XLSX.writeFile(wb, 'template-rubrik.xlsx');
+  toast('✅ ' + t('excel_downloaded'));
+}
+
+async function importRubricExcel(file) {
+  if (!ensureXLSX()) return;
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
+  const wb = await readExcelFile(file);
+  const sheetName = wb.SheetNames.find(n => /rubrik|rubric/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
+  const headers = rows[0];
+  const iName = getColIndex(headers, 'Nama Rubrik', 'Rubric Name');
+  const iDesc = getColIndex(headers, 'Penerangan Rubrik', 'Rubric Description');
+  const iCrit = getColIndex(headers, 'Nama Kriteria', 'Criteria', 'Criterion');
+  const iW = getColIndex(headers, 'Berat (%)', 'Weight', 'Weight (%)');
+  if (iName === -1 || iCrit === -1) { toast('⚠️ Kolum "Nama Rubrik"/"Nama Kriteria" tidak dijumpai', 'bad'); return; }
+  const levelCols = [];
+  for (let i = 0; i < 20; i++) {
+    const li = getColIndex(headers, `Level ${i+1} Label`);
+    const mi = getColIndex(headers, `Level ${i+1} Markah`, `Level ${i+1} Mark`);
+    const di = getColIndex(headers, `Level ${i+1} Penerangan`, `Level ${i+1} Description`);
+    if (li === -1 && mi === -1) break;
+    levelCols.push({ li, mi, di });
+  }
+  if (!levelCols.length) { toast('⚠️ Lajur Level tidak dijumpai', 'bad'); return; }
+  const rubricMap = new Map();
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const rbName = String(row[iName] || '').trim();
+    const rbDesc = iDesc !== -1 ? String(row[iDesc] || '').trim() : '';
+    const critName = String(row[iCrit] || '').trim();
+    if (!rbName || !critName) continue;
+    if (!rubricMap.has(rbName)) rubricMap.set(rbName, { name: rbName, description: rbDesc, criteria: [] });
+    const rb = rubricMap.get(rbName);
+    let crit = rb.criteria.find(c => c.name === critName);
+    if (!crit) {
+      const w = iW !== -1 ? Number(row[iW]) || 0 : 0;
+      crit = { name: critName, weight: w, levels: [] };
+      rb.criteria.push(crit);
+    }
+    levelCols.forEach((lc, li) => {
+      const label = lc.li !== -1 ? String(row[lc.li] || '').trim() : '';
+      const markRaw = lc.mi !== -1 ? row[lc.mi] : '';
+      const desc = lc.di !== -1 ? String(row[lc.di] || '').trim() : '';
+      if (!label) return;
+      const mark = Number(markRaw);
+      crit.levels.push({ label, mark: isNaN(mark) ? 0 : mark, description: desc });
+    });
+  }
+  if (!rubricMap.size) { toast('⚠️ Tiada rubrik diimport', 'bad'); return; }
+  const isFac = state.user.role === 'facilitator';
+  const newStatus = isFac ? 'pending' : 'approved';
+  let imported = 0, rejected = 0;
+  rubricMap.forEach(rb => {
+    const tw = rb.criteria.reduce((s, c) => s + c.weight, 0);
+    if (Math.abs(tw - 100) > 0.01) { rejected++; console.warn(`Rubrik "${rb.name}" jumlah berat ${tw}% — dilangkau`); return; }
+    if (!rb.criteria.every(c => c.levels.length >= 2)) { rejected++; console.warn(`Rubrik "${rb.name}" ada kriteria dengan < 2 level — dilangkau`); return; }
+    DB.rubrics.push({
+      id: uid('rb'),
+      name: rb.name,
+      description: rb.description,
+      criteria: rb.criteria,
+      createdBy: state.user.id,
+      createdAt: nowISO(),
+      updatedAt: nowISO(),
+      approvalStatus: newStatus,
+      reviewedBy: isFac ? null : state.user.id,
+      reviewedAt: isFac ? null : nowISO(),
+      reviewRemarks: ''
+    });
+    imported++;
+  });
+  saveDB();
+  logAudit('Import Rubrik', 'Rubrik', 'bulk', `${imported} rubrik`);
+  render();
+  if (imported && rejected) toast(`✅ ${imported} rubrik diimport, ${rejected} dilangkau (berat perlu 100%)`, 'warn');
+  else if (imported) toast('✅ ' + t('excel_import_success', imported));
+  else toast('⚠️ Tiada rubrik diimport. Pastikan jumlah berat = 100% dan sekurang-kurangnya 2 level per kriteria.', 'bad');
+}
+
+function downloadTimetableTemplate(mid) {
+  if (!ensureXLSX()) return;
+  const m = getModule(mid);
+  if (!m) { toast(t('msg_not_found'), 'bad'); return; }
+  const headers = ['Modul', 'Tarikh (YYYY-MM-DD)', 'Masa Mula (HH:MM)', 'Masa Tamat (HH:MM)', 'Tajuk / Topik', 'Pengajar', 'Lokasi', 'Catatan'];
+  const sample = [[m.name, todayISO(), '09:00', '10:30', 'Contoh Topik', userName(m.trainerId) || '', 'Bilik Seminar A', '']];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  ws['!cols'] = [{wch:28},{wch:20},{wch:18},{wch:18},{wch:40},{wch:28},{wch:24},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Jadual');
+  const refWs = XLSX.utils.aoa_to_sheet([['Modul Yang Sah'], ...(state.user.role === 'admin' ? sortModules(DB.modules) : myModules()).map(x => [x.name])]);
+  refWs['!cols'] = [{wch:50}];
+  XLSX.utils.book_append_sheet(wb, refWs, 'Rujukan Modul');
+  XLSX.writeFile(wb, 'template-jadual-waktu.xlsx');
+  toast('✅ ' + t('excel_downloaded'));
+}
+
+async function importTimetableExcel(file, defaultMid) {
+  if (!ensureXLSX()) return;
+  const wb = await readExcelFile(file);
+  const sheetName = wb.SheetNames.find(n => /jadual|timetable/i.test(n)) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
+  const headers = rows[0];
+  const iMod = getColIndex(headers, 'Modul', 'Module');
+  const iDate = getColIndex(headers, 'Tarikh', 'Date');
+  const iStart = getColIndex(headers, 'Masa Mula', 'Start');
+  const iEnd = getColIndex(headers, 'Masa Tamat', 'End');
+  const iTitle = getColIndex(headers, 'Tajuk', 'Topik', 'Title', 'Topic');
+  const iInstr = getColIndex(headers, 'Pengajar', 'Instructor');
+  const iLoc = getColIndex(headers, 'Lokasi', 'Location');
+  const iNotes = getColIndex(headers, 'Catatan', 'Notes');
+  if (iDate === -1 || iTitle === -1) { toast('⚠️ Kolum Tarikh/Tajuk tidak dijumpai', 'bad'); return; }
+  const isAdmin = state.user.role === 'admin';
+  const allowedMods = isAdmin ? DB.modules : myModules();
+  if (!allowedMods.length) { toast('⚠️ ' + t('msg_no_module'), 'bad'); return; }
+  let added = 0, skipped = 0;
+  const errors = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
+    const dateRaw = row[iDate];
+    const start = String(row[iStart] || '').trim();
+    const end = String(row[iEnd] || '').trim();
+    const title = String(row[iTitle] || '').trim();
+    if (!title) { skipped++; continue; }
+    let dateStr = '';
+    if (typeof dateRaw === 'number') {
+      // Excel serial date
+      const d = XLSX.SSF.parse_date_code(dateRaw);
+      if (d) dateStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    } else {
+      dateStr = String(dateRaw || '').trim();
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { errors.push(`Baris ${r + 1}: tarikh tidak sah`); skipped++; continue; }
+    if (!/^\d{1,2}:\d{2}/.test(start) || !/^\d{1,2}:\d{2}/.test(end) || end <= start) {
+      errors.push(`Baris ${r + 1}: masa tidak sah`); skipped++; continue;
+    }
+    let targetMid = defaultMid;
+    if (modName) {
+      const mod = allowedMods.find(m => m.name === modName || m.id === modName);
+      if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
+      targetMid = mod.id;
+    }
+    if (!targetMid) { errors.push(`Baris ${r + 1}: tiada modul`); skipped++; continue; }
+    if (!canManageTimetable(targetMid)) { errors.push(`Baris ${r + 1}: tiada akses ke modul`); skipped++; continue; }
+    DB.timetables.push({
+      id: uid('tt'),
+      moduleId: targetMid,
+      date: dateStr,
+      startTime: start,
+      endTime: end,
+      title,
+      instructor: iInstr !== -1 ? String(row[iInstr] || '').trim() : '',
+      location: iLoc !== -1 ? String(row[iLoc] || '').trim() : '',
+      notes: iNotes !== -1 ? String(row[iNotes] || '').trim() : '',
+      createdBy: state.user.id,
+      createdAt: nowISO(),
+      updatedAt: nowISO()
+    });
+    added++;
+  }
+  saveDB();
+  logAudit('Import Jadual Waktu', 'Jadual', defaultMid || 'bulk', `${added} entri`);
+  if (added) render();
+  if (errors.length) console.warn('Import warnings:', errors);
+  if (added && skipped) toast(`✅ ${added} jadual diimport, ${skipped} dilangkau`, 'warn');
+  else if (added) toast('✅ ' + t('excel_import_success', added));
+  else toast('⚠️ Tiada jadual diimport. ' + (errors[0] || ''), 'bad');
 }
 
 /* =========================================================
@@ -841,6 +1186,9 @@ const I18N = {
     pf_required: 'Tiada rubrik. Pilih atau cipta rubrik di tab Rubrik.',
     pf_no_rubric: 'Tiada rubrik. Pilih atau cipta rubrik di tab Rubrik.',
     pf_saved: 'Markah disimpan.',
+    pf_save_direct: '💾 Markah akan disimpan terus.',
+    pf_submit_approval: '📤 Markah akan dihantar untuk kelulusan jurulatih.',
+    pf_assessed_by: 'Dinilai oleh',
     enr_title: 'Daftar Peserta', enr_select_all: '✓ Semua', enr_deselect_all: '✗ Tiada',
     enr_none: 'Semua telah berdaftar.', enr_select_one: 'Pilih sekurang-kurangnya seorang.',
     enr_success: '{0} peserta didaftarkan.', enr_unenroll_success: 'Dikeluarkan.',
@@ -1005,7 +1353,13 @@ const I18N = {
     fac_submission_pending: 'Menunggu Kelulusan',
     fac_submission_approved: 'Diluluskan',
     fac_submission_rejected: 'Ditolak',
-    fac_open_module: 'Buka Modul'
+    fac_open_module: 'Buka Modul',
+    excel_downloaded: 'Template dimuat turun.',
+    excel_library_missing: 'Pustaka Excel tidak dimuatkan. Sila semak sambungan internet dan muat semula halaman.',
+    excel_import_success: '{0} rekod berjaya diimport',
+    excel_import_error: 'Gagal import fail Excel',
+    excel_template_download: 'Muat Turun Template',
+    excel_import_upload: 'Import Excel'
   },
   en: {
     sys_title: 'Chemical Fundamentals Training Programme',
@@ -1312,6 +1666,9 @@ const I18N = {
     pf_required: 'No rubric. Choose or create a rubric in the Rubric tab.',
     pf_no_rubric: 'No rubric. Choose or create a rubric in the Rubric tab.',
     pf_saved: 'Marks saved.',
+    pf_save_direct: '💾 Marks will be saved directly.',
+    pf_submit_approval: '📤 Marks will be submitted for trainer approval.',
+    pf_assessed_by: 'Assessed by',
     enr_title: 'Enrol Participants', enr_select_all: '✓ All', enr_deselect_all: '✗ None',
     enr_none: 'All are already enrolled.', enr_select_one: 'Select at least one.',
     enr_success: '{0} participants enrolled.', enr_unenroll_success: 'Removed.',
@@ -1474,7 +1831,13 @@ const I18N = {
     fac_submission_pending: 'Pending Approval',
     fac_submission_approved: 'Approved',
     fac_submission_rejected: 'Rejected',
-    fac_open_module: 'Open Module'
+    fac_open_module: 'Open Module',
+    excel_downloaded: 'Template downloaded.',
+    excel_library_missing: 'Excel library not loaded. Check internet connection and reload.',
+    excel_import_success: '{0} records imported successfully',
+    excel_import_error: 'Failed to import Excel file',
+    excel_template_download: 'Download Template',
+    excel_import_upload: 'Import Excel'
   }
 };
 
@@ -3265,7 +3628,6 @@ function vipDashboard() {
   const allFinals = (DB.finalExams || []).filter(fe => fe.published);
   const companyParts = allParts.filter(p => p.org === me.org);
 
-  // Overall average across all participants & all activities
   const allScores = [];
   allParts.forEach(p => {
     accessibleActivities(p.id).forEach(a => {
@@ -3275,7 +3637,6 @@ function vipDashboard() {
   });
   const overallAvg = allScores.length ? Math.round(avg(allScores)) : null;
 
-  // Company table rows
   const companyRows = companyParts.map(p => {
     const mods = participantModules(p.id);
     const acts = accessibleActivities(p.id);
@@ -3334,7 +3695,6 @@ function vipDashboard() {
 function openVipParticipantProgress(pid) {
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_no_access'), 'bad'); return; }
-  // VIP can view all participants now (read-only)
   const acts = accessibleActivities(pid);
   const rows = acts.map(a => ({ a, s: scoreFor(a, pid) }));
   const scored = rows.filter(r => r.s.hasData);
@@ -3668,14 +4028,15 @@ function renderTimetableSection(m, canEdit) {
   const byDate = {};
   entries.forEach(e => { if (!byDate[e.date]) byDate[e.date] = []; byDate[e.date].push(e); });
   const dates = Object.keys(byDate).sort();
-  return `<div class="card"><div class="card-head"><div><h2>📅 ${t('tt_title')} (${entries.length})</h2><small class="muted">${t('tt_sub')}</small></div>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-timetable" data-mid="${m.id}">${t('tt_add')}</button>` : ''}</div>${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${esc(e.startTime)} — ${esc(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
+  const excelBtns = canEdit ? `<button class="btn btn-sm" data-act="excel-timetable-download" data-mid="${m.id}" title="${esc(t('excel_template_download'))}">📥 Template</button><button class="btn btn-sm" data-act="excel-timetable-upload" data-mid="${m.id}" title="${esc(t('excel_import_upload'))}">📤 Import</button>` : '';
+  return `<div class="card"><div class="card-head"><div><h2>📅 ${t('tt_title')} (${entries.length})</h2><small class="muted">${t('tt_sub')}</small></div>${canEdit ? `<div class="toolbar">${excelBtns}<button class="btn btn-sm btn-primary" data-act="new-timetable" data-mid="${m.id}">${t('tt_add')}</button></div>` : ''}</div>${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${esc(e.startTime)} — ${esc(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
 }
 
 /* =========================================================
    VIP MODULE DETAIL (READ-ONLY)
    ========================================================= */
 function vipModuleDetailView(m) {
-  const modActs = moduleActivitiesList(m.id); // include drafts
+  const modActs = moduleActivitiesList(m.id);
   const participants = enrolledParticipants(m.id);
   const finals = moduleFinalExams(m.id);
   const ttCount = moduleTimetable(m.id).length;
@@ -4340,14 +4701,16 @@ function openFinalPracticalForm(feid, pid) {
   if (!rubric.length) { toast(t('grad_no_rubric'), 'bad'); return; }
   const examMids = feModuleIds(fe);
   const isFac = state.user.role === 'facilitator' || examMids.some(mid => isFacilitatorOf(mid, state.user.id));
+  const willSubmit = state.user.role === 'facilitator' || (state.user.role === 'trainer' && isFac) || (state.user.role !== 'admin' && examMids.some(mid => isFacilitatorOf(mid, state.user.id)));
+  const actionNote = willSubmit ? `📤 ${t('pf_submit_approval')}` : `💾 ${t('pf_save_direct')}`;
   openModal(`<h2>${t('pf_title')}</h2><p class="muted">${tce(p.name)} — ${tce(fe.title)}${rb ? ' · <strong>' + tce(rb.name) + '</strong>' : ''}</p>
     ${rb && rb.approvalStatus !== 'approved' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rb_pending_note')}</p></div>` : ''}
-    ${isFac ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : ''}
-    ${pending ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('pa_pending')} — ${fmtDateTime(pending.submittedAt)}</p></div>` : ''}
+    ${willSubmit ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : `<div class="info-box ok"><p style="margin:0">${actionNote}</p></div>`}
+    ${pending ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('pa_pending')} — ${fmtDateTime(pending.submittedAt)} (${tce(userName(pending.submittedBy))})</p></div>` : ''}
     <form data-form="final-practical" data-feid="${feid}" data-pid="${pid}">
       ${rubric.map((c, ci) => { const mx = Math.max(...c.levels.map(l => l.mark)); const ex = existing ? existing.scores[ci] : null; return `<div class="field" style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px"><label style="font-size:.95rem;font-weight:700;color:var(--ink)">${tce(c.name)} <span class="muted" style="font-weight:400">(${c.weight}%)</span></label><div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${c.levels.map(l => { const sc = mx > 0 ? ((l.mark / mx) * c.weight).toFixed(1) : 0; return `<label class="opt" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;gap:10px"><input type="radio" name="c${ci}" value="${l.mark}" ${ex === l.mark ? 'checked' : ''} required style="accent-color:var(--brand);margin-top:3px" /><div style="flex:1"><div style="display:flex;justify-content:space-between"><strong>${tce(l.label)}</strong><span class="badge info">${l.mark} (${sc}%)</span></div><div class="muted" style="font-size:.8rem">${tce(l.description)}</div></div></label>`; }).join('')}</div></div>`; }).join('')}
       <div class="field"><label>${t('pf_remarks')}</label><textarea class="textarea" name="remarks">${esc(existing ? existing.remarks : '')}</textarea></div>
-      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${isFac ? '📤 ' + t('btn_submit') : t('btn_save')}</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${willSubmit ? '📤 ' + t('btn_submit') : t('btn_save')}</button></div>
     </form>`);
 }
 
@@ -4363,8 +4726,8 @@ function handleSaveFinalPractical(form) {
   const remarks = form.remarks.value.trim();
   const data = { scores, total: totalPct, remarks };
   const examMids = feModuleIds(fe);
-  const isFac = state.user.role === 'facilitator' || examMids.some(mid => isFacilitatorOf(mid, state.user.id));
-  const shouldSubmitForApproval = state.user.role === 'facilitator' || (state.user.role === 'trainer' && isFac);
+  const isFac = state.user.role === 'facilitator' || (state.user.role !== 'admin' && examMids.some(mid => isFacilitatorOf(mid, state.user.id)));
+  const shouldSubmitForApproval = state.user.role === 'facilitator' || (state.user.role === 'trainer' && isFac) || (state.user.role !== 'admin' && isFac);
   const firstMid = examMids[0] || null;
   if (shouldSubmitForApproval) {
     let pa = (DB.pendingApprovals || []).find(x => x.type === 'final-practical' && x.finalId === feid && x.participantId === pid && x.status === 'pending');
@@ -4809,7 +5172,11 @@ function rubricView() {
     <div class="card">
       <div class="card-head">
         <div><h2>📏 ${t('rb_title')}</h2><small class="muted">${t('rb_sub')}</small></div>
-        <button class="btn btn-primary" data-act="new-rubric">${t('rb_new')}</button>
+        <div class="toolbar">
+          <button class="btn btn-sm" data-act="excel-rubric-download" title="${esc(t('excel_template_download'))}">📥 Template</button>
+          <button class="btn btn-sm" data-act="excel-rubric-upload" title="${esc(t('excel_import_upload'))}">📤 Import</button>
+          <button class="btn btn-primary" data-act="new-rubric">${t('rb_new')}</button>
+        </div>
       </div>
       ${isFacilitator ? `<div class="info-box warn" style="font-size:.82rem;margin-bottom:14px"><p style="margin:0">🧑‍🏫 ${t('rb_facilitator_note')}</p></div>` : ''}
       ${rubrics.length ? `<div class="module-grid">${rubrics.map(rb => {
@@ -5145,7 +5512,7 @@ function openRetestModal(aid, pid) {
   const bestPct = best ? Math.round(best.score / best.total * 100) : null;
   openModal(`<h2>🔄 ${t('retest_title')}</h2><p class="muted">${tce(p.name)} · ${tce(act.title)}</p>
     <div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_questions')}</div><div class="v">${(act.quiz||[]).length}</div></div><div class="meta-item"><div class="k">${t('retest_current_attempts')}</div><div class="v">${attemptCount}</div></div><div class="meta-item"><div class="k">${t('retest_score_best')}</div><div class="v">${bestPct !== null ? bestPct + '%' : t('retest_no_attempt')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${isPending ? '<span class="badge warn">🔄 ' + t('retest_pending') + '</span>' : '<span class="badge draft">—</span>'}</div></div></div>
-    ${isPending ? `<div class="info-box warn"><h4>🔄 ${t('retest_pending')}</h4><p style="margin:0">${t('retest_pending_hint')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button><button class="btn" data-act="retest-edit-q" data-aid="${aid}" data-pid="${pid}">🗂️ ${t('retest_btn_edit_q')}</button><button class="btn btn-danger" data-act="retest-cancel" data-aid="${aid}" data-pid="${pid}">✖ ${t('retest_cancel')}</button></div>` : `<div class="info-box"><h4>💡 ${t('retest_info_title')}</h4><p style="margin:0">${t('retest_info')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_cancel')}</button><button class="btn" data-act="retest-edit-q" data-aid="${aid}" data-pid="${pid}">🗂️ ${t('retest_btn_edit_q')}</button><button class="btn btn-primary" data-act="retest-grant" data-aid="${aid}" data-pid="${pid}">🔄 ${t('retest_btn_grant')}</button></div>`}`);
+    ${isPending ? `<div class="info-box warn"><h4>🔄 ${t('retest_pending')}</h4><p style="margin:0">${t('retest_pending_hint')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button><button class="btn" data-act="retest-edit-q" data-aid="${aid}" data-pid="${pid}">🗂️ ${t('retest_btn_edit_q')}</button><button class="btn btn-danger" data-act="retest-cancel" data-aid="${aid}" data-pid="${pid}">✖ ${t('retest_cancel')}</button></div>` : `<div class="info-box"><h4>💡 ${t('retest_info_title')}</h4><p style="margin:0">${t('retest_info')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_cancel')}</button><button class="btn" data-act="retest-edit-q" data-aid="${aid}" data-pid="${pid}">🗂️ ${t('retest_btn_edit_q')}</button><button class="btn btn-primary" data-act="retest-grant" data-aid="${aid}" data-pid="${pid}">🔄 ${t('retest_btn_grant')}</button></div>`}</div>`);
 }
 
 /* =========================================================
@@ -5162,7 +5529,7 @@ function gradingView() {
   const parts = allParticipants();
   const isFac = state.user.role === 'facilitator';
   return `<div class="card">
-    ${isFac && !isVip ? `<div class="info-box warn" style="margin-bottom:14px"><p style="margin:0">🧑‍🏫 ${t('pa_facilitator_note')}</p></div>` : ''}
+    ${isFac && !isVip ? `<div class="info-box warn" style="margin-bottom:14px"><p style="margin:0">🧑‍🏫 ${t('pa_facilitator_note')} · 💡 ${t('pf_submit_approval')}</p></div>` : ''}
     <div class="card-head">
       <div>
         <h2>${t('grad_title')}</h2>
@@ -5206,14 +5573,16 @@ function openPracticalForm(aid, pid) {
   const rubricObj = getRubric(act);
   if (!rubric.length) { toast(t('pf_no_rubric'), 'bad'); return; }
   const isFac = state.user.role === 'facilitator' || isFacilitatorOf(act.moduleId, state.user.id);
+  const willSubmit = state.user.role === 'facilitator' || (state.user.role !== 'admin' && isFac);
+  const actionNote = willSubmit ? `📤 ${t('pf_submit_approval')}` : `💾 ${t('pf_save_direct')}`;
   openModal(`<h2>${t('pf_title')}</h2><p class="muted">${tce(p.name)} — ${tce(act.title)}${rubricObj ? ' · <strong>' + tce(rubricObj.name) + '</strong>' : ''}</p>
     ${rubricObj && rubricObj.approvalStatus !== 'approved' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rb_pending_note')}</p></div>` : ''}
-    ${isFac ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : ''}
+    ${willSubmit ? `<div class="info-box warn"><p style="margin:0">${t('pa_facilitator_note')}</p></div>` : `<div class="info-box ok"><p style="margin:0">${actionNote}</p></div>`}
     ${pending ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('pa_pending')} — ${fmtDateTime(pending.submittedAt)} (${tce(userName(pending.submittedBy))})</p></div>` : ''}
     <form data-form="practical" data-aid="${aid}" data-pid="${pid}">
       ${rubric.map((c, ci) => { const mx = Math.max(...c.levels.map(l => l.mark)); const ex = existing ? existing.scores[ci] : null; return `<div class="field" style="border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px"><label style="font-size:.95rem;font-weight:700;color:var(--ink)">${tce(c.name)} <span class="muted" style="font-weight:400">(${c.weight}%)</span></label><div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${c.levels.map(l => { const sc = mx > 0 ? ((l.mark / mx) * c.weight).toFixed(1) : 0; return `<label class="opt" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;gap:10px"><input type="radio" name="c${ci}" value="${l.mark}" ${ex === l.mark ? 'checked' : ''} required style="accent-color:var(--brand);margin-top:3px" /><div style="flex:1"><div style="display:flex;justify-content:space-between"><strong>${tce(l.label)}</strong><span class="badge info">${l.mark} (${sc}%)</span></div><div class="muted" style="font-size:.8rem">${tce(l.description)}</div></div></label>`; }).join('')}</div></div>`; }).join('')}
       <div class="field"><label>${t('pf_remarks')}</label><textarea class="textarea" name="remarks">${esc(existing ? existing.remarks : '')}</textarea></div>
-      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${isFac ? '📤 ' + t('btn_submit') : t('btn_save')}</button></div>
+      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${willSubmit ? '📤 ' + t('btn_submit') : t('btn_save')}</button></div>
     </form>`);
 }
 function handleSavePractical(form) {
@@ -5225,7 +5594,7 @@ function handleSavePractical(form) {
   const totalPct = tw > 0 ? (ts / tw) * 100 : 0;
   const remarks = form.remarks.value.trim();
   const data = { scores, total: totalPct, remarks };
-  const shouldSubmitForApproval = state.user.role === 'facilitator' || (state.user.role === 'trainer' && isFacilitatorOf(act.moduleId, state.user.id));
+  const shouldSubmitForApproval = state.user.role === 'facilitator' || (state.user.role !== 'admin' && isFacilitatorOf(act.moduleId, state.user.id));
   if (shouldSubmitForApproval) {
     let pa = (DB.pendingApprovals || []).find(x => x.type === 'practical' && x.activityId === aid && x.participantId === pid && x.status === 'pending');
     if (pa) { pa.data = data; pa.submittedAt = nowISO(); }
@@ -5422,7 +5791,11 @@ function questionBankView() {
     .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const usage = (qid) => DB.activities.reduce((n, a) => n + (a.quiz||[]).filter(x => x.sourceBankId === qid).length, 0);
   const modsForFilter = isAdmin ? sortModules(DB.modules) : myModules();
-  return `<div class="card"><div class="card-head"><div><h2>${t('bank_title')}</h2><small class="muted">${t('bank_all_modules')} · ${allBank.length} ${t('lbl_questions')}</small></div><button class="btn btn-primary" data-act="new-question">➕</button></div>
+  return `<div class="card"><div class="card-head"><div><h2>${t('bank_title')}</h2><small class="muted">${t('bank_all_modules')} · ${allBank.length} ${t('lbl_questions')}</small></div><div class="toolbar">
+      <button class="btn btn-sm" data-act="excel-qbank-download" title="${esc(t('excel_template_download'))}">📥 Template</button>
+      <button class="btn btn-sm" data-act="excel-qbank-upload" title="${esc(t('excel_import_upload'))}">📤 Import</button>
+      <button class="btn btn-primary" data-act="new-question">➕</button>
+    </div></div>
     <div class="toolbar" style="margin-bottom:14px">
       <input class="input" style="max-width:260px" placeholder="${t('bank_search')}" value="${esc(state.params.bankSearch || '')}" data-input="bank-search" />
       <select class="select" style="max-width:220px" data-change="bank-module"><option value="">📦 ${t('bank_all_modules')}</option>${modsForFilter.map(m => `<option value="${m.id}" ${modFilter === m.id ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select>
@@ -5686,9 +6059,6 @@ document.addEventListener('click', (e) => {
     case 'vip-view-progress': openVipParticipantProgress(id); break;
     case 'report-individual': {
       const pid = tgt.dataset.pid;
-      if (state.user.role === 'vip') {
-        // VIP can view all participants (read-only)
-      }
       printHTML(individualReportHTML(pid)); break;
     }
     case 'report-individual-selected': {
@@ -5826,6 +6196,13 @@ document.addEventListener('click', (e) => {
     case 'retest-edit-q': { if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const aid = tgt.dataset.aid, pid = tgt.dataset.pid; closeModal(); state.retestContext = { aid, pid }; openQuizEditor(aid); break; }
     case 'pa-approve': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } if (!confirm(t('pa_confirm_approve'))) break; approvePendingApproval(id); break; }
     case 'pa-reject': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const reason = prompt(t('pa_reject_reason')); if (reason === null) break; if (!confirm(t('pa_confirm_reject'))) break; rejectPendingApproval(id, reason); break; }
+    // ---------- EXCEL ----------
+    case 'excel-qbank-download': downloadQuestionBankTemplate(); break;
+    case 'excel-qbank-upload': pickExcelFile('.xlsx,.xls', (f) => importQuestionBankExcel(f)); break;
+    case 'excel-rubric-download': downloadRubricTemplate(); break;
+    case 'excel-rubric-upload': pickExcelFile('.xlsx,.xls', (f) => importRubricExcel(f)); break;
+    case 'excel-timetable-download': downloadTimetableTemplate(tgt.dataset.mid); break;
+    case 'excel-timetable-upload': { const mid = tgt.dataset.mid; pickExcelFile('.xlsx,.xls', (f) => importTimetableExcel(f, mid)); break; }
   }
 });
 
