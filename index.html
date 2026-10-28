@@ -35,7 +35,6 @@ small,.muted{color:var(--muted)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-block{width:100%;padding:.9rem;font-size:1rem;font-weight:700}
 .iconbtn{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
-
 .login-split-screen{min-height:100vh;display:flex;position:relative;background-image:url('https://lh3.googleusercontent.com/d/1fYUfUcjS7-0LzkvjET0-xOtsR00-5Uz3');background-size:cover;background-position:center;background-attachment:fixed;background-repeat:no-repeat;font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
 .login-split-screen::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(11,59,47,0.80) 0%,rgba(11,107,83,0.50) 50%,rgba(6,58,44,0.88) 100%);z-index:0;pointer-events:none}
 .login-left{flex:1.1;position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;padding:60px;color:#fff;overflow:hidden}
@@ -71,7 +70,6 @@ small,.muted{color:var(--muted)}
 .login-switch a{color:#0b6b53;font-weight:700;cursor:pointer;text-decoration:none}
 .login-switch a:hover{text-decoration:underline}
 @media (max-width:900px){.login-split-screen{flex-direction:column;background-attachment:scroll}.login-left{flex:none;padding:40px 20px 20px;min-height:auto;align-items:center;text-align:center}.login-left-content{margin-top:0;display:flex;flex-direction:column;align-items:center}.login-left-header h1{font-size:24px}.login-left-header .login-subtitle{font-size:15px}.login-left-bottom{display:none}.login-right{padding:16px 16px 32px;background:transparent}.login-card{padding:28px 20px;background:rgba(255,255,255,0.97)}}
-
 .field{margin-bottom:.85rem}
 .field label{display:block;font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:#2b3f39}
 .input,.select,.textarea{width:100%;padding:.58rem .7rem;border:1px solid var(--line);border-radius:10px;font-size:.9rem;font-family:inherit;background:#fff;color:var(--ink)}
@@ -356,11 +354,11 @@ tbody tr:hover{background:#f9fcfb}
 
 <script>
 /* =========================================================
-   BACKEND CONFIG
+   BACKEND CONFIG — PATCH v3.9
    ========================================================= */
 const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzCF9SJjZupQ5KVs6hmx42PJs3El7mJbu7Lh3JHZb-R8PrrfS1c0AuZrmA-uv7Us9N6/exec';
 const DRIVE_API_KEY = '';
-const DRIVE_TIMEOUT_MS = 15000;
+const DRIVE_TIMEOUT_MS = 30000;   // ✅ PATCH: 15000 → 30000
 
 async function driveAPI(action, data) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
@@ -1050,7 +1048,6 @@ function tc(str) {
   return s;
 }
 function tce(str) { return esc(tc(str)); }
-
 /* =========================================================
    i18n UI strings
    ========================================================= */
@@ -2061,7 +2058,6 @@ const toLocalInput = (s) => {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-/* Normalize time string from various sources (Date, ISO, HH:MM) to "HH:MM" */
 function normalizeTimeStr(val) {
   if (val === null || val === undefined || val === '') return '';
   if (val instanceof Date && !isNaN(val)) {
@@ -2075,7 +2071,6 @@ function normalizeTimeStr(val) {
   return s;
 }
 
-/* Format time string to 12-hour e.g. "1:30 PM" */
 function fmtTime12(timeStr) {
   if (!timeStr) return '';
   const s = String(timeStr).trim();
@@ -2277,29 +2272,17 @@ window.addEventListener('popstate', (e) => {
 });
 
 /* =========================================================
-   SYNC / UPLOAD STATE TRACKING
+   SYNC / UPLOAD STATE TRACKING — PATCHED v3.9
    ========================================================= */
 let saveTimer = null, saveInFlight = false, savePending = false;
 let pendingSaveSince = 0;
 let firstSyncDone = false;
 let firstSyncPromise = null;
 
+// ✅ PATCH: no more dangerous sendBeacon with full stale DB
 function updateBeforeUnload() {
   if (pendingSaveSince > 0 || saveInFlight || saveTimer) {
     window.onbeforeunload = function(e) {
-      try {
-        if (navigator.sendBeacon) {
-          const blob = new Blob([JSON.stringify({ action: 'saveState', state: DB })], { type: 'text/plain;charset=utf-8' });
-          navigator.sendBeacon(DRIVE_API_URL, blob);
-        } else {
-          fetch(DRIVE_API_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'saveState', state: DB }),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            keepalive: true
-          }).catch(() => {});
-        }
-      } catch (err) {}
       const msg = t('sync_beforeunload_msg');
       e.preventDefault();
       e.returnValue = msg;
@@ -2312,6 +2295,15 @@ function updateBeforeUnload() {
 
 function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.error(e); }
+  // ✅ PATCH: persist diff (safe) instead of relying on beacon
+  try {
+    const diff = computeDiff(lastSyncedSnapshot, DB);
+    if (!isDiffEmpty(diff)) {
+      localStorage.setItem('cftpmy_pending_diff', JSON.stringify(diff));
+    } else {
+      localStorage.removeItem('cftpmy_pending_diff');
+    }
+  } catch(e) {}
   if (!pendingSaveSince) pendingSaveSince = Date.now();
   updateBeforeUnload();
   scheduleServerSave();
@@ -2349,7 +2341,8 @@ async function robustServerSave() {
   }
 }
 
-async function performMergedSave(maxAttempts = 4) {
+// ✅ PATCH: maxAttempts 8 + exponential backoff
+async function performMergedSave(maxAttempts = 8) {
   const preDiff = computeDiff(lastSyncedSnapshot, DB);
   if (isDiffEmpty(preDiff)) return { ok: true, skipped: true };
 
@@ -2358,7 +2351,6 @@ async function performMergedSave(maxAttempts = 4) {
     try {
       const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
 
-      // Tarik versi terkini server
       let serverState = null;
       try {
         const loadRes = await driveAPI('loadState');
@@ -2370,8 +2362,7 @@ async function performMergedSave(maxAttempts = 4) {
       const base = serverState || lastSyncedSnapshot || dbAtStart;
       const merged = applyDiff(base, localDiff);
 
-      const baseRev = (typeof base._rev === 'number') ? base._rev : 0;
-      merged._rev = baseRev + 1;
+      merged._rev = ((typeof base._rev === 'number') ? base._rev : 0) + 1;
       merged._syncId = uid('sync');
       merged._syncTs = nowISO();
       merged._savedBy = state.user ? state.user.id : 'system';
@@ -2379,8 +2370,8 @@ async function performMergedSave(maxAttempts = 4) {
       const saveRes = await driveAPI('saveState', { state: merged });
       if (!saveRes || !saveRes.ok) throw new Error((saveRes && saveRes.error) || 'Save failed');
 
-      // Verify — pastikan tiada user lain menimpa kita
-      await sleep(120 + Math.floor(Math.random() * 180));
+      await sleep(150 + Math.floor(Math.random() * 200));
+
       let verified = false;
       try {
         const verify = await driveAPI('loadState');
@@ -2388,22 +2379,21 @@ async function performMergedSave(maxAttempts = 4) {
           if (verify.state._syncId === merged._syncId) verified = true;
           else {
             console.log(`[save] overwritten — retry ${attempt + 1}`);
-            await sleep(200 + Math.floor(Math.random() * 400));
+            const backoff = Math.min(4000, 200 * Math.pow(2, attempt)) + Math.random() * 300;
+            await sleep(backoff);
             continue;
           }
-        } else {
-          verified = true;
-        }
-      } catch (verifyErr) {
-        verified = true;
-      }
+        } else verified = true;
+      } catch (verifyErr) { verified = true; }
 
       if (verified) {
-        // Kekalkan edit pengguna yang berlaku SEMASA save berjalan
         const editsDuringSave = computeDiff(dbAtStart, DB);
         DB = applyDiff(merged, editsDuringSave);
         lastSyncedSnapshot = cloneDB(merged);
-        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        try {
+          localStorage.setItem(DB_KEY, JSON.stringify(DB));
+          localStorage.removeItem('cftpmy_pending_diff');
+        } catch(e) {}
         pendingSaveSince = 0;
         updateBeforeUnload();
         if (!isDiffEmpty(editsDuringSave)) savePending = true;
@@ -2416,7 +2406,8 @@ async function performMergedSave(maxAttempts = 4) {
         if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
         return { ok: false, error: err.message };
       }
-      await sleep(300 + Math.floor(Math.random() * 500));
+      const backoff = Math.min(6000, 300 * Math.pow(2, attempt)) + Math.random() * 500;
+      await sleep(backoff);
     }
   }
   return { ok: false, error: 'Max retries exceeded' };
@@ -2426,7 +2417,7 @@ async function forceSaveNow() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (saveInFlight) {
     let waited = 0;
-    while (saveInFlight && waited < 15000) { await sleep(200); waited += 200; }
+    while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; }
   }
   const diff = computeDiff(lastSyncedSnapshot, DB);
   if (isDiffEmpty(diff)) {
@@ -2438,7 +2429,6 @@ async function forceSaveNow() {
   return await robustServerSave();
 }
 
-/* Manual sync triggered by the ☁️ button in the topbar */
 async function manualSyncNow() {
   const btn = document.getElementById('syncNowBtn');
   const b = document.getElementById('syncBadge');
@@ -2448,7 +2438,7 @@ async function manualSyncNow() {
   try {
     if (saveInFlight) {
       let waited = 0;
-      while (saveInFlight && waited < 15000) { await sleep(200); waited += 200; }
+      while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; }
     }
     const result = await robustServerSave();
     if (result.ok) {
@@ -2486,12 +2476,26 @@ function hideSplash() {
   if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 300); }
 }
 
+// ✅ PATCH: fastBoot with pending_diff recovery
 function fastBoot() {
   const raw = localStorage.getItem(DB_KEY);
   if (raw) { try { DB = JSON.parse(raw); } catch(e) { DB = null; } }
   if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
   if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
   migrateDB();
+
+  try {
+    const rawDiff = localStorage.getItem('cftpmy_pending_diff');
+    if (rawDiff) {
+      const pendingDiff = JSON.parse(rawDiff);
+      if (!isDiffEmpty(pendingDiff)) {
+        DB = applyDiff(DB, pendingDiff);
+        console.log('[boot] Recovered pending diff from previous session');
+      }
+      localStorage.removeItem('cftpmy_pending_diff');
+    }
+  } catch(e) {}
+
   if (!lastSyncedSnapshot) lastSyncedSnapshot = cloneDB(DB);
   const sid = localStorage.getItem(SESSION_KEY);
   if (sid) state.user = DB.users.find(u => u.id === sid) || null;
@@ -3152,7 +3156,7 @@ function stopQuizTimer() {
 }
 
 /* =========================================================
-   SYNC PROGRESS MODAL (reusable)
+   SYNC PROGRESS MODAL
    ========================================================= */
 let syncProgressInterval = null;
 function showSyncModal(opts) {
@@ -3217,9 +3221,6 @@ function showSyncModal(opts) {
   };
 }
 
-/* =========================================================
-   LOGOUT with upload progress
-   ========================================================= */
 function handleLogoutClick() {
   const hasPending = pendingSaveSince > 0 || saveInFlight || !!saveTimer;
   if (!hasPending) { doLogout(); return; }
@@ -3251,9 +3252,6 @@ function doLogout() {
   render();
 }
 
-/* =========================================================
-   DOWNLOAD with progress
-   ========================================================= */
 function showDownloadModal(filename) {
   const id = 'dlModal_' + Math.random().toString(36).slice(2,7);
   const html = `<div class="sync-overlay" id="${id}">
@@ -3350,7 +3348,6 @@ async function downloadWithProgress(url, filename, logInfo) {
     }
   }
 }
-
 /* =========================================================
    STANDALONE FINAL EXAM
    ========================================================= */
@@ -3438,20 +3435,68 @@ function startFinalTimer(fe, pid, initialMs) {
   tick(); quizTimerInterval = setInterval(tick, 1000);
 }
 
-function submitFinalAttempt(fe, pid, answers, isAuto) {
+// ✅ PATCH: submitFinalAttempt uses appendRecords
+async function submitFinalAttempt(fe, pid, answers, isAuto) {
   const allQ = feQuestionsAll(fe);
   const score = allQ.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
-  DB.feAttempts.push({ id: uid('fea'), finalId: fe.id, participantId: pid, answers, score, total: allQ.length, at: nowISO(), auto: !!isAuto });
-  saveDB();
-  logAudit(isAuto ? 'Submit Final (Auto)' : 'Submit Final', 'Peperiksaan', `${fe.id}:${pid}`, `${userName(pid)} — ${score}/${allQ.length}`);
-  try { window.opener && window.opener.postMessage({ type:'quiz-submitted' }, '*'); } catch(e) {}
-  try { localStorage.removeItem(feStartKeyFor(fe.id, pid)); } catch(e) {}
+  const attempt = {
+    id: uid('fea'), finalId: fe.id, participantId: pid,
+    answers, score, total: allQ.length, at: nowISO(), auto: !!isAuto
+  };
+  DB.feAttempts.push(attempt);
+
+  const auditRecord = {
+    id: uid('au'), at: nowISO(),
+    actorId: state.user ? state.user.id : 'system',
+    actorName: state.user ? state.user.name : 'System',
+    action: isAuto ? 'Submit Final (Auto)' : 'Submit Final',
+    entity: 'Peperiksaan',
+    entityId: `${fe.id}:${pid}`,
+    details: `${userName(pid)} — ${score}/${allQ.length}`
+  };
+  DB.audit.push(auditRecord);
+
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+
   const pct = Math.round(score / allQ.length * 100);
   const baseMsg = isAuto ? t('fe_auto_submit') : t('fe_score_format', score, allQ.length, pct);
+
   stopQuizTimer();
   renderStandaloneFinal(fe.id);
-  saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
+
+  try {
+    const batch = [
+      { collection: 'feAttempts', records: [attempt] },
+      { collection: 'audit', records: [auditRecord] }
+    ];
+    const res = await driveAPI('appendRecords', { batch });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Append failed');
+
+    const fresh = await driveAPI('loadState');
+    if (fresh.ok && fresh.state) {
+      DB = fresh.state;
+      migrateDB();
+      lastSyncedSnapshot = cloneDB(fresh.state);
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        localStorage.removeItem('cftpmy_pending_diff');
+      } catch(e) {}
+    }
+    pendingSaveSince = 0;
+    updateBeforeUnload();
+    const b = document.getElementById('syncBadge');
+    if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; }
+    toast(baseMsg, isAuto ? 'warn' : 'ok');
+  } catch (err) {
+    console.warn('[submitFinalAttempt] appendRecords failed, falling back:', err);
+    saveDB();
+    await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
+  }
+
+  try { window.opener && window.opener.postMessage({ type:'quiz-submitted' }, '*'); } catch(e) {}
+  try { localStorage.removeItem(feStartKeyFor(fe.id, pid)); } catch(e) {}
 }
+
 function autoSubmitFinal(fe, pid) {
   const allQ = feQuestionsAll(fe);
   const form = document.getElementById('standalone-final-form');
@@ -3510,26 +3555,82 @@ function startQuizTimer(act, pid, initialMs) {
   };
   tick(); quizTimerInterval = setInterval(tick, 1000);
 }
-function submitQuizAttempt(act, pid, answers, isAuto) {
+
+// ✅ PATCH: submitQuizAttempt uses appendRecords
+async function submitQuizAttempt(act, pid, answers, isAuto) {
   const score = act.quiz.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
   const prevBest = getAttempt(act.id, pid);
-  DB.attempts.push({ id: uid('at'), activityId: act.id, participantId: pid, answers, score, total: act.quiz.length, at: nowISO(), auto: !!isAuto });
+  const attempt = {
+    id: uid('at'), activityId: act.id, participantId: pid,
+    answers, score, total: act.quiz.length, at: nowISO(), auto: !!isAuto
+  };
+  DB.attempts.push(attempt);
+
   const retest = getRetestRecord(act.id, pid);
-  if (retest && !retest.usedAt) retest.usedAt = nowISO();
-  saveDB();
-  logAudit(isAuto ? 'Submit Quiz (Auto)' : 'Submit Quiz (Tab)', 'Penilaian', `${act.id}:${pid}`, `${userName(pid)} — ${score}/${act.quiz.length}`);
-  try { window.opener && window.opener.postMessage({ type:'quiz-submitted', activityId: act.id }, '*'); } catch(e) {}
-  try { localStorage.removeItem(startKeyFor(act.id, pid)); } catch(e) {}
+  const hasRetestUpdate = !!(retest && !retest.usedAt);
+  if (hasRetestUpdate) retest.usedAt = nowISO();
+
+  const auditRecord = {
+    id: uid('au'), at: nowISO(),
+    actorId: state.user ? state.user.id : 'system',
+    actorName: state.user ? state.user.name : 'System',
+    action: isAuto ? 'Submit Quiz (Auto)' : 'Submit Quiz (Tab)',
+    entity: 'Penilaian',
+    entityId: `${act.id}:${pid}`,
+    details: `${userName(pid)} — ${score}/${act.quiz.length}`
+  };
+  DB.audit.push(auditRecord);
+
+  try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+
   const pct = Math.round(score / act.quiz.length * 100);
   const newBest = getAttempt(act.id, pid);
   const isNewBest = !prevBest || (newBest && newBest.id !== prevBest.id);
   const baseMsg = isAuto
     ? t('msg_quiz_auto_submit', score, act.quiz.length, pct)
     : t('msg_quiz_submitted', score, act.quiz.length, pct) + (isNewBest && prevBest ? ` · 🏆 ${t('new_best_score')}` : '');
+
   stopQuizTimer();
   renderStandaloneQuiz(act.id);
-  saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
+
+  try {
+    const batch = [
+      { collection: 'attempts', records: [attempt] },
+      { collection: 'audit', records: [auditRecord] }
+    ];
+    const res = await driveAPI('appendRecords', { batch });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Append failed');
+
+    if (hasRetestUpdate) {
+      saveDB();
+      await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
+    } else {
+      const fresh = await driveAPI('loadState');
+      if (fresh.ok && fresh.state) {
+        DB = fresh.state;
+        migrateDB();
+        lastSyncedSnapshot = cloneDB(fresh.state);
+        try {
+          localStorage.setItem(DB_KEY, JSON.stringify(DB));
+          localStorage.removeItem('cftpmy_pending_diff');
+        } catch(e) {}
+      }
+      pendingSaveSince = 0;
+      updateBeforeUnload();
+      const b = document.getElementById('syncBadge');
+      if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; }
+      toast(baseMsg, isAuto ? 'warn' : 'ok');
+    }
+  } catch (err) {
+    console.warn('[submitQuizAttempt] appendRecords failed, falling back:', err);
+    saveDB();
+    await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
+  }
+
+  try { window.opener && window.opener.postMessage({ type:'quiz-submitted', activityId: act.id }, '*'); } catch(e) {}
+  try { localStorage.removeItem(startKeyFor(act.id, pid)); } catch(e) {}
 }
+
 function handleStandaloneQuizSubmit(act, pid, form) {
   const answers = act.quiz.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
   submitQuizAttempt(act, pid, answers, false);
@@ -4279,7 +4380,7 @@ function facilitatorDashboard() {
 }
 
 /* =========================================================
-   APPROVALS VIEW (Facilitator corrections)
+   APPROVALS VIEW
    ========================================================= */
 function renderApprovalCard(pa) {
   const isPending = pa.status === 'pending';
@@ -4360,7 +4461,6 @@ function rejectPendingApproval(paId, reason) {
   logAudit('Reject Correction', 'Penilaian', pa.type + ':' + pa.id, userName(pa.participantId) + (reason ? ' — ' + reason : ''));
   toast(t('pa_rejected_msg')); render();
 }
-
 /* =========================================================
    MODULES
    ========================================================= */
@@ -4404,9 +4504,6 @@ function renderTimetableSection(m, canEdit) {
     ${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
 }
 
-/* =========================================================
-   VIP MODULE DETAIL (READ-ONLY)
-   ========================================================= */
 function vipModuleDetailView(m) {
   const modActs = moduleActivitiesList(m.id);
   const participants = enrolledParticipants(m.id);
@@ -5135,6 +5232,7 @@ function programsView() {
   return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>
   <div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')} (${enrolled.length})</h2></div>${enrolled.length ? `<div class="module-grid">${enrolled.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
 }
+
 function openModuleForm(mod) {
   const isEdit = !!mod;
   const m = mod || { name:'', description:'', trainerId: (allTrainers()[0] || {}).id, facilitatorId: null, published: true, startDate: '' };
@@ -5289,9 +5387,6 @@ function participantActivitiesView() {
   return `<div class="card"><div class="card-head"><h2>${t('title_activities_mine')}</h2><span class="muted">${acts.length}</span></div>${acts.map(a => { const s = scoreFor(a, me.id); return `<div class="card" style="margin-bottom:14px;box-shadow:none"><div class="card-head"><div><h3 style="margin-bottom:2px">${tce(a.title)}</h3><small class="muted">${tce(moduleName(a.moduleId))} · ${fmtDate(a.date)}</small></div>${badgeStatus(s.overall)}</div><p>${tce(a.objectives)}</p><div class="toolbar" style="margin-bottom:10px"><span class="pill">${t('lbl_quiz')}: ${quizBadge(a, me.id).replace(/<[^>]+>/g, '')}</span><span class="pill">${t('lbl_practical')}: ${practicalBadge(a, me.id).replace(/<[^>]+>/g, '')}</span>${a.quizDuration ? `<span class="pill">⏱️ ${a.quizDuration} ${t('lbl_minutes')}</span>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>`;
 }
 
-/* =========================================================
-   VIP ACTIVITY DETAIL (READ-ONLY)
-   ========================================================= */
 function vipActivityDetailView(act) {
   const rubric = getRubricCriteria(act);
   const rubricObj = getRubric(act);
@@ -6162,7 +6257,6 @@ function programReportHTML(orgFilter) {
     <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
 
-/* Timetable PDF report */
 function timetableReportHTML(mid) {
   const m = getModule(mid);
   if (!m) return '';
@@ -6496,26 +6590,10 @@ document.addEventListener('click', (e) => {
     case 'approve-user': approveUser(id); break;
     case 'reject-user': rejectUser(id); break;
     case 'vip-view-progress': openVipParticipantProgress(id); break;
-    case 'report-individual': {
-      const pid = tgt.dataset.pid;
-      printHTML(individualReportHTML(pid)); break;
-    }
-    case 'report-individual-selected': {
-      const sel = $('#reportParticipant'); if (!sel) break;
-      printHTML(individualReportHTML(sel.value)); break;
-    }
-    case 'report-program': {
-      const org = state.user.role === 'vip' ? state.user.org : null;
-      printHTML(programReportHTML(org)); break;
-    }
-    case 'download-timetable-pdf': {
-      const mid = tgt.dataset.mid;
-      const m = getModule(mid);
-      if (!m) { toast(t('msg_not_found'), 'bad'); break; }
-      printHTML(timetableReportHTML(mid));
-      logAudit('Print Timetable', 'Jadual', mid, m.name);
-      break;
-    }
+    case 'report-individual': { const pid = tgt.dataset.pid; printHTML(individualReportHTML(pid)); break; }
+    case 'report-individual-selected': { const sel = $('#reportParticipant'); if (!sel) break; printHTML(individualReportHTML(sel.value)); break; }
+    case 'report-program': { const org = state.user.role === 'vip' ? state.user.org : null; printHTML(programReportHTML(org)); break; }
+    case 'download-timetable-pdf': { const mid = tgt.dataset.mid; const m = getModule(mid); if (!m) { toast(t('msg_not_found'), 'bad'); break; } printHTML(timetableReportHTML(mid)); logAudit('Print Timetable', 'Jadual', mid, m.name); break; }
     case 'new-question': openQuestionForm(null); break;
     case 'edit-question': openQuestionForm(DB.questionBank.find(x => x.id === id)); break;
     case 'delete-question': deleteBankQuestion(id); break;
@@ -6747,24 +6825,11 @@ window.addEventListener('focus', async () => {
   if (!state.user) return;
   if (document.querySelector('.modal-backdrop')) return;
   if (saveInFlight || saveTimer) return;
-  try {
-    const res = await driveAPI('loadState');
-    if (res.ok && res.state && Array.isArray(res.state.users)) {
-      if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
-        const pendingDiff = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
-        const hasPending = !isDiffEmpty(pendingDiff);
-        const newDB = hasPending ? applyDiff(res.state, pendingDiff) : cloneDB(res.state);
-        DB = newDB;
-        migrateDB();
-        lastSyncedSnapshot = cloneDB(res.state);
-        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
-        render();
-        if (hasPending) scheduleServerSave();
-      }
-    }
-  } catch(e) {}
+  await pullFromServer(false);
 });
-setInterval(async () => {
+
+// ✅ PATCH: pullFromServer (60s polling) + visibilitychange
+async function pullFromServer(showToast) {
   if (!state.user) return;
   if (document.hidden) return;
   if (document.querySelector('.modal-backdrop')) return;
@@ -6782,11 +6847,17 @@ setInterval(async () => {
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
         render();
         if (hasPending) scheduleServerSave();
-        toast('🔄 Data dikemas kini dari server');
+        if (showToast) toast('🔄 Data dikemas kini dari server');
       }
     }
   } catch(e) {}
-}, 20000);
+}
+
+setInterval(() => pullFromServer(true), 60000);
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) pullFromServer(false);
+});
 
 /* =========================================================
    BOOT
