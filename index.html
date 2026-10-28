@@ -383,6 +383,77 @@ async function driveAPI(action, data) {
   }
 }
 
+/* =========================================================
+   CONCURRENCY-SAFE MERGE HELPERS (50+ concurrent users)
+   ========================================================= */
+const MERGEABLE_COLLECTIONS = [
+  'users','modules','activities','enrollments','attempts','attendance','practical',
+  'audit','questionBank','rubrics','timetables','certificates','finalExams',
+  'feAttempts','fePractical','retests','pendingApprovals'
+];
+
+function cloneDB(db) {
+  return JSON.parse(JSON.stringify(db));
+}
+
+function computeDiff(base, current) {
+  const diff = {};
+  if (!base) {
+    for (const key of MERGEABLE_COLLECTIONS) {
+      if (Array.isArray(current && current[key])) {
+        diff[key] = { upserts: current[key].slice(), deletes: [] };
+      }
+    }
+    return diff;
+  }
+  for (const key of MERGEABLE_COLLECTIONS) {
+    const baseArr = Array.isArray(base[key]) ? base[key] : [];
+    const curArr = Array.isArray(current && current[key]) ? current[key] : [];
+    const baseMap = new Map(baseArr.map(x => [x.id, x]));
+    const curMap  = new Map(curArr.map(x => [x.id, x]));
+    const upserts = [];
+    const deletes = [];
+    for (const [id, entity] of curMap) {
+      const baseEntity = baseMap.get(id);
+      if (!baseEntity || JSON.stringify(baseEntity) !== JSON.stringify(entity)) {
+        upserts.push(entity);
+      }
+    }
+    for (const id of baseMap.keys()) {
+      if (!curMap.has(id)) deletes.push(id);
+    }
+    if (upserts.length || deletes.length) {
+      diff[key] = { upserts, deletes };
+    }
+  }
+  return diff;
+}
+
+function isDiffEmpty(diff) {
+  return !diff || Object.keys(diff).length === 0;
+}
+
+function applyDiff(baseState, diff) {
+  const result = cloneDB(baseState || {});
+  if (!diff || typeof diff !== 'object') return result;
+  for (const key of Object.keys(diff)) {
+    const change = diff[key] || {};
+    let arr = Array.isArray(result[key]) ? result[key].slice() : [];
+    const deleteSet = new Set(change.deletes || []);
+    arr = arr.filter(x => !deleteSet.has(x.id));
+    const upsertMap = new Map((change.upserts || []).map(x => [x.id, x]));
+    const existingIdx = new Map();
+    arr.forEach((x, i) => { if (upsertMap.has(x.id)) existingIdx.set(x.id, i); });
+    const newOnes = [];
+    for (const [id, entity] of upsertMap) {
+      if (existingIdx.has(id)) arr[existingIdx.get(id)] = entity;
+      else newOnes.push(entity);
+    }
+    result[key] = arr.concat(newOnes);
+  }
+  return result;
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2155,7 +2226,9 @@ const SESSION_KEY = 'cftpmy_session_v1';
 const QUIZSTART_PREFIX = 'cftpmy_quizstart_';
 const FESTART_PREFIX = 'cftpmy_festart_';
 let DB = null;
+let lastSyncedSnapshot = null;
 let quizTimerInterval = null;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const state = {
   user: null, view: 'dashboard', params: {},
   loginMode: 'login',
@@ -2251,54 +2324,118 @@ function scheduleServerSave() {
   if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
   saveTimer = setTimeout(async () => {
     saveTimer = null;
-    if (saveInFlight) { savePending = true; return; }
-    saveInFlight = true;
-    try {
-      const res = await driveAPI('saveState', { state: DB });
-      if (!res.ok) throw new Error(res.error || 'Save failed');
+    await robustServerSave();
+  }, 1200 + Math.floor(Math.random() * 400));
+}
+
+async function robustServerSave() {
+  if (saveInFlight) { savePending = true; return { ok: true, queued: true }; }
+  saveInFlight = true;
+  try {
+    const result = await performMergedSave();
+    if (result.ok) {
       pendingSaveSince = 0;
       updateBeforeUnload();
-      const b2 = document.getElementById('syncBadge');
-      if (b2) { b2.textContent = '✓'; b2.style.background = '#e8f5ec'; b2.style.color = '#1e7d4f'; b2.title = 'Synced ' + new Date().toLocaleTimeString(); }
-    } catch (err) {
-      console.warn('Save failed:', err);
-      const b2 = document.getElementById('syncBadge');
-      if (b2) { b2.textContent = '⚠'; b2.style.background = '#fdecea'; b2.style.color = '#c0392b'; b2.title = 'Save failed: ' + err.message; }
-    } finally {
-      saveInFlight = false;
-      if (savePending) { savePending = false; scheduleServerSave(); }
+      const b = document.getElementById('syncBadge');
+      if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
     }
-  }, 1200);
+    return result;
+  } finally {
+    saveInFlight = false;
+    if (savePending) {
+      savePending = false;
+      setTimeout(() => robustServerSave(), 150 + Math.floor(Math.random() * 200));
+    }
+  }
+}
+
+async function performMergedSave(maxAttempts = 4) {
+  const preDiff = computeDiff(lastSyncedSnapshot, DB);
+  if (isDiffEmpty(preDiff)) return { ok: true, skipped: true };
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const dbAtStart = cloneDB(DB);
+    try {
+      const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
+
+      // Tarik versi terkini server
+      let serverState = null;
+      try {
+        const loadRes = await driveAPI('loadState');
+        if (loadRes && loadRes.ok && loadRes.state) serverState = loadRes.state;
+      } catch (loadErr) {
+        console.warn('loadState failed during save:', loadErr);
+      }
+
+      const base = serverState || lastSyncedSnapshot || dbAtStart;
+      const merged = applyDiff(base, localDiff);
+
+      const baseRev = (typeof base._rev === 'number') ? base._rev : 0;
+      merged._rev = baseRev + 1;
+      merged._syncId = uid('sync');
+      merged._syncTs = nowISO();
+      merged._savedBy = state.user ? state.user.id : 'system';
+
+      const saveRes = await driveAPI('saveState', { state: merged });
+      if (!saveRes || !saveRes.ok) throw new Error((saveRes && saveRes.error) || 'Save failed');
+
+      // Verify — pastikan tiada user lain menimpa kita
+      await sleep(120 + Math.floor(Math.random() * 180));
+      let verified = false;
+      try {
+        const verify = await driveAPI('loadState');
+        if (verify && verify.ok && verify.state) {
+          if (verify.state._syncId === merged._syncId) verified = true;
+          else {
+            console.log(`[save] overwritten — retry ${attempt + 1}`);
+            await sleep(200 + Math.floor(Math.random() * 400));
+            continue;
+          }
+        } else {
+          verified = true;
+        }
+      } catch (verifyErr) {
+        verified = true;
+      }
+
+      if (verified) {
+        // Kekalkan edit pengguna yang berlaku SEMASA save berjalan
+        const editsDuringSave = computeDiff(dbAtStart, DB);
+        DB = applyDiff(merged, editsDuringSave);
+        lastSyncedSnapshot = cloneDB(merged);
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        pendingSaveSince = 0;
+        updateBeforeUnload();
+        if (!isDiffEmpty(editsDuringSave)) savePending = true;
+        return { ok: true };
+      }
+    } catch (err) {
+      console.warn(`[save] attempt ${attempt + 1} failed:`, err);
+      if (attempt === maxAttempts - 1) {
+        const b = document.getElementById('syncBadge');
+        if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
+        return { ok: false, error: err.message };
+      }
+      await sleep(300 + Math.floor(Math.random() * 500));
+    }
+  }
+  return { ok: false, error: 'Max retries exceeded' };
 }
 
 async function forceSaveNow() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   if (saveInFlight) {
     let waited = 0;
-    while (saveInFlight && waited < 8000) {
-      await new Promise(r => setTimeout(r, 200));
-      waited += 200;
-    }
+    while (saveInFlight && waited < 15000) { await sleep(200); waited += 200; }
   }
-  if (!pendingSaveSince && !savePending && !saveInFlight) {
-    return { ok: true, skipped: true };
-  }
-  saveInFlight = true;
-  savePending = false;
-  try {
-    const res = await driveAPI('saveState', { state: DB });
-    if (!res.ok) throw new Error(res.error || 'Save failed');
+  const diff = computeDiff(lastSyncedSnapshot, DB);
+  if (isDiffEmpty(diff)) {
     pendingSaveSince = 0;
     updateBeforeUnload();
-    const b2 = document.getElementById('syncBadge');
-    if (b2) { b2.textContent = '✓'; b2.style.background = '#e8f5ec'; b2.style.color = '#1e7d4f'; b2.title = 'Synced ' + new Date().toLocaleTimeString(); }
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  } finally {
-    saveInFlight = false;
-    updateBeforeUnload();
+    return { ok: true, skipped: true };
   }
+  savePending = false;
+  return await robustServerSave();
 }
 
 /* Manual sync triggered by the ☁️ button in the topbar */
@@ -2309,12 +2446,17 @@ async function manualSyncNow() {
   if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   try {
-    const res = await driveAPI('saveState', { state: DB });
-    if (!res.ok) throw new Error(res.error || 'Save failed');
-    pendingSaveSince = 0;
-    updateBeforeUnload();
-    if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
-    toast(t('sync_manual_ok'), 'ok');
+    if (saveInFlight) {
+      let waited = 0;
+      while (saveInFlight && waited < 15000) { await sleep(200); waited += 200; }
+    }
+    const result = await robustServerSave();
+    if (result.ok) {
+      if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
+      toast(t('sync_manual_ok'), 'ok');
+    } else {
+      throw new Error(result.error || 'Save failed');
+    }
   } catch (err) {
     if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
     toast('⚠️ ' + (err.message || t('msg_autosave_failed')), 'bad');
@@ -2350,6 +2492,7 @@ function fastBoot() {
   if (!DB || !Array.isArray(DB.users) || !DB.users.length) DB = seedDB();
   if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
   migrateDB();
+  if (!lastSyncedSnapshot) lastSyncedSnapshot = cloneDB(DB);
   const sid = localStorage.getItem(SESSION_KEY);
   if (sid) state.user = DB.users.find(u => u.id === sid) || null;
   if (state.user) {
@@ -2369,17 +2512,28 @@ async function serverPullInBackground() {
     try {
       const res = await driveAPI('loadState');
       if (res.ok && res.state && Array.isArray(res.state.users) && res.state.users.length) {
-        const before = JSON.stringify(DB);
-        DB = res.state;
-        if (!Array.isArray(DB.questionBank) || !DB.questionBank.length) DB.questionBank = seedQuestionBank();
+        const serverState = res.state;
+        const pendingDiff = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
+        const hasPending = !isDiffEmpty(pendingDiff);
+
+        const newDB = hasPending ? applyDiff(serverState, pendingDiff) : cloneDB(serverState);
+
+        if (!Array.isArray(newDB.questionBank) || !newDB.questionBank.length) {
+          newDB.questionBank = seedQuestionBank();
+        }
+
+        DB = newDB;
         migrateDB();
+        lastSyncedSnapshot = cloneDB(serverState);
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+
         const sid = localStorage.getItem(SESSION_KEY);
         if (sid) state.user = DB.users.find(u => u.id === sid) || null;
-        if (JSON.stringify(DB) !== before) {
-          if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
-        }
+
+        if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
+        if (hasPending) scheduleServerSave();
       } else if (res.ok) {
+        lastSyncedSnapshot = cloneDB(DB);
         try {
           const sr = await driveAPI('saveState', { state: DB });
           if (sr.ok) console.log('✅ Seed pushed.');
@@ -2387,6 +2541,7 @@ async function serverPullInBackground() {
       }
     } catch(e) {
       console.warn('Background sync failed:', e);
+      if (!lastSyncedSnapshot) lastSyncedSnapshot = cloneDB(DB);
     } finally {
       firstSyncDone = true;
     }
@@ -2397,6 +2552,9 @@ async function serverPullInBackground() {
 const CATEGORY_MODULE_MAP = { 'Kimia Asas':'mod_1', 'Keselamatan Makmal':'mod_2', 'Teknik Makmal':'mod_3', 'Analisis Kuantitatif':'mod_4' };
 
 function migrateDB() {
+  if (typeof DB._rev !== 'number') DB._rev = 0;
+  if (!DB._syncTs) DB._syncTs = nowISO();
+  if (!DB._syncId) DB._syncId = uid('sync');
   if (Array.isArray(DB.users)) {
     const takenUsernames = new Set();
     DB.users.forEach(u => { if (u.username) takenUsernames.add(String(u.username).toLowerCase()); });
@@ -2479,7 +2637,6 @@ function migrateDB() {
   if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = [];
   if (!Array.isArray(DB.retests)) DB.retests = [];
 
-  /* Normalize any legacy timetable times (e.g. "1899-12-30T01:34:35.000Z") to "HH:MM" */
   (DB.timetables || []).forEach(x => {
     if (x.startTime) x.startTime = normalizeTimeStr(x.startTime);
     if (x.endTime) x.endTime = normalizeTimeStr(x.endTime);
@@ -2681,7 +2838,7 @@ function seedDB() {
   const fePractical = [];
   const retests = [];
   const pendingApprovals = [];
-  return { users, modules, activities, enrollments, attempts, attendance, practical, audit, questionBank: seedQuestionBank(), rubrics, timetables, certificates, finalExams, feAttempts, fePractical, retests, pendingApprovals };
+  return { users, modules, activities, enrollments, attempts, attendance, practical, audit, questionBank: seedQuestionBank(), rubrics, timetables, certificates, finalExams, feAttempts, fePractical, retests, pendingApprovals, _rev: 0, _syncId: 'init_' + Date.now(), _syncTs: now };
 }
 
 function logAudit(action, entity, entityId, details) {
@@ -2691,7 +2848,6 @@ function logAudit(action, entity, entityId, details) {
 
 const sortActs = (arr) => arr.slice().sort((a, b) => a.order - b.order);
 
-/* Sort modules by startDate (ascending, nulls last), then name */
 const sortModules = (arr) => arr.slice().sort((a, b) => {
   const da = a.startDate || '9999-12-31';
   const db = b.startDate || '9999-12-31';
@@ -6595,10 +6751,15 @@ window.addEventListener('focus', async () => {
     const res = await driveAPI('loadState');
     if (res.ok && res.state && Array.isArray(res.state.users)) {
       if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
-        DB = res.state;
+        const pendingDiff = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
+        const hasPending = !isDiffEmpty(pendingDiff);
+        const newDB = hasPending ? applyDiff(res.state, pendingDiff) : cloneDB(res.state);
+        DB = newDB;
         migrateDB();
+        lastSyncedSnapshot = cloneDB(res.state);
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
         render();
+        if (hasPending) scheduleServerSave();
       }
     }
   } catch(e) {}
@@ -6612,10 +6773,15 @@ setInterval(async () => {
     const res = await driveAPI('loadState');
     if (res.ok && res.state && Array.isArray(res.state.users)) {
       if (JSON.stringify(res.state) !== JSON.stringify(DB)) {
-        DB = res.state;
+        const pendingDiff = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
+        const hasPending = !isDiffEmpty(pendingDiff);
+        const newDB = hasPending ? applyDiff(res.state, pendingDiff) : cloneDB(res.state);
+        DB = newDB;
         migrateDB();
+        lastSyncedSnapshot = cloneDB(res.state);
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
         render();
+        if (hasPending) scheduleServerSave();
         toast('🔄 Data dikemas kini dari server');
       }
     }
