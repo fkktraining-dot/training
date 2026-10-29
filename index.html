@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Chemical Fundamentals Training Programme Malaysia</title>
+<title>Training Management System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -35,7 +35,7 @@ small,.muted{color:var(--muted)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-block{width:100%;padding:.9rem;font-size:1rem;font-weight:700}
 .iconbtn{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
-.login-split-screen{min-height:100vh;display:flex;position:relative;background-image:url('https://lh3.googleusercontent.com/d/1fYUfUcjS7-0LzkvjET0-xOtsR00-5Uz3');background-size:cover;background-position:center;background-attachment:fixed;background-repeat:no-repeat;font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+.login-split-screen{min-height:100vh;display:flex;position:relative;font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
 .login-split-screen::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(11,59,47,0.80) 0%,rgba(11,107,83,0.50) 50%,rgba(6,58,44,0.88) 100%);z-index:0;pointer-events:none}
 .login-left{flex:1.1;position:relative;z-index:1;display:flex;flex-direction:column;justify-content:center;padding:60px;color:#fff;overflow:hidden}
 .login-left-content{position:relative;z-index:2;max-width:520px}
@@ -69,7 +69,7 @@ small,.muted{color:var(--muted)}
 .login-switch{text-align:center;margin-top:24px;font-size:14px;color:#657b74}
 .login-switch a{color:#0b6b53;font-weight:700;cursor:pointer;text-decoration:none}
 .login-switch a:hover{text-decoration:underline}
-@media (max-width:900px){.login-split-screen{flex-direction:column;background-attachment:scroll}.login-left{flex:none;padding:40px 20px 20px;min-height:auto;align-items:center;text-align:center}.login-left-content{margin-top:0;display:flex;flex-direction:column;align-items:center}.login-left-header h1{font-size:24px}.login-left-header .login-subtitle{font-size:15px}.login-left-bottom{display:none}.login-right{padding:16px 16px 32px;background:transparent}.login-card{padding:28px 20px;background:rgba(255,255,255,0.97)}}
+@media (max-width:900px){.login-split-screen{flex-direction:column}.login-left{flex:none;padding:40px 20px 20px;min-height:auto;align-items:center;text-align:center}.login-left-content{margin-top:0;display:flex;flex-direction:column;align-items:center}.login-left-header h1{font-size:24px}.login-left-header .login-subtitle{font-size:15px}.login-left-bottom{display:none}.login-right{padding:16px 16px 32px;background:transparent}.login-card{padding:28px 20px;background:rgba(255,255,255,0.97)}}
 .field{margin-bottom:.85rem}
 .field label{display:block;font-size:.8rem;font-weight:700;margin-bottom:.3rem;color:#2b3f39}
 .input,.select,.textarea{width:100%;padding:.58rem .7rem;border:1px solid var(--line);border-radius:10px;font-size:.9rem;font-family:inherit;background:#fff;color:var(--ink)}
@@ -354,11 +354,11 @@ tbody tr:hover{background:#f9fcfb}
 
 <script>
 /* =========================================================
-   BACKEND CONFIG — PATCH v3.9
+   BACKEND CONFIG
    ========================================================= */
 const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzCF9SJjZupQ5KVs6hmx42PJs3El7mJbu7Lh3JHZb-R8PrrfS1c0AuZrmA-uv7Us9N6/exec';
 const DRIVE_API_KEY = '';
-const DRIVE_TIMEOUT_MS = 30000;   // ✅ PATCH: 15000 → 30000
+const DRIVE_TIMEOUT_MS = 30000;
 
 async function driveAPI(action, data) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
@@ -382,7 +382,7 @@ async function driveAPI(action, data) {
 }
 
 /* =========================================================
-   CONCURRENCY-SAFE MERGE HELPERS (50+ concurrent users)
+   CONCURRENCY-SAFE MERGE HELPERS
    ========================================================= */
 const MERGEABLE_COLLECTIONS = [
   'users','modules','activities','enrollments','attempts','attendance','practical',
@@ -537,7 +537,7 @@ function pickExcelFile(accept, onPicked) {
 }
 
 /* =========================================================
-   EXCEL TEMPLATES
+   EXCEL TEMPLATES (headers only, no sample data)
    ========================================================= */
 function downloadQuestionBankTemplate() {
   if (!ensureXLSX()) return;
@@ -547,12 +547,8 @@ function downloadQuestionBankTemplate() {
     'Modul', 'Soalan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
     'Jawapan (A/B/C/D)', 'Kategori', 'Tahap (Mudah/Sederhana/Sukar)'
   ];
-  const sampleRows = (mods[0] ? [
-    [mods[0].name, 'Apakah simbol kimia bagi Natrium?', 'N', 'Na', 'Ni', 'K', 'B', 'Kimia Asas', 'Mudah'],
-    [mods[0].name, 'Apakah nilai pH bagi larutan neutral pada 25°C?', '0', '5', '7', '14', 'C', 'Kimia Asas', 'Mudah']
-  ] : [['Modul 1', 'Contoh soalan?', 'A', 'B', 'C', 'D', 'A', 'Kategori', 'Mudah']]);
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = [{wch:28},{wch:50},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:20},{wch:26}];
   XLSX.utils.book_append_sheet(wb, ws, 'Soalan');
   const refWs = XLSX.utils.aoa_to_sheet([
@@ -672,12 +668,8 @@ function downloadRubricTemplate() {
     'Level 4 Label', 'Level 4 Markah', 'Level 4 Penerangan',
     'Level 5 Label', 'Level 5 Markah', 'Level 5 Penerangan'
   ];
-  const sample = [
-    ['Rubrik Contoh', 'Rubrik demonstrasi', 'Persediaan & Keselamatan', 30, 'Cemerlang', 5, 'Lengkap & selamat', 'Baik', 4, 'Hampir lengkap', 'Sederhana', 3, 'Ada kecuaian', 'Lemah', 2, 'Banyak kesilapan', 'Gagal', 1, 'Tidak selamat'],
-    ['Rubrik Contoh', 'Rubrik demonstrasi', 'Teknik & Ketepatan', 70, 'Cemerlang', 5, 'Tepat & konsisten', 'Baik', 4, 'Ralat kecil', 'Sederhana', 3, 'Ralat sederhana', 'Lemah', 2, 'Ralat besar', 'Gagal', 1, 'Tidak boleh']
-  ];
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = headers.map((h, i) => ({ wch: i <= 3 ? 22 : (i % 3 === 1 ? 10 : 20) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Rubrik');
   XLSX.writeFile(wb, 'template-rubrik.xlsx');
@@ -767,9 +759,8 @@ function downloadTimetableTemplate(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
   const headers = ['Modul', 'Tarikh (YYYY-MM-DD)', 'Masa Mula (HH:MM)', 'Masa Tamat (HH:MM)', 'Tajuk / Topik', 'Pengajar', 'Lokasi', 'Catatan'];
-  const sample = [[m.name, todayISO(), '09:00', '10:30', 'Contoh Topik', userName(m.trainerId) || '', 'Bilik Seminar A', '']];
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = [{wch:28},{wch:20},{wch:18},{wch:18},{wch:40},{wch:28},{wch:24},{wch:30}];
   XLSX.utils.book_append_sheet(wb, ws, 'Jadual');
   const refWs = XLSX.utils.aoa_to_sheet([['Modul Yang Sah'], ...(state.user.role === 'admin' ? sortModules(DB.modules) : myModules()).map(x => [x.name])]);
@@ -903,136 +894,9 @@ async function importTimetableExcel(file, defaultMid) {
 }
 
 /* =========================================================
-   CONTENT TRANSLATION
+   CONTENT TRANSLATION (empty — content comes from GSheet)
    ========================================================= */
-const CONTENT_I18N = {
-  'Modul 1 — Asas Kimia': 'Module 1 — Chemical Fundamentals',
-  'Modul 2 — Keselamatan Makmal': 'Module 2 — Laboratory Safety',
-  'Modul 3 — Teknik Makmal': 'Module 3 — Laboratory Techniques',
-  'Modul 4 — Analisis Kuantitatif': 'Module 4 — Quantitative Analysis',
-  'Pengenalan konsep asas kimia, atom, molekul dan stoikiometri.': 'Introduction to basic chemistry concepts, atoms, molecules and stoichiometry.',
-  'Pengurusan keselamatan bahan kimia, MSDS dan prosedur kecemasan.': 'Management of chemical safety, MSDS and emergency procedures.',
-  'Teknik penyediaan larutan dan penggunaan radas analitik.': 'Techniques for preparing solutions and using analytical apparatus.',
-  'Analisis titrimetri asid-bes dan pengiraan kepekatan.': 'Acid-base titrimetric analysis and concentration calculations.',
-  'Pengenalan kepada Kimia Asas': 'Introduction to Basic Chemistry',
-  'Keselamatan Bahan Kimia & MSDS': 'Chemical Safety & MSDS',
-  'Penyediaan Larutan Standard': 'Preparation of Standard Solutions',
-  'Analisis Titrimetri Asid-Bes': 'Acid-Base Titrimetric Analysis',
-  'Memahami konsep asas atom, molekul, jadual berkala dan pengiraan stoikiometri asas.': 'Understand the basic concepts of atoms, molecules, the periodic table and basic stoichiometric calculations.',
-  'Mengenal pasti hazard, membaca MSDS dan prosedur tumpahan.': 'Identify hazards, read MSDS and spill procedures.',
-  'Menyediakan larutan standard dengan kepekatan tepat.': 'Prepare standard solutions with accurate concentrations.',
-  'Menjalankan titrasi asid-bes dan mengira kepekatan.': 'Perform acid-base titration and calculate concentration.',
-  'Hadir 15 minit awal. Bawa kalkulator saintifik.': 'Arrive 15 minutes early. Bring a scientific calculator.',
-  'Sesi praktikal di makmal.': 'Practical session in the laboratory.',
-  'Bawa buku log makmal.': 'Bring your laboratory logbook.',
-  'Sesi makmal penuh.': 'Full laboratory session.',
-  'Modul PDF, Jadual Berkala, Kalkulator': 'Module PDF, Periodic Table, Calculator',
-  'MSDS, kit tumpahan, PPE': 'MSDS, spill kit, PPE',
-  'Buret, pipet, neraca': 'Burette, pipette, balance',
-  'Buret, fenolftalein, NaOH': 'Burette, phenolphthalein, NaOH',
-  'Kuiz + Praktikal': 'Quiz + Practical',
-  'Kuiz Teori': 'Theory Quiz',
-  'Penilaian Praktikal': 'Practical Assessment',
-  'Kehadiran Sahaja': 'Attendance Only',
-  'Rubrik Asas Praktikal Makmal': 'Basic Laboratory Practical Rubric',
-  'Rubrik Titrasi Asid-Bes': 'Acid-Base Titration Rubric',
-  'Rubrik umum untuk penilaian praktikal kimia.': 'General rubric for chemistry practical assessment.',
-  'Khusus untuk eksperimen titrasi asid-bes.': 'Specifically for acid-base titration experiments.',
-  'Persediaan & Keselamatan': 'Preparation & Safety',
-  'Teknik & Ketepatan': 'Technique & Accuracy',
-  'Pengiraan & Pelaporan': 'Calculation & Reporting',
-  'Persediaan Radas': 'Apparatus Preparation',
-  'Teknik Titrasi': 'Titration Technique',
-  'Pengiraan & Ketepatan': 'Calculation & Accuracy',
-  'Cemerlang': 'Excellent',
-  'Baik': 'Good',
-  'Sederhana': 'Fair',
-  'Lemah': 'Weak',
-  'Gagal': 'Fail',
-  'Lengkap & selamat.': 'Complete & safe.',
-  'Hampir lengkap.': 'Almost complete.',
-  'Ada kecuaian.': 'Some carelessness.',
-  'Banyak kesilapan.': 'Many mistakes.',
-  'Tidak selamat.': 'Unsafe.',
-  'Tepat & konsisten.': 'Accurate & consistent.',
-  'Ralat kecil.': 'Minor error.',
-  'Ralat sederhana.': 'Moderate error.',
-  'Ralat besar.': 'Major error.',
-  'Tidak boleh.': 'Unable.',
-  'Tepat & lengkap.': 'Accurate & complete.',
-  'Sebahagian.': 'Partial.',
-  'Banyak ralat.': 'Many errors.',
-  'Tidak lengkap.': 'Incomplete.',
-  'Sedia & bersih.': 'Ready & clean.',
-  'Pembetulan kecil.': 'Minor correction.',
-  'Kurang bersih.': 'Not clean.',
-  'Bimbingan.': 'Requires guidance.',
-  'Tidak sedia.': 'Not ready.',
-  'Terkawal.': 'Controlled.',
-  'Tidak konsisten.': 'Inconsistent.',
-  'Tepat.': 'Accurate.',
-  'Sederhana.': 'Moderate.',
-  'Besar.': 'Large.',
-  'Sangat baik.': 'Very good.',
-  'Cemerlang.': 'Excellent.',
-  'Peperiksaan Akhir Teori — Asas Kimia': 'Final Theory Exam — Chemical Fundamentals',
-  'Peperiksaan Akhir Praktikal — Titrasi': 'Final Practical Exam — Titration',
-  'Peperiksaan akhir teori bagi Modul 1.': 'Final theory exam for Module 1.',
-  'Sesi praktikal peperiksaan akhir bagi Modul 4.': 'Final practical exam session for Module 4.',
-  'Pengenalan Kimia & Atom': 'Introduction to Chemistry & Atoms',
-  'Stoikiometri Asas': 'Basic Stoichiometry',
-  'Bengkel Latihan Atom': 'Atom Training Workshop',
-  'Pengenalan MSDS': 'Introduction to MSDS',
-  'Teknik Titrasi': 'Titration Technique',
-  'Bawa jadual berkala.': 'Bring the periodic table.',
-  'Praktikal.': 'Practical.',
-  'Bawa PPE.': 'Bring PPE.',
-  'Apakah simbol kimia bagi Natrium?': 'What is the chemical symbol for Sodium?',
-  'Berapakah bilangan proton dalam atom karbon (C)?': 'How many protons are in a carbon (C) atom?',
-  'Apakah nilai pH bagi larutan neutral pada 25°C?': 'What is the pH value of a neutral solution at 25°C?',
-  'Apakah maksud singkatan MSDS?': 'What does MSDS stand for?',
-  'Apakah langkah pertama apabila bahan kimia tertumpah?': 'What is the first step when a chemical spills?',
-  'PPE minimum di makmal kimia ialah…': 'The minimum PPE in a chemistry lab is…',
-  'Berapakah jisim NaOH (Mr = 40) diperlukan untuk 1 L larutan 0.1 M?': 'What mass of NaOH (Mr = 40) is needed for 1 L of 0.1 M solution?',
-  'Alat manakah paling tepat untuk mengukur 25.00 mL larutan?': 'Which apparatus is most accurate for measuring 25.00 mL of solution?',
-  'Apakah fungsi penunjuk fenolftalein dalam titrasi asid-bes?': 'What is the function of phenolphthalein indicator in acid-base titration?',
-  'Titik akhir titrasi asid kuat–bes kuat biasanya pada pH…': 'The endpoint of a strong acid–strong base titration is usually at pH…',
-  'Material Safety Data Sheet': 'Material Safety Data Sheet',
-  'Malaysian Safety Data Standard': 'Malaysian Safety Data Standard',
-  'Material Standard Data System': 'Material Standard Data System',
-  'Manufacturing Safety Document Sheet': 'Manufacturing Safety Document Sheet',
-  'Lap dengan kain basah': 'Wipe with a wet cloth',
-  'Hubungi pihak media': 'Contact the media',
-  'Maklumkan penyelia dan rujuk MSDS/SOP': 'Inform the supervisor and refer to MSDS/SOP',
-  'Terus neutralkan dengan air': 'Neutralize immediately with water',
-  'Goggles, kot makmal dan sarung tangan': 'Goggles, lab coat and gloves',
-  'Topi keledar dan kasut boot': 'Helmet and boots',
-  'Apron dan selipar': 'Apron and slippers',
-  'Tiada PPE diperlukan': 'No PPE required',
-  'Silinder penyukat': 'Measuring cylinder',
-  'Pipet volumetrik': 'Volumetric pipette',
-  'Bikar': 'Beaker',
-  'Kelalang kon': 'Conical flask',
-  'Menstabilkan larutan': 'Stabilize the solution',
-  'Menunjukkan takat akhir': 'Indicate the endpoint',
-  'Meningkatkan pH': 'Increase pH',
-  'Meneutralkan asid': 'Neutralize acid',
-  'Kimia Asas': 'Basic Chemistry',
-  'Keselamatan Makmal': 'Laboratory Safety',
-  'Teknik Makmal': 'Laboratory Techniques',
-  'Analisis Kuantitatif': 'Quantitative Analysis',
-  'Mudah': 'Easy',
-  'Sederhana': 'Moderate',
-  'Sukar': 'Hard',
-  'Bilik Seminar A': 'Seminar Room A',
-  'Bilik Seminar B': 'Seminar Room B',
-  'Makmal Kimia 1': 'Chemistry Lab 1',
-  'Makmal Analisis': 'Analysis Lab',
-  'Makmal Analisis Sdn Bhd': 'Makmal Analisis Sdn Bhd',
-  'Petrokimia Negara Bhd': 'Petrokimia Negara Bhd',
-  'Kimia Industri Malaysia': 'Kimia Industri Malaysia',
-  'CFTP Malaysia': 'CFTP Malaysia'
-};
+const CONTENT_I18N = {};
 
 function tc(str) {
   if (str === null || str === undefined) return '';
@@ -1048,15 +912,16 @@ function tc(str) {
   return s;
 }
 function tce(str) { return esc(tc(str)); }
+
 /* =========================================================
-   i18n UI strings
+   i18n UI strings (labels only)
    ========================================================= */
 const I18N = {
   ms: {
-    sys_title: 'Chemical Fundamentals Training Programme',
-    sys_sub: 'Malaysia · Sistem Pengurusan Latihan',
-    app_brand: 'CFTP Malaysia',
-    app_brand_sub: 'Chemical Fundamentals Training',
+    sys_title: 'Training Management System',
+    sys_sub: 'Sistem Pengurusan Latihan',
+    app_brand: 'Training System',
+    app_brand_sub: 'Latihan & Penilaian',
     lang_toggle: 'EN', lang_tooltip: 'Tukar ke Bahasa Inggeris',
     nav_dashboard: 'Dashboard', nav_modules: 'Pengurusan Modul', nav_modules_own: 'Modul Saya',
     nav_modules_all: 'Semua Modul',
@@ -1219,8 +1084,8 @@ const I18N = {
     tt_deleted: 'Jadual dipadam.', tt_invalid_time: 'Masa tamat mesti selepas masa mula.',
     tt_date_required: 'Tarikh diperlukan.', tt_topic_required: 'Tajuk diperlukan.',
     tt_upcoming: 'Jadual Akan Datang', tt_no_upcoming: 'Tiada jadual akan datang.',
-    tt_entries_count: '{0} jadual', tt_topic_placeholder: 'cth: Pengenalan Kimia',
-    tt_location_placeholder: 'cth: Bilik Seminar A',
+    tt_entries_count: '{0} jadual', tt_topic_placeholder: 'cth: Tajuk Topik',
+    tt_location_placeholder: 'cth: Lokasi',
     tt_download_pdf: 'Muat Turun PDF',
     act_new: 'Aktiviti Baharu', act_edit: 'Edit Aktiviti', act_publish_all: '✅ Terbit Semua',
     act_no_module: 'Tiada modul. Cipta modul dahulu.', act_no_module_assigned: 'Anda belum diassign ke modul.',
@@ -1267,24 +1132,14 @@ const I18N = {
     rb_col_marks: 'Markah', rb_col_desc: 'Penerangan', rb_not_yet: 'Belum ada rubrik',
     rb_level: 'Level', rb_level_excellent: 'Cemerlang', rb_level_good: 'Baik',
     rb_level_fair: 'Sederhana', rb_level_weak: 'Lemah', rb_level_fail: 'Gagal',
-    rb_pending_approval: '⏳ Menunggu Kelulusan',
-    rb_approved: '✓ Diluluskan',
-    rb_rejected: '✖ Ditolak',
-    rb_approve_title: 'Kelulusan Rubrik',
-    rb_approve_hint: 'Fasilitator telah mencipta/mengubah rubrik. Sila semak dan luluskan.',
-    rb_approve_btn: 'Luluskan',
-    rb_reject_btn: 'Tolak',
-    rb_reject_reason: 'Sebab Penolakan',
-    rb_approved_msg: 'Rubrik diluluskan.',
-    rb_rejected_msg: 'Rubrik ditolak.',
-    rb_confirm_approve: 'Luluskan rubrik ini?',
-    rb_confirm_reject: 'Tolak rubrik ini?',
+    rb_pending_approval: '⏳ Menunggu Kelulusan', rb_approved: '✓ Diluluskan', rb_rejected: '✖ Ditolak',
+    rb_approve_title: 'Kelulusan Rubrik', rb_approve_hint: 'Fasilitator telah mencipta/mengubah rubrik. Sila semak dan luluskan.',
+    rb_approve_btn: 'Luluskan', rb_reject_btn: 'Tolak', rb_reject_reason: 'Sebab Penolakan',
+    rb_approved_msg: 'Rubrik diluluskan.', rb_rejected_msg: 'Rubrik ditolak.',
+    rb_confirm_approve: 'Luluskan rubrik ini?', rb_confirm_reject: 'Tolak rubrik ini?',
     rb_facilitator_note: 'Sebagai fasilitator, rubrik yang anda cipta perlu diluluskan oleh jurulatih sebelum boleh digunakan secara rasmi.',
-    rb_pending_note: 'Rubrik ini menunggu kelulusan jurulatih.',
-    rb_no_pending: 'Tiada rubrik menunggu kelulusan.',
-    rb_submitted_by: 'Dicipta oleh',
-    rb_view_only: 'Lihat Sahaja',
-    rb_cannot_edit: 'Anda tiada akses untuk mengubah rubrik ini.',
+    rb_pending_note: 'Rubrik ini menunggu kelulusan jurulatih.', rb_no_pending: 'Tiada rubrik menunggu kelulusan.',
+    rb_submitted_by: 'Dicipta oleh', rb_view_only: 'Lihat Sahaja', rb_cannot_edit: 'Anda tiada akses untuk mengubah rubrik ini.',
     rb_own_only_edit: 'Hanya pencipta rubrik atau pentadbir boleh mengubah rubrik ini.',
     bank_title: 'Bank Soalan', bank_new: 'Soalan Baharu', bank_edit: 'Edit Soalan',
     bank_question: 'Soalan', bank_options: 'Pilihan', bank_answer: 'Jawapan',
@@ -1426,7 +1281,7 @@ const I18N = {
     fe_practical_criteria: 'Kriteria Praktikal',
     fe_theory_setup_hint: 'Selepas simpan, jurulatih perlu hantar soalan untuk modul masing-masing sebelum pentadbir terbitkan peperiksaan.',
     fe_practical_setup_hint: 'Pilih rubrik menyeluruh. Nilai peserta selepas sesi praktikal selesai.',
-    fe_title_placeholder: 'cth: Peperiksaan Akhir Teori',
+    fe_title_placeholder: 'cth: Tajuk Peperiksaan',
     fe_modules_included: 'Modul Terpilih', fe_preparation: 'Persiapan Soalan',
     fe_modules_submitted: '{0} / {1} modul dihantar',
     fe_questions_count: '{0} / {1} soalan',
@@ -1538,10 +1393,10 @@ const I18N = {
     excel_import_upload: 'Import Excel'
   },
   en: {
-    sys_title: 'Chemical Fundamentals Training Programme',
-    sys_sub: 'Malaysia · Training Management System',
-    app_brand: 'CFTP Malaysia',
-    app_brand_sub: 'Chemical Fundamentals Training',
+    sys_title: 'Training Management System',
+    sys_sub: 'Training Management System',
+    app_brand: 'Training System',
+    app_brand_sub: 'Training & Assessment',
     lang_toggle: 'BM', lang_tooltip: 'Switch to Malay',
     nav_dashboard: 'Dashboard', nav_modules: 'Module Management', nav_modules_own: 'My Modules',
     nav_modules_all: 'All Modules',
@@ -1709,8 +1564,8 @@ const I18N = {
     tt_invalid_time: 'End time must be after start time.', tt_date_required: 'Date is required.',
     tt_topic_required: 'Title is required.', tt_upcoming: 'Upcoming Timetable',
     tt_no_upcoming: 'No upcoming timetable.', tt_entries_count: '{0} entries',
-    tt_topic_placeholder: 'e.g. Introduction to Chemistry',
-    tt_location_placeholder: 'e.g. Seminar Room A',
+    tt_topic_placeholder: 'e.g. Topic Title',
+    tt_location_placeholder: 'e.g. Location',
     tt_download_pdf: 'Download PDF',
     act_new: 'New Activity', act_edit: 'Edit Activity', act_publish_all: '✅ Publish All',
     act_no_module: 'No modules. Create a module first.', act_no_module_assigned: 'You have no modules assigned.',
@@ -1915,7 +1770,7 @@ const I18N = {
     fe_practical_criteria: 'Practical Criteria',
     fe_theory_setup_hint: 'After saving, each module trainer must submit questions before admin can publish the exam.',
     fe_practical_setup_hint: 'Choose a comprehensive rubric. Assess participants after the practical session.',
-    fe_title_placeholder: 'e.g. Final Theory Exam',
+    fe_title_placeholder: 'e.g. Exam Title',
     fe_modules_included: 'Selected Modules', fe_preparation: 'Question Preparation',
     fe_modules_submitted: '{0} / {1} modules submitted',
     fe_questions_count: '{0} / {1} questions',
@@ -2219,7 +2074,7 @@ function base64ToBlob(dataUrl) {
 const DB_KEY = 'cftpmy_db_v1';
 const SESSION_KEY = 'cftpmy_session_v1';
 const QUIZSTART_PREFIX = 'cftpmy_quizstart_';
-const FESTART_PREFIX = 'cftpmy_festart_';
+const FESTART_PREFIX = 'cftpmy_feststart_';
 let DB = null;
 let lastSyncedSnapshot = null;
 let quizTimerInterval = null;
@@ -2272,14 +2127,13 @@ window.addEventListener('popstate', (e) => {
 });
 
 /* =========================================================
-   SYNC / UPLOAD STATE TRACKING — PATCHED v3.9
+   SYNC / UPLOAD STATE TRACKING
    ========================================================= */
 let saveTimer = null, saveInFlight = false, savePending = false;
 let pendingSaveSince = 0;
 let firstSyncDone = false;
 let firstSyncPromise = null;
 
-// ✅ PATCH: no more dangerous sendBeacon with full stale DB
 function updateBeforeUnload() {
   if (pendingSaveSince > 0 || saveInFlight || saveTimer) {
     window.onbeforeunload = function(e) {
@@ -2295,7 +2149,6 @@ function updateBeforeUnload() {
 
 function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.error(e); }
-  // ✅ PATCH: persist diff (safe) instead of relying on beacon
   try {
     const diff = computeDiff(lastSyncedSnapshot, DB);
     if (!isDiffEmpty(diff)) {
@@ -2341,7 +2194,6 @@ async function robustServerSave() {
   }
 }
 
-// ✅ PATCH: maxAttempts 8 + exponential backoff
 async function performMergedSave(maxAttempts = 8) {
   const preDiff = computeDiff(lastSyncedSnapshot, DB);
   if (isDiffEmpty(preDiff)) return { ok: true, skipped: true };
@@ -2476,7 +2328,6 @@ function hideSplash() {
   if (s) { s.classList.add('hide'); setTimeout(() => s.remove(), 300); }
 }
 
-// ✅ PATCH: fastBoot with pending_diff recovery
 function fastBoot() {
   const raw = localStorage.getItem(DB_KEY);
   if (raw) { try { DB = JSON.parse(raw); } catch(e) { DB = null; } }
@@ -2553,7 +2404,7 @@ async function serverPullInBackground() {
   return firstSyncPromise;
 }
 
-const CATEGORY_MODULE_MAP = { 'Kimia Asas':'mod_1', 'Keselamatan Makmal':'mod_2', 'Teknik Makmal':'mod_3', 'Analisis Kuantitatif':'mod_4' };
+const CATEGORY_MODULE_MAP = {};
 
 function migrateDB() {
   if (typeof DB._rev !== 'number') DB._rev = 0;
@@ -2588,12 +2439,13 @@ function migrateDB() {
     if (a.quizCloseAt === undefined) a.quizCloseAt = null;
     if (a.quizDuration === undefined) a.quizDuration = null;
   });
-  if (!Array.isArray(DB.modules) || !DB.modules.length) {
+  if (!Array.isArray(DB.modules)) DB.modules = [];
+  if (!DB.modules.length) {
     const nameMap = new Map();
-    (DB.activities || []).forEach(a => { if (a.module && !nameMap.has(a.module)) nameMap.set(a.module, a.trainerId || 'u_tr1'); });
-    DB.modules = []; let idx = 0;
+    (DB.activities || []).forEach(a => { if (a.module && !nameMap.has(a.module)) nameMap.set(a.module, a.trainerId || null); });
+    let idx = 0;
     nameMap.forEach((trainerId, name) => {
-      idx++; DB.modules.push({ id:'mod_'+idx, name, description:'', trainerId, facilitatorId:null, createdBy:'u_admin', createdAt:nowISO(), updatedAt:nowISO(), published:true, materials: [], startDate: null });
+      idx++; DB.modules.push({ id:'mod_'+idx, name, description:'', trainerId, facilitatorId:null, createdBy:'system', createdAt:nowISO(), updatedAt:nowISO(), published:true, materials: [], startDate: null });
     });
     (DB.activities || []).forEach(a => { const m = DB.modules.find(mm => mm.name === a.module); if (m) a.moduleId = m.id; });
   }
@@ -2619,14 +2471,6 @@ function migrateDB() {
     if (rb.reviewedAt === undefined) rb.reviewedAt = null;
     if (rb.reviewRemarks === undefined) rb.reviewRemarks = '';
   });
-  if (Array.isArray(DB.rubricTemplates)) {
-    DB.rubricTemplates.forEach(tmpl => {
-      if (!DB.rubrics.find(r => r.id === tmpl.id)) {
-        DB.rubrics.push({ id: tmpl.id, name: tmpl.name, description: tmpl.description || '', criteria: tmpl.criteria || [], createdBy: tmpl.createdBy || 'migration', createdAt: tmpl.createdAt || nowISO(), updatedAt: tmpl.updatedAt || nowISO(), approvalStatus: 'approved', reviewedBy: null, reviewedAt: null, reviewRemarks: '' });
-      }
-    });
-    delete DB.rubricTemplates;
-  }
   (DB.activities || []).forEach(a => {
     if (a.rubric && Array.isArray(a.rubric) && a.rubric.length && !a.rubricId) {
       const newRb = { id: uid('rb'), name: 'Rubric — ' + a.title, description: 'Rubric for activity ' + a.title, criteria: JSON.parse(JSON.stringify(a.rubric)), createdBy: 'migration', createdAt: nowISO(), updatedAt: nowISO(), approvalStatus: 'approved', reviewedBy: null, reviewedAt: null, reviewRemarks: '' };
@@ -2675,174 +2519,20 @@ function migrateDB() {
   });
 
   (DB.questionBank || []).forEach(b => {
-    if (!b.moduleId) b.moduleId = CATEGORY_MODULE_MAP[b.category] || (DB.modules && DB.modules[0] ? DB.modules[0].id : 'mod_1');
+    if (!b.moduleId) b.moduleId = CATEGORY_MODULE_MAP[b.category] || (DB.modules && DB.modules[0] ? DB.modules[0].id : null);
   });
 }
 
-function seedQuestionBank() {
-  const now = nowISO();
-  return [
-    { id:'qb_1', moduleId:'mod_1', q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_2', moduleId:'mod_1', q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_3', moduleId:'mod_1', q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2, category:'Kimia Asas', difficulty:'Mudah', createdAt:now },
-    { id:'qb_4', moduleId:'mod_2', q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_5', moduleId:'mod_2', q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2, category:'Keselamatan Makmal', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_6', moduleId:'mod_2', q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0, category:'Keselamatan Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_7', moduleId:'mod_3', q:'Berapakah jisim NaOH (Mr = 40) diperlukan untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1, category:'Teknik Makmal', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_8', moduleId:'mod_3', q:'Alat manakah paling tepat untuk mengukur 25.00 mL larutan?', options:['Silinder penyukat','Pipet volumetrik','Bikar','Kelalang kon'], answer:1, category:'Teknik Makmal', difficulty:'Mudah', createdAt:now },
-    { id:'qb_9', moduleId:'mod_4', q:'Apakah fungsi penunjuk fenolftalein dalam titrasi asid-bes?', options:['Menstabilkan larutan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan asid'], answer:1, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now },
-    { id:'qb_10', moduleId:'mod_4', q:'Titik akhir titrasi asid kuat–bes kuat biasanya pada pH…', options:['3','5','7','10'], answer:2, category:'Analisis Kuantitatif', difficulty:'Sederhana', createdAt:now }
-  ];
-}
+function seedQuestionBank() { return []; }
 
 function seedDB() {
   const now = nowISO();
-  const today0 = new Date();
-  const addDays0 = (n) => { const d = new Date(today0); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-  const users = [
-    { id:'u_admin', username:'admin', name:'Pentadbir Sistem', email:'admin@cftp.my', password:'admin123', role:'admin', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
-    { id:'u_tr1', username:'trainer', name:'Pn. Nurul Aina binti Hassan', email:'trainer@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
-    { id:'u_tr2', username:'trainer2', name:'En. Rajesh Kumaran', email:'trainer2@cftp.my', password:'trainer123', role:'trainer', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
-    { id:'u_fac1', username:'facilitator', name:'Pn. Farah binti Aziz', email:'facilitator@cftp.my', password:'facilitator123', role:'facilitator', org:'CFTP Malaysia', ic:'', phone:'', status:'approved', createdAt:now },
-    { id:'u_vip1', username:'vip', name:'Dato\' Ahmad Faizal bin Rahman', email:'vip@petrokimia.my', password:'vip123', role:'vip', org:'Petrokimia Negara Bhd', ic:'', phone:'', status:'approved', createdAt:now },
-    { id:'u_p1', username:'participant', name:'Ahmad Zaki bin Ismail', email:'participant@cftp.my', password:'participant123', role:'participant', ic:'900101-14-5567', org:'Makmal Analisis Sdn Bhd', phone:'', status:'approved', createdAt:now },
-    { id:'u_p2', username:'siti', name:'Siti Nurhaliza binti Omar', email:'siti@cftp.my', password:'participant123', role:'participant', ic:'920315-10-6621', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now },
-    { id:'u_p3', username:'lim', name:'Lim Wei Sheng', email:'lim@cftp.my', password:'participant123', role:'participant', ic:'880722-08-4471', org:'Makmal Analisis Sdn Bhd', phone:'', status:'approved', createdAt:now },
-    { id:'u_p4', username:'kavitha', name:'Kavitha a/p Subramaniam', email:'kavitha@cftp.my', password:'participant123', role:'participant', ic:'950508-06-3388', org:'Kimia Industri Malaysia', phone:'', status:'approved', createdAt:now },
-    { id:'u_p5', username:'raj', name:'Raj Kumar a/l Selvam', email:'raj@petrokimia.my', password:'participant123', role:'participant', ic:'910210-08-5577', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now },
-    { id:'u_p6', username:'nurul', name:'Nurul Izzah binti Kamal', email:'nurul@petrokimia.my', password:'participant123', role:'participant', ic:'930712-10-4422', org:'Petrokimia Negara Bhd', phone:'', status:'approved', createdAt:now }
-  ];
-  const modules = [
-    { id:'mod_1', name:'Modul 1 — Asas Kimia', description:'Pengenalan konsep asas kimia, atom, molekul dan stoikiometri.', trainerId:'u_tr1', facilitatorId:'u_tr2', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(1) },
-    { id:'mod_2', name:'Modul 2 — Keselamatan Makmal', description:'Pengurusan keselamatan bahan kimia, MSDS dan prosedur kecemasan.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(3) },
-    { id:'mod_3', name:'Modul 3 — Teknik Makmal', description:'Teknik penyediaan larutan dan penggunaan radas analitik.', trainerId:'u_tr1', facilitatorId:'u_fac1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:false, materials: [], startDate: addDays0(10) },
-    { id:'mod_4', name:'Modul 4 — Analisis Kuantitatif', description:'Analisis titrimetri asid-bes dan pengiraan kepekatan.', trainerId:'u_tr2', facilitatorId:'u_tr1', createdBy:'u_admin', createdAt:now, updatedAt:now, published:true, materials: [], startDate: addDays0(4) }
-  ];
-  const rubrics = [
-    { id:'rb_1', name:'Rubrik Asas Praktikal Makmal', description:'Rubrik umum untuk penilaian praktikal kimia.', approvalStatus:'approved', reviewedBy:'u_tr1', reviewedAt:now, reviewRemarks:'',
-      criteria: [
-        { name:'Persediaan & Keselamatan', weight:25, levels:[{label:'Cemerlang',mark:5,description:'Lengkap & selamat.'},{label:'Baik',mark:4,description:'Hampir lengkap.'},{label:'Sederhana',mark:3,description:'Ada kecuaian.'},{label:'Lemah',mark:2,description:'Banyak kesilapan.'},{label:'Gagal',mark:1,description:'Tidak selamat.'}]},
-        { name:'Teknik & Ketepatan', weight:45, levels:[{label:'Cemerlang',mark:5,description:'Tepat & konsisten.'},{label:'Baik',mark:4,description:'Ralat kecil.'},{label:'Sederhana',mark:3,description:'Ralat sederhana.'},{label:'Lemah',mark:2,description:'Ralat besar.'},{label:'Gagal',mark:1,description:'Tidak boleh.'}]},
-        { name:'Pengiraan & Pelaporan', weight:30, levels:[{label:'Cemerlang',mark:5,description:'Tepat & lengkap.'},{label:'Baik',mark:4,description:'Ralat kecil.'},{label:'Sederhana',mark:3,description:'Sebahagian.'},{label:'Lemah',mark:2,description:'Banyak ralat.'},{label:'Gagal',mark:1,description:'Tidak lengkap.'}]}
-      ], createdBy:'u_admin', createdAt:now, updatedAt:now },
-    { id:'rb_2', name:'Rubrik Titrasi Asid-Bes', description:'Khusus untuk eksperimen titrasi asid-bes.', approvalStatus:'approved', reviewedBy:'u_tr2', reviewedAt:now, reviewRemarks:'',
-      criteria: [
-        { name:'Persediaan Radas', weight:20, levels:[{label:'Cemerlang',mark:5,description:'Sedia & bersih.'},{label:'Baik',mark:4,description:'Pembetulan kecil.'},{label:'Sederhana',mark:3,description:'Kurang bersih.'},{label:'Lemah',mark:2,description:'Bimbingan.'},{label:'Gagal',mark:1,description:'Tidak sedia.'}]},
-        { name:'Teknik Titrasi', weight:40, levels:[{label:'Cemerlang',mark:5,description:'Terkawal.'},{label:'Baik',mark:4,description:'Baik.'},{label:'Sederhana',mark:3,description:'Tidak konsisten.'},{label:'Lemah',mark:2,description:'Banyak ralat.'},{label:'Gagal',mark:1,description:'Tidak boleh.'}]},
-        { name:'Pengiraan & Ketepatan', weight:40, levels:[{label:'Cemerlang',mark:5,description:'Tepat.'},{label:'Baik',mark:4,description:'Ralat kecil.'},{label:'Sederhana',mark:3,description:'Sederhana.'},{label:'Lemah',mark:2,description:'Besar.'},{label:'Gagal',mark:1,description:'Tidak boleh.'}]}
-      ], createdBy:'u_admin', createdAt:now, updatedAt:now }
-  ];
-  const activities = [
-    { id:'act_1', trainerId:'u_tr1', order:1, published:true, moduleId:'mod_1', module:'Modul 1 — Asas Kimia',
-      title:'Pengenalan kepada Kimia Asas', date:'2026-02-10', duration:4,
-      objectives:'Memahami konsep asas atom, molekul, jadual berkala dan pengiraan stoikiometri asas.',
-      instructions:'Hadir 15 minit awal. Bawa kalkulator saintifik.', materials:'Modul PDF, Jadual Berkala, Kalkulator', method:'Kuiz + Praktikal',
-      rubricId:'rb_1', quizOpenAt: null, quizCloseAt: null, quizDuration: 15,
-      quiz: [
-        { q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1, sourceBankId:'qb_1', moduleId:'mod_1' },
-        { q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1, sourceBankId:'qb_2', moduleId:'mod_1' },
-        { q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2, sourceBankId:'qb_3', moduleId:'mod_1' }
-      ], createdAt:now, updatedAt:now },
-    { id:'act_2', trainerId:'u_tr1', order:2, published:true, moduleId:'mod_2', module:'Modul 2 — Keselamatan Makmal',
-      title:'Keselamatan Bahan Kimia & MSDS', date:'2026-02-17', duration:3,
-      objectives:'Mengenal pasti hazard, membaca MSDS dan prosedur tumpahan.', instructions:'Sesi praktikal di makmal.', materials:'MSDS, kit tumpahan, PPE', method:'Kuiz + Praktikal',
-      rubricId:'rb_1', quizOpenAt: null, quizCloseAt: null, quizDuration: 10,
-      quiz: [
-        { q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0, sourceBankId:'qb_4', moduleId:'mod_2' },
-        { q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2, sourceBankId:'qb_5', moduleId:'mod_2' },
-        { q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0, sourceBankId:'qb_6', moduleId:'mod_2' }
-      ], createdAt:now, updatedAt:now },
-    { id:'act_3', trainerId:'u_tr1', order:3, published:false, moduleId:'mod_3', module:'Modul 3 — Teknik Makmal',
-      title:'Penyediaan Larutan Standard', date:'2026-03-02', duration:5,
-      objectives:'Menyediakan larutan standard dengan kepekatan tepat.', instructions:'Bawa buku log makmal.', materials:'Buret, pipet, neraca', method:'Kuiz + Praktikal',
-      rubricId:null, quizOpenAt: null, quizCloseAt: null, quizDuration: null,
-      quiz: [
-        { q:'Berapakah jisim NaOH (Mr=40) untuk 1 L larutan 0.1 M?', options:['0.4 g','4.0 g','40 g','400 g'], answer:1, sourceBankId:'qb_7', moduleId:'mod_3' },
-        { q:'Alat paling tepat untuk 25.00 mL?', options:['Silinder','Pipet volumetrik','Bikar','Kelalang kon'], answer:1, sourceBankId:'qb_8', moduleId:'mod_3' }
-      ], createdAt:now, updatedAt:now },
-    { id:'act_4', trainerId:'u_tr2', order:4, published:true, moduleId:'mod_4', module:'Modul 4 — Analisis Kuantitatif',
-      title:'Analisis Titrimetri Asid-Bes', date:'2026-03-12', duration:6,
-      objectives:'Menjalankan titrasi asid-bes dan mengira kepekatan.', instructions:'Sesi makmal penuh.', materials:'Buret, fenolftalein, NaOH', method:'Kuiz + Praktikal',
-      rubricId:'rb_2', quizOpenAt: null, quizCloseAt: null, quizDuration: 20,
-      quiz: [
-        { q:'Fungsi fenolftalein dalam titrasi?', options:['Menstabilkan','Menunjukkan takat akhir','Meningkatkan pH','Meneutralkan'], answer:1, sourceBankId:'qb_9', moduleId:'mod_4' },
-        { q:'Titik akhir asid kuat–bes kuat biasanya pH…', options:['3','5','7','10'], answer:2, sourceBankId:'qb_10', moduleId:'mod_4' }
-      ], createdAt:now, updatedAt:now }
-  ];
-  const attempts = [
-    { id:'at_1', activityId:'act_1', participantId:'u_p1', answers:[1,1,2], score:3, total:3, at:'2026-02-10T09:20:00.000Z' },
-    { id:'at_2', activityId:'act_2', participantId:'u_p1', answers:[0,2,0], score:3, total:3, at:'2026-02-17T10:05:00.000Z' },
-    { id:'at_3', activityId:'act_1', participantId:'u_p2', answers:[1,1,0], score:2, total:3, at:'2026-02-10T09:22:00.000Z' }
-  ];
-  const attendance = [
-    { id:'att_1', activityId:'act_1', participantId:'u_p1', status:'Hadir', by:'u_tr1', at:'2026-02-10T08:55:00.000Z' },
-    { id:'att_2', activityId:'act_2', participantId:'u_p1', status:'Hadir', by:'u_tr1', at:'2026-02-17T08:50:00.000Z' }
-  ];
-  const practical = [
-    { id:'pr_1', activityId:'act_1', participantId:'u_p1', scores:[5,4,5], total:91.7, remarks:'Sangat baik.', by:'u_tr1', at:'2026-02-10T12:10:00.000Z' },
-    { id:'pr_2', activityId:'act_2', participantId:'u_p1', scores:[5,5,5], total:100, remarks:'Cemerlang.', by:'u_tr1', at:'2026-02-17T12:30:00.000Z' }
-  ];
-  const enrollments = [
-    { id:'en_1', moduleId:'mod_1', participantId:'u_p1', enrolledBy:'u_p1', enrolledAt:'2026-02-01T08:00:00.000Z', status:'Aktif' },
-    { id:'en_2', moduleId:'mod_2', participantId:'u_p1', enrolledBy:'u_p1', enrolledAt:'2026-02-01T08:00:00.000Z', status:'Aktif' },
-    { id:'en_3', moduleId:'mod_1', participantId:'u_p2', enrolledBy:'u_p2', enrolledAt:'2026-02-02T09:15:00.000Z', status:'Aktif' },
-    { id:'en_4', moduleId:'mod_4', participantId:'u_p3', enrolledBy:'u_admin', enrolledAt:'2026-03-01T10:00:00.000Z', status:'Aktif' },
-    { id:'en_5', moduleId:'mod_1', participantId:'u_p5', enrolledBy:'u_p5', enrolledAt:'2026-02-03T09:15:00.000Z', status:'Aktif' },
-    { id:'en_6', moduleId:'mod_2', participantId:'u_p5', enrolledBy:'u_p5', enrolledAt:'2026-02-03T09:15:00.000Z', status:'Aktif' },
-    { id:'en_7', moduleId:'mod_1', participantId:'u_p6', enrolledBy:'u_p6', enrolledAt:'2026-02-04T09:15:00.000Z', status:'Aktif' }
-  ];
-  const audit = [];
-  const addDays = addDays0;
-  const timetables = [
-    { id:'tt_1', moduleId:'mod_1', date: addDays(1), startTime:'09:00', endTime:'10:30', title:'Pengenalan Kimia & Atom', instructor:'Pn. Nurul Aina binti Hassan', location:'Bilik Seminar A', notes:'Bawa jadual berkala.', createdBy:'u_tr1', createdAt:now, updatedAt:now },
-    { id:'tt_2', moduleId:'mod_1', date: addDays(1), startTime:'11:00', endTime:'12:30', title:'Stoikiometri Asas', instructor:'Pn. Nurul Aina binti Hassan', location:'Bilik Seminar A', notes:'', createdBy:'u_tr1', createdAt:now, updatedAt:now },
-    { id:'tt_3', moduleId:'mod_1', date: addDays(2), startTime:'09:00', endTime:'12:00', title:'Bengkel Latihan Atom', instructor:'Pn. Nurul Aina binti Hassan', location:'Makmal Kimia 1', notes:'Praktikal.', createdBy:'u_tr1', createdAt:now, updatedAt:now },
-    { id:'tt_4', moduleId:'mod_2', date: addDays(3), startTime:'14:00', endTime:'16:00', title:'Pengenalan MSDS', instructor:'Pn. Nurul Aina binti Hassan', location:'Bilik Seminar B', notes:'', createdBy:'u_tr1', createdAt:now, updatedAt:now },
-    { id:'tt_5', moduleId:'mod_4', date: addDays(4), startTime:'09:00', endTime:'11:30', title:'Teknik Titrasi', instructor:'En. Rajesh Kumaran', location:'Makmal Analisis', notes:'Bawa PPE.', createdBy:'u_tr2', createdAt:now, updatedAt:now }
-  ];
-  const certificates = [];
-  const finalExams = [
-    { id:'fe_1', title:'Peperiksaan Akhir Teori — Kimia Asas',
-      description:'Peperiksaan akhir teori merangkumi Modul 1 dan Modul 2.',
-      type:'theory',
-      moduleConfigs: [
-        { moduleId:'mod_1', questionCount: 3, questions: [
-          { q:'Apakah simbol kimia bagi Natrium?', options:['N','Na','Ni','K'], answer:1 },
-          { q:'Berapakah bilangan proton dalam atom karbon (C)?', options:['4','6','12','14'], answer:1 },
-          { q:'Apakah nilai pH bagi larutan neutral pada 25°C?', options:['0','5','7','14'], answer:2 }
-        ], submitted: true, submittedAt: now, submittedBy: 'u_tr1' },
-        { moduleId:'mod_2', questionCount: 3, questions: [
-          { q:'Apakah maksud singkatan MSDS?', options:['Material Safety Data Sheet','Malaysian Safety Data Standard','Material Standard Data System','Manufacturing Safety Document Sheet'], answer:0 },
-          { q:'Apakah langkah pertama apabila bahan kimia tertumpah?', options:['Lap dengan kain basah','Hubungi pihak media','Maklumkan penyelia dan rujuk MSDS/SOP','Terus neutralkan dengan air'], answer:2 },
-          { q:'PPE minimum di makmal kimia ialah…', options:['Goggles, kot makmal dan sarung tangan','Topi keledar dan kasut boot','Apron dan selipar','Tiada PPE diperlukan'], answer:0 }
-        ], submitted: true, submittedAt: now, submittedBy: 'u_tr1' }
-      ],
-      openAt: addDays(7) + 'T09:00', closeAt: addDays(7) + 'T11:00', duration: 60,
-      rubricId: null, published: true, createdBy:'u_admin', createdAt:now, updatedAt:now },
-    { id:'fe_2', title:'Peperiksaan Akhir Praktikal — Titrasi',
-      description:'Sesi praktikal peperiksaan akhir bagi Modul 4.',
-      type:'practical',
-      moduleConfigs: [
-        { moduleId:'mod_4', questionCount: 0, questions: [], submitted: true, submittedAt: now, submittedBy:'u_tr2' }
-      ],
-      openAt: addDays(10) + 'T09:00', closeAt: addDays(10) + 'T12:00', duration: null,
-      rubricId:'rb_2', published: true, createdBy:'u_admin', createdAt:now, updatedAt:now },
-    { id:'fe_3', title:'Peperiksaan Akhir Teori Komprehensif',
-      description:'Peperiksaan akhir teori merangkumi Modul 1, 2 dan 4. Menunggu jurulatih hantar soalan.',
-      type:'theory',
-      moduleConfigs: [
-        { moduleId:'mod_1', questionCount: 2, questions: [], submitted: false, submittedAt: null, submittedBy: null },
-        { moduleId:'mod_2', questionCount: 2, questions: [], submitted: false, submittedAt: null, submittedBy: null },
-        { moduleId:'mod_4', questionCount: 2, questions: [], submitted: false, submittedAt: null, submittedBy: null }
-      ],
-      openAt: addDays(14) + 'T09:00', closeAt: addDays(14) + 'T11:00', duration: 90,
-      rubricId: null, published: false, createdBy:'u_admin', createdAt:now, updatedAt:now }
-  ];
-  const feAttempts = [];
-  const fePractical = [];
-  const retests = [];
-  const pendingApprovals = [];
-  return { users, modules, activities, enrollments, attempts, attendance, practical, audit, questionBank: seedQuestionBank(), rubrics, timetables, certificates, finalExams, feAttempts, fePractical, retests, pendingApprovals, _rev: 0, _syncId: 'init_' + Date.now(), _syncTs: now };
+  return {
+    users: [], modules: [], activities: [], enrollments: [], attempts: [], attendance: [],
+    practical: [], audit: [], questionBank: [], rubrics: [], timetables: [], certificates: [],
+    finalExams: [], feAttempts: [], fePractical: [], retests: [], pendingApprovals: [],
+    _rev: 0, _syncId: 'init_' + Date.now(), _syncTs: now
+  };
 }
 
 function logAudit(action, entity, entityId, details) {
@@ -3348,6 +3038,7 @@ async function downloadWithProgress(url, filename, logInfo) {
     }
   }
 }
+
 /* =========================================================
    STANDALONE FINAL EXAM
    ========================================================= */
@@ -3435,7 +3126,6 @@ function startFinalTimer(fe, pid, initialMs) {
   tick(); quizTimerInterval = setInterval(tick, 1000);
 }
 
-// ✅ PATCH: submitFinalAttempt uses appendRecords
 async function submitFinalAttempt(fe, pid, answers, isAuto) {
   const allQ = feQuestionsAll(fe);
   const score = allQ.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
@@ -3556,7 +3246,6 @@ function startQuizTimer(act, pid, initialMs) {
   tick(); quizTimerInterval = setInterval(tick, 1000);
 }
 
-// ✅ PATCH: submitQuizAttempt uses appendRecords
 async function submitQuizAttempt(act, pid, answers, isAuto) {
   const score = act.quiz.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
   const prevBest = getAttempt(act.id, pid);
@@ -3722,8 +3411,8 @@ function loginView() {
       <div class="login-left-content">
         <div class="login-left-header">
           <div class="login-logo-large">CF</div>
-          <h1>Chemical Fundamentals<br>Training Programme</h1>
-          <p class="login-subtitle">Malaysia - Training Management System</p>
+          <h1>Training Management<br>System</h1>
+          <p class="login-subtitle">${t('sys_sub')}</p>
           <div class="login-divider"></div>
           <p class="login-tagline">Enhancing Skills &bull; Building Competence &bull; For A Better Tomorrow</p>
         </div>
@@ -3738,8 +3427,8 @@ function loginView() {
         <div class="login-card-brand">
           <div class="logo-square">CF</div>
           <div>
-            <h2>Chemical Fundamentals<br>Training Programme</h2>
-            <p>Malaysia - Training Management System</p>
+            <h2>Training Management<br>System</h2>
+            <p>${t('sys_sub')}</p>
           </div>
         </div>
         ${isRegister ? registerForm() : loginForm()}
@@ -3789,11 +3478,11 @@ function registerForm() {
     </div>
     <div class="login-field">
       <label>${t('username')} *</label>
-      <input class="login-input" name="username" required pattern="[A-Za-z0-9_]{3,}" placeholder="cth: ahmad_87" value="${esc(draft.username || '')}" />
+      <input class="login-input" name="username" required pattern="[A-Za-z0-9_]{3,}" placeholder="cth: nama_pengguna" value="${esc(draft.username || '')}" />
     </div>
     <div class="login-field">
       <label>${t('lbl_email')} *</label>
-      <input class="login-input" type="email" name="email" required placeholder="nama@email.com" value="${esc(draft.email || '')}" />
+      <input class="login-input" type="email" name="email" required placeholder="email@domain.com" value="${esc(draft.email || '')}" />
     </div>
     <div class="login-field">
       <label>${t('lbl_org')}</label>
@@ -4461,6 +4150,7 @@ function rejectPendingApproval(paId, reason) {
   logAudit('Reject Correction', 'Penilaian', pa.type + ':' + pa.id, userName(pa.participantId) + (reason ? ' — ' + reason : ''));
   toast(t('pa_rejected_msg')); render();
 }
+
 /* =========================================================
    MODULES
    ========================================================= */
@@ -6242,7 +5932,7 @@ function individualReportHTML(pid) {
     <div class="summary"><div class="box"><div class="n">${acts.length}</div><div class="l">${t('rpt_summary_activities')}</div></div><div class="box"><div class="n">${done.length}</div><div class="l">${t('rpt_summary_assessed')}</div></div><div class="box"><div class="n">${avgScore !== null ? avgScore + '%' : '—'}</div><div class="l">${t('rpt_summary_average')}</div></div></div>
     <h2>${t('rpt_details')}</h2>
     <table><thead><tr><th>#</th><th>${t('rpt_col_activity')}</th><th>${t('rpt_col_module')}</th><th>${t('rpt_col_date')}</th><th>${t('rpt_col_quiz')}</th><th>${t('rpt_col_rubric')}</th><th>${t('rpt_col_score')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${rows.map(({ a, s }, i) => `<tr><td>${i+1}</td><td><b>${tce(a.title)}</b></td><td>${tce(moduleName(a.moduleId))}</td><td>${fmtDate(a.date)}</td><td>${s.quizPct !== null ? `${s.attempt.score}/${s.attempt.total} (${s.quizPct}%)` : '—'}</td><td>${s.practical ? `${s.practical.total.toFixed(1)}%` : '—'}</td><td><b>${s.overall !== null ? s.overall + '%' : '—'}</b></td><td>${tagFor(s.overall)}</td></tr>`).join('')}</tbody></table>
-    <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
+    <div class="foot"><span>Training System</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
 function programReportHTML(orgFilter) {
   const parts = allParticipants().filter(p => !orgFilter || p.org === orgFilter).sort((a,b) => (a.name||'').localeCompare(b.name||''));
@@ -6250,11 +5940,11 @@ function programReportHTML(orgFilter) {
   const ds = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
   const per = parts.map(p => { const acts = accessibleActivities(p.id); const scores = acts.map(a => scoreFor(a, p.id)).filter(s => s.hasData); const a = scores.length ? Math.round(avg(scores.map(s => s.overall))) : null; return { p, done: scores.length, avg: a }; });
   return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('rpt_report_title')}</title><style>${PRINT_CSS}</style></head><body>
-    <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('rpt_program_title')}${orgFilter ? ' — ' + tce(orgFilter) : ''}</p></div><div class="rpt-logo">CF</div></div>
+    <div class="rpt-head"><div><h1>Training System</h1><p>${t('rpt_program_title')}${orgFilter ? ' — ' + tce(orgFilter) : ''}</p></div><div class="rpt-logo">CF</div></div>
     <div class="summary"><div class="box"><div class="n">${parts.length}</div><div class="l">${t('rpt_program_participants')}</div></div><div class="box"><div class="n">${mods.length}</div><div class="l">${t('rpt_program_modules')}</div></div><div class="box"><div class="n">${DB.enrollments.length}</div><div class="l">${t('rpt_program_enrollment')}</div></div></div>
     <h2>${t('rpt_program_performance')}</h2>
     <table><thead><tr><th>#</th><th>${t('rpt_col_participant')}</th><th>${t('rpt_col_org')}</th><th>${t('rpt_col_assessed')}</th><th>${t('rpt_col_average')}</th><th>${t('rpt_col_status')}</th></tr></thead><tbody>${per.map((x, i) => `<tr><td>${i+1}</td><td>${tce(x.p.name)}</td><td>${tce(x.p.org || '—')}</td><td>${x.done}</td><td><b>${x.avg !== null ? x.avg + '%' : '—'}</b></td><td>${tagFor(x.avg)}</td></tr>`).join('')}</tbody></table>
-    <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
+    <div class="foot"><span>Training System</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
 
 function timetableReportHTML(mid) {
@@ -6276,11 +5966,11 @@ function timetableReportHTML(mid) {
     return `<tr><td colspan="5" style="background:#e8f2ee;font-weight:bold;color:#0b6b53">${fmtDateLong(date)}${isTodayDate(date) ? ' · ' + t('tt_today') : ''}</td></tr>${dayEntries}`;
   }).join('');
   return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('tt_title')}</title><style>${PRINT_CSS}</style></head><body>
-    <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('tt_title')} — ${tce(m.name)}</p></div><div class="rpt-logo">CF</div></div>
+    <div class="rpt-head"><div><h1>Training System</h1><p>${t('tt_title')} — ${tce(m.name)}</p></div><div class="rpt-logo">CF</div></div>
     <table><tr><td><b>${t('lbl_module')}:</b> ${tce(m.name)}</td><td><b>${t('lbl_trainer')}:</b> ${tce(userName(m.trainerId))}</td></tr><tr><td><b>${t('module_start_date')}:</b> ${m.startDate ? fmtDate(m.startDate) : '—'}</td><td><b>${t('lbl_facilitator')}:</b> ${m.facilitatorId ? tce(userName(m.facilitatorId)) : '—'}</td></tr><tr><td><b>${t('tt_entries_count', entries.length)}</b></td><td><b>${t('lbl_date')}:</b> ${ds}</td></tr></table>
     <h2>${t('tt_title')}</h2>
     <table><thead><tr><th style="width:130px">${t('quiz_time')}</th><th>${t('tt_topic')}</th><th>${t('tt_instructor')}</th><th>${t('tt_location')}</th><th>${t('tt_notes')}</th></tr></thead><tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:#888">${t('tt_no_entries')}</td></tr>`}</tbody></table>
-    <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
+    <div class="foot"><span>Training System</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
 }
 
 function printHTML(html) {
@@ -6828,7 +6518,6 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
-// ✅ PATCH: pullFromServer (60s polling) + visibilitychange
 async function pullFromServer(showToast) {
   if (!state.user) return;
   if (document.hidden) return;
