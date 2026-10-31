@@ -356,6 +356,11 @@ tbody tr:hover{background:#f9fcfb}
   .pwd-reqs{grid-template-columns:1fr}
 }
 
+/* Spider Web reviewer and PDF controls */
+.overall-spider-summary{display:flex;gap:10px;margin:12px 0}.overall-spider-summary>div{flex:1;padding:10px;border:1px solid var(--line,#dce6e1);border-radius:8px;background:var(--surface-2,#f7faf8)}.overall-spider-summary small{display:block;color:var(--muted);font-size:.7rem;text-transform:uppercase}.overall-spider-summary strong{display:block;font-size:1.15rem;color:var(--brand);margin-top:3px}.overall-spider-chart{text-align:center}.overall-spider-chart svg{width:100%;max-width:760px;height:auto;max-height:560px}.overall-spider-block .table-wrap{margin-top:12px}@media(max-width:700px){.overall-spider-summary{flex-wrap:wrap}.overall-spider-summary>div{min-width:30%}}
+.spider-review-card{border:1px solid #cbded4;background:linear-gradient(145deg,#f7fbf8,#fff)}
+.spider-review-modal{max-height:70vh;overflow:auto}.spider-review-modal .spider-dashboard{border:0;padding:0;box-shadow:none}
+@media(max-width:760px){.spider-layout{grid-template-columns:1fr}.spider-review-card .toolbar{align-items:stretch}.spider-review-card select{max-width:100%!important;width:100%}}
 /* Participant assessment spider/radar dashboard */
 .spider-dashboard{overflow:hidden}
 .spider-module{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px;background:var(--surface,#fff)}
@@ -923,11 +928,61 @@ async function importTimetableExcel(file, defaultMid) {
    ========================================================= */
 const CONTENT_I18N = {};
 
+// Rubric content is stored in Malay (source) and English (translated display).
+async function translateMsToEn(text) {
+  const value = String(text ?? '').trim();
+  if (!value) return '';
+  if (CONTENT_I18N[value] !== undefined) return CONTENT_I18N[value];
+  try {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=ms&tl=en&dt=t&q=' + encodeURIComponent(value);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!response.ok) throw new Error('Translation service unavailable');
+    const data = await response.json();
+    const translated = (data[0] || []).map(x => x[0] || '').join('').trim();
+    if (!translated) throw new Error('Empty translation');
+    CONTENT_I18N[value] = translated;
+    return translated;
+  } catch (err) {
+    console.warn('Rubric translation unavailable:', err);
+    return value;
+  }
+}
+async function translateAllRubricContent() {
+  const jobs = [];
+  const add = (obj, field) => {
+    if (!obj || !obj[field]) return;
+    const enField = field + '_en';
+    if (!obj[enField]) jobs.push(translateMsToEn(obj[field]).then(v => { obj[enField] = v; }));
+    else CONTENT_I18N[obj[field]] = obj[enField];
+  };
+  (DB.rubrics || []).forEach(rb => {
+    add(rb, 'name'); add(rb, 'description');
+    (rb.criteria || []).forEach(c => { add(c, 'name'); (c.levels || []).forEach(l => { add(l, 'label'); add(l, 'description'); }); });
+  });
+  (state.tempRubric || []).forEach(c => { add(c, 'name'); (c.levels || []).forEach(l => { add(l, 'label'); add(l, 'description'); }); });
+  if (state.tempRubricMeta) { add(state.tempRubricMeta, 'name'); add(state.tempRubricMeta, 'description'); }
+  await Promise.all(jobs);
+}
+function rubricText(obj, field) {
+  if (!obj) return '';
+  if (currentLang === 'en' && obj[field + '_en']) return obj[field + '_en'];
+  return obj[field] || '';
+}
+
 function tc(str) {
   if (str === null || str === undefined) return '';
   const s = String(str);
   if (currentLang === 'ms') return s;
   if (CONTENT_I18N[s] !== undefined) return CONTENT_I18N[s];
+  if (currentLang === 'en') {
+    for (const rb of (DB.rubrics || [])) {
+      const objs = [rb, ...(rb.criteria || []), ...((rb.criteria || []).flatMap(c => c.levels || []))];
+      for (const obj of objs) for (const f of ['name','description','label']) if (obj[f] === s && obj[f + '_en']) return obj[f + '_en'];
+    }
+  }
   const trimmed = s.trim();
   if (CONTENT_I18N[trimmed] !== undefined) return CONTENT_I18N[trimmed];
   const lower = trimmed.toLowerCase();
@@ -948,9 +1003,9 @@ const I18N = {
     lang_toggle: 'EN', lang_tooltip: 'Tukar ke Bahasa Inggeris',
     nav_dashboard: 'Dashboard', nav_modules: 'Pengurusan Modul', nav_modules_own: 'Modul Saya',
     spider_title: 'Prestasi Penilaian Mengikut Modul',
-    spider_hint: 'Carta radar menunjukkan semua skor Quiz dan Practical Test bagi setiap modul yang anda sertai. Skor yang belum diperoleh ditandakan sebagai belum dinilai.',
-    spider_quiz: 'Quiz', spider_practical: 'Practical Test',
-    spider_no_assessments: 'Belum ada Quiz atau Practical Test untuk modul ini.',
+    spider_hint: 'Carta radar memaparkan pencapaian bagi setiap kriteria Practical Assessment dalam rubrik modul. Skor setiap kriteria dikira berbanding markah maksimum kriteria tersebut.',
+    spider_quiz: 'Kuiz', spider_practical: 'Penilaian Praktikal',
+    spider_no_assessments: 'Belum ada kriteria Practical Assessment untuk modul ini.',
     spider_no_scores: 'Belum ada skor penilaian direkodkan.',
     spider_assessment: 'Penilaian', spider_score: 'Skor',
     spider_not_taken: 'Belum dinilai', spider_assessed: 'Dinilai',
@@ -1466,9 +1521,9 @@ const I18N = {
     lang_toggle: 'BM', lang_tooltip: 'Switch to Malay',
     nav_dashboard: 'Dashboard', nav_modules: 'Module Management', nav_modules_own: 'My Modules',
     spider_title: 'Assessment Performance by Module',
-    spider_hint: 'Radar charts show all Quiz and Practical Test scores for each module you joined. Assessments without a score are marked as not yet assessed.',
-    spider_quiz: 'Quiz', spider_practical: 'Practical Test',
-    spider_no_assessments: 'There are no Quiz or Practical Test assessments in this module yet.',
+    spider_hint: 'The radar chart displays performance for each Practical Assessment rubric criterion in the module. Each criterion score is normalised against its maximum mark.',
+    spider_quiz: 'Kuiz', spider_practical: 'Penilaian Praktikal',
+    spider_no_assessments: 'There are no Practical Assessment rubric criteria for this module yet.',
     spider_no_scores: 'No assessment scores have been recorded yet.',
     spider_assessment: 'Assessment', spider_score: 'Score',
     spider_not_taken: 'Not assessed', spider_assessed: 'Assessed',
@@ -3861,33 +3916,47 @@ function renderParticipantAssessmentSpider(pid, modules) {
     const modActs = accessibleActivities(pid).filter(a => a.moduleId === mod.id && a.published);
     const axes = [];
     modActs.forEach(act => {
-      const score = scoreFor(act, pid);
-      if (Array.isArray(act.quiz) && act.quiz.length) {
-        axes.push({ label: `${act.title} · ${t('spider_quiz')}`, shortLabel: `${act.title} · ${t('spider_quiz')}`, value: score.quizPct, actTitle: act.title, type: t('spider_quiz') });
-      }
-      if (getRubricCriteria(act).length) {
-        axes.push({ label: `${act.title} · ${t('spider_practical')}`, shortLabel: `${act.title} · ${t('spider_practical')}`, value: score.pracPct, actTitle: act.title, type: t('spider_practical') });
-      }
+      const criteria = getRubricCriteria(act);
+      if (!criteria.length) return;
+      const practical = getPractical(act.id, pid);
+      criteria.forEach((criterion, ci) => {
+        const selectedMark = practical && Array.isArray(practical.scores) && practical.scores[ci] !== undefined
+          ? Number(practical.scores[ci]) : null;
+        const maxMark = Math.max(0, ...(criterion.levels || []).map(level => Number(level.mark) || 0));
+        const pct = selectedMark !== null && maxMark > 0
+          ? Math.max(0, Math.min(100, (selectedMark / maxMark) * 100)) : null;
+        const selectedLevel = selectedMark === null ? '' : ((criterion.levels || []).find(level => Number(level.mark) === selectedMark)?.label || '');
+        axes.push({
+          label: criterion.name || `Criterion ${ci + 1}`,
+          shortLabel: criterion.name || `Criterion ${ci + 1}`,
+          activityTitle: act.title,
+          weight: Number(criterion.weight) || 0,
+          mark: selectedMark,
+          maxMark,
+          level: selectedLevel,
+          value: pct
+        });
+      });
     });
     if (!axes.length) return `<div class="spider-module"><h3>${tce(mod.name)}</h3><div class="empty">${t('spider_no_assessments')}</div></div>`;
 
-    const W = 440, H = 360, cx = 220, cy = 166, R = 112;
+    const W = 480, H = 390, cx = 240, cy = 178, R = 112;
     const n = axes.length;
     const pointAt = (i, pct) => {
       const angle = (-Math.PI / 2) + (2 * Math.PI * i / n);
       const rr = R * (pct / 100);
-      return { x: cx + rr * Math.cos(angle), y: cy + rr * Math.sin(angle), ax: cx + R * Math.cos(angle), ay: cy + R * Math.sin(angle), angle };
+      return { x: cx + rr * Math.cos(angle), y: cy + rr * Math.sin(angle), angle };
     };
     const grid = [20,40,60,80,100].map(level => {
       const pts = axes.map((_,i) => { const p = pointAt(i, level); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
       return `<polygon points="${pts}" fill="none" stroke="#dce7e2" stroke-width="1"/>`;
     }).join('');
-    const spokes = axes.map((a,i) => {
+    const spokes = axes.map((_,i) => {
       const p = pointAt(i,100);
       return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#dce7e2" stroke-width="1"/>`;
     }).join('');
     const ticks = [20,40,60,80,100].map(level => `<text x="${cx+4}" y="${(cy-R*level/100+3).toFixed(1)}" font-size="8" fill="#80918a">${level}</text>`).join('');
-    const valid = axes.map((a,i) => ({...a, i, p: a.value === null || a.value === undefined || !Number.isFinite(Number(a.value)) ? null : pointAt(i, Math.max(0,Math.min(100,Number(a.value))))}));
+    const valid = axes.map((a,i) => ({...a, i, p: a.value === null ? null : pointAt(i, a.value)}));
     const allScored = valid.every(v => v.p);
     const segments = [];
     if (allScored && valid.length >= 3) {
@@ -3895,7 +3964,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
     } else {
       for (let i=0;i<valid.length;i++) {
         const a = valid[i], b = valid[(i+1)%valid.length];
-        if (a.p && b.p) segments.push(`<line x1="${a.p.x}" y1="${a.p.y}" x2="${b.p.x}" y2="${b.p.y}" stroke="#15805b" stroke-width="2.5" stroke-linecap="round"/>`);
+        if (a.p && b.p && valid.length > 1) segments.push(`<line x1="${a.p.x}" y1="${a.p.y}" x2="${b.p.x}" y2="${b.p.y}" stroke="#15805b" stroke-width="2.5" stroke-linecap="round"/>`);
       }
     }
     const markers = valid.map(v => v.p
@@ -3903,13 +3972,13 @@ function renderParticipantAssessmentSpider(pid, modules) {
       : `<circle cx="${pointAt(v.i,100).x}" cy="${pointAt(v.i,100).y}" r="4" fill="#fff" stroke="#aab8b1" stroke-width="1.5"><title>${esc(v.label)}: ${esc(t('spider_not_taken'))}</title></circle>`
     ).join('');
     const labels = axes.map((a,i) => {
-      const p = pointAt(i, 119);
+      const p = pointAt(i, 121);
       const anchor = Math.abs(Math.cos(p.angle)) < .28 ? 'middle' : (Math.cos(p.angle) > 0 ? 'start' : 'end');
-      const short = a.shortLabel.length > 25 ? a.shortLabel.slice(0,22) + '…' : a.shortLabel;
-      return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>8?8:9}" fill="#52645c"><title>${esc(a.label)}</title>${esc(short)}</text>`;
+      const short = a.shortLabel.length > 27 ? a.shortLabel.slice(0,24) + '…' : a.shortLabel;
+      return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>9?8:9}" fill="#52645c"><title>${esc(a.label)} · ${esc(a.activityTitle)}</title>${esc(short)}</text>`;
     }).join('');
-    const scoreRows = axes.map(a => `<tr><td>${tce(a.actTitle)}</td><td>${esc(a.type)}</td><td>${a.value !== null && a.value !== undefined ? `<strong>${Math.round(a.value)}%</strong>` : `<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value !== null && a.value !== undefined ? `<span class="badge ok">${t('spider_assessed')}</span>` : `<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
-    const scoredCount = axes.filter(a => a.value !== null && a.value !== undefined).length;
+    const scoreRows = axes.map(a => `<tr><td><strong>${tce(a.label)}</strong><div class="muted" style="font-size:.72rem">${tce(a.activityTitle)}</div></td><td>${a.weight}%</td><td>${a.mark !== null ? `${a.mark} / ${a.maxMark}${a.level ? `<div class="muted" style="font-size:.72rem">${tce(a.level)}</div>` : ''}` : '—'}</td><td>${a.value !== null ? `<strong>${Math.round(a.value)}%</strong>` : `<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value !== null ? `<span class="badge ok">${t('spider_assessed')}</span>` : `<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
+    const scoredCount = axes.filter(a => a.value !== null).length;
     return `<div class="spider-module">
       <div class="spider-module-head"><h3>${tce(mod.name)}</h3><span class="badge info">${scoredCount}/${axes.length} ${t('spider_assessed').toLowerCase()}</span></div>
       <div class="spider-layout">
@@ -3920,7 +3989,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
           <div class="spider-legend"><span class="spider-legend-dot"></span>${t('spider_legend')}</div>
         </div>
         <div class="spider-data">
-          <div class="table-wrap"><table><thead><tr><th>${t('spider_assessment')}</th><th>${t('lbl_method')}</th><th>${t('spider_score')}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${scoreRows}</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>${t('lbl_criteria')}</th><th>${t('lbl_weight')}</th><th>${t('spider_score')}</th><th>Pencapaian</th><th>${t('lbl_status')}</th></tr></thead><tbody>${scoreRows}</tbody></table></div>
           ${scoredCount === 0 ? `<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>` : ''}
         </div>
       </div>
@@ -3928,7 +3997,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
   }).filter(Boolean).join('');
   if (!moduleCards) return '';
   return `<section class="card spider-dashboard">
-    <div class="card-head"><h2>🕸️ ${t('spider_title')}</h2></div>
+    <div class="card-head"><h2>🕸️ ${t('spider_title')}</h2><button class="btn btn-primary" data-act="spider-print-self" data-pid="${esc(state.user.id)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>
     <p class="muted" style="font-size:.84rem;margin:-4px 0 14px">${t('spider_hint')}</p>
     ${moduleCards}
   </section>`;
@@ -5457,12 +5526,13 @@ function openRubricEditor(rubricId, assignToActivityId) {
   if (isEdit && state.user.role === 'facilitator' && rb.createdBy !== state.user.id) { toast(t('rb_cannot_edit'), 'bad'); return; }
   state.editingRubricId = rubricId || null;
   state.tempRubric = isEdit ? JSON.parse(JSON.stringify(rb.criteria)) : [{ name:'', weight:100, levels:[{label:t('rb_level_excellent'),mark:5,description:''},{label:t('rb_level_good'),mark:4,description:''},{label:t('rb_level_fair'),mark:3,description:''},{label:t('rb_level_weak'),mark:2,description:''},{label:t('rb_level_fail'),mark:1,description:''}] }];
+  state.tempRubricMeta = isEdit ? { name: rb.name || '', name_en: rb.name_en || '', description: rb.description || '', description_en: rb.description_en || '' } : { name:'', name_en:'', description:'', description_en:'' };
   const isFac = state.user.role === 'facilitator';
   const statusBanner = isEdit ? `<div class="info-box ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}" style="margin-bottom:12px"><p style="margin:0">${rb.approvalStatus === 'approved' ? '✓ ' + t('rb_approved') : rb.approvalStatus === 'rejected' ? '✖ ' + t('rb_rejected') + (rb.reviewRemarks ? ' — ' + tce(rb.reviewRemarks) : '') : '⏳ ' + t('rb_pending_approval')}</p>${isFac ? `<p style="margin:4px 0 0;font-size:.8rem">${t('rb_facilitator_note')}</p>` : ''}</div>` : (isFac ? `<div class="info-box warn" style="margin-bottom:12px"><p style="margin:0">🧑‍🏫 ${t('rb_facilitator_note')}</p></div>` : '');
   openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${isEdit ? t('rb_edit') : t('rb_new_title')}</h2></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-rubric-config" data-aid="${assignToActivityId || ''}">💾 ${t('btn_save')}</button></div></div>
   ${statusBanner}
-  <div class="field"><label>${t('lbl_name')} *</label><input class="input" id="rubricName" value="${esc(isEdit ? rb.name : '')}" /></div>
-  <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" id="rubricDesc">${esc(isEdit ? (rb.description||'') : '')}</textarea></div>
+  <div class="field"><label>${t('lbl_name')} *</label><input class="input" id="rubricName" value="${esc(currentLang === 'en' ? (state.tempRubricMeta.name_en || tc(state.tempRubricMeta.name)) : state.tempRubricMeta.name)}" /></div>
+  <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" id="rubricDesc">${esc(currentLang === 'en' ? (state.tempRubricMeta.description_en || tc(state.tempRubricMeta.description)) : state.tempRubricMeta.description)}</textarea></div>
   <div class="info-box"><h4>💡 ${t('rb_guide_title')}</h4><ul><li>${t('rb_guide_1')}</li><li>${t('rb_guide_2')}</li></ul></div>
   <div id="rubricBuilderContainer"></div>`, 'modal-xl');
   renderRubricBuilder();
@@ -5471,7 +5541,7 @@ function renderRubricBuilder() {
   const c = document.getElementById('rubricBuilderContainer'); if (!c) return;
   const rubric = state.tempRubric || [];
   const tw = rubric.reduce((s, cc) => s + cc.weight, 0);
-  c.innerHTML = `<div class="rubric-builder">${rubric.map((cc, ci) => `<div class="rubric-criterion-card"><div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><input class="input" style="flex:1" value="${esc(cc.name)}" data-rb="name" data-ci="${ci}" placeholder="${t('rb_col_name')}" /><input class="input" type="number" style="width:80px" value="${cc.weight}" data-rb="weight" data-ci="${ci}" placeholder="%" min="0" /><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-crit" data-ci="${ci}">${t('btn_delete')}</button></div><table class="rubric-levels-table"><thead><tr><th style="width:120px">${t('rb_col_label')}</th><th style="width:80px">${t('rb_col_marks')}</th><th>${t('rb_col_desc')}</th><th style="width:40px"></th></tr></thead><tbody>${cc.levels.map((l, li) => `<tr><td><input class="input" style="font-size:12px;padding:4px" value="${esc(l.label)}" data-rb="l_label" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" type="number" style="font-size:12px;padding:4px" value="${l.mark}" data-rb="l_mark" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" style="font-size:12px;padding:4px" value="${esc(l.description)}" data-rb="l_desc" data-ci="${ci}" data-li="${li}" /></td><td><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-level" data-ci="${ci}" data-li="${li}">x</button></td></tr>`).join('')}</tbody></table><button type="button" class="btn btn-sm" style="margin-top:8px" data-act="rb-add-level" data-ci="${ci}">${t('rb_level_add')}</button></div>`).join('')}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px"><button type="button" class="btn btn-sm btn-primary" data-act="rb-add-crit">${t('rb_crit_add')}</button><div class="pill" style="${tw !== 100 ? 'background:#fdecea;color:var(--bad)' : ''}">${t('rb_total')}: ${tw}%</div></div></div>`;
+  c.innerHTML = `<div class="rubric-builder">${rubric.map((cc, ci) => `<div class="rubric-criterion-card"><div style="display:flex;gap:10px;align-items:center;margin-bottom:10px"><input class="input" style="flex:1" value="${esc(currentLang === 'en' ? (cc.name_en || tc(cc.name)) : cc.name)}" data-rb="name" data-ci="${ci}" placeholder="${t('rb_col_name')}" /><input class="input" type="number" style="width:80px" value="${cc.weight}" data-rb="weight" data-ci="${ci}" placeholder="%" min="0" /><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-crit" data-ci="${ci}">${t('btn_delete')}</button></div><table class="rubric-levels-table"><thead><tr><th style="width:120px">${t('rb_col_label')}</th><th style="width:80px">${t('rb_col_marks')}</th><th>${t('rb_col_desc')}</th><th style="width:40px"></th></tr></thead><tbody>${cc.levels.map((l, li) => `<tr><td><input class="input" style="font-size:12px;padding:4px" value="${esc(currentLang === 'en' ? (l.label_en || tc(l.label)) : l.label)}" data-rb="l_label" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" type="number" style="font-size:12px;padding:4px" value="${l.mark}" data-rb="l_mark" data-ci="${ci}" data-li="${li}" /></td><td><input class="input" style="font-size:12px;padding:4px" value="${esc(currentLang === 'en' ? (l.description_en || tc(l.description)) : l.description)}" data-rb="l_desc" data-ci="${ci}" data-li="${li}" /></td><td><button type="button" class="btn btn-sm btn-danger" data-act="rb-del-level" data-ci="${ci}" data-li="${li}">x</button></td></tr>`).join('')}</tbody></table><button type="button" class="btn btn-sm" style="margin-top:8px" data-act="rb-add-level" data-ci="${ci}">${t('rb_level_add')}</button></div>`).join('')}<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px"><button type="button" class="btn btn-sm btn-primary" data-act="rb-add-crit">${t('rb_crit_add')}</button><div class="pill" style="${tw !== 100 ? 'background:#fdecea;color:var(--bad)' : ''}">${t('rb_total')}: ${tw}%</div></div></div>`;
 }
 function handleSaveRubricConfig(assignToActivityId) {
   if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
@@ -5480,8 +5550,12 @@ function handleSaveRubricConfig(assignToActivityId) {
   if (tw !== 100) { toast(t('rb_weight_error', tw), 'bad'); return; }
   const nameEl = document.getElementById('rubricName');
   const descEl = document.getElementById('rubricDesc');
-  const name = nameEl ? nameEl.value.trim() : '';
-  const desc = descEl ? descEl.value.trim() : '';
+  const typedName = nameEl ? nameEl.value.trim() : '';
+  const typedDesc = descEl ? descEl.value.trim() : '';
+  const name = currentLang === 'en' ? (state.tempRubricMeta?.name || typedName) : typedName;
+  const desc = currentLang === 'en' ? (state.tempRubricMeta?.description || typedDesc) : typedDesc;
+  const name_en = currentLang === 'en' ? typedName : (state.tempRubricMeta?.name_en || '');
+  const description_en = currentLang === 'en' ? typedDesc : (state.tempRubricMeta?.description_en || '');
   if (!name) { toast(t('rb_name_required'), 'bad'); return; }
   const isFac = state.user.role === 'facilitator';
   const newStatus = isFac ? 'pending' : 'approved';
@@ -5492,12 +5566,12 @@ function handleSaveRubricConfig(assignToActivityId) {
     const rb = DB.rubrics.find(r => r.id === rubricId);
     if (!rb) { toast(t('msg_not_found'), 'bad'); return; }
     if (state.user.role === 'facilitator' && rb.createdBy !== state.user.id) { toast(t('rb_own_only_edit'), 'bad'); return; }
-    rb.name = name; rb.description = desc; rb.criteria = JSON.parse(JSON.stringify(state.tempRubric));
+    rb.name = name; rb.name_en = name_en; rb.description = desc; rb.description_en = description_en; rb.criteria = JSON.parse(JSON.stringify(state.tempRubric));
     rb.updatedAt = nowISO(); rb.approvalStatus = newStatus; rb.reviewedBy = reviewerId; rb.reviewedAt = reviewedAt;
     if (isFac) rb.reviewRemarks = '';
     logAudit('Update Rubric', 'Rubrik', rubricId, name + (isFac ? ' (pending)' : ''));
   } else {
-    const nr = { id: uid('rb'), name, description: desc, criteria: JSON.parse(JSON.stringify(state.tempRubric)), createdBy: state.user.id, createdAt: nowISO(), updatedAt: nowISO(), approvalStatus: newStatus, reviewedBy: reviewerId, reviewedAt, reviewRemarks: '' };
+    const nr = { id: uid('rb'), name, name_en, description: desc, description_en, criteria: JSON.parse(JSON.stringify(state.tempRubric)), createdBy: state.user.id, createdAt: nowISO(), updatedAt: nowISO(), approvalStatus: newStatus, reviewedBy: reviewerId, reviewedAt, reviewRemarks: '' };
     DB.rubrics.push(nr); rubricId = nr.id;
     logAudit('Create Rubric', 'Rubrik', nr.id, name + (isFac ? ' (pending)' : ''));
   }
@@ -5838,19 +5912,114 @@ function auditView() {
   return `<div class="card"><div class="card-head"><h2>${t('aud_title')}</h2><span class="muted">${entries.length}</span></div><div class="table-wrap"><table><thead><tr><th>${t('aud_time')}</th><th>${t('aud_user')}</th><th>${t('aud_action')}</th><th>${t('aud_details')}</th></tr></thead><tbody>${entries.map(e => `<tr><td style="white-space:nowrap">${fmtDateTime(e.at)}</td><td>${tce(e.actorName)}</td><td><span class="badge info">${esc(e.action)}</span></td><td><small>${tce(e.details)}</small></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function reportsView() {
-  const isVip = state.user.role === 'vip';
-  const isParticipant = state.user.role === 'participant';
+  const role = state.user.role;
+  const isVip = role === 'vip';
+  const isParticipant = role === 'participant';
   if (isVip) {
     const me = state.user;
     const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && u.org === me.org).sort((a,b) => (a.name||'').localeCompare(b.name||''));
-    const allParts = allParticipants().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    const allParts = allParticipants().filter(p => p.org === me.org).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0"><div class="card-head"><h2>📄 ${t('rep_title')}</h2><span class="pill">${tce(me.org || '—')}</span></div><p class="muted" style="margin:0">${t('vip_all_data_hint')}</p></div>
     <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button><button class="btn" data-act="report-program">${t('rep_program_btn')} — ALL</button></div></div>
-    <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>`;
+    <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button><button class="btn" data-act="spider-print-selected">🕸️ ${currentLang === 'en' ? 'Print Spider Web PDF' : 'Cetak Spider Web PDF'}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>`;
   }
-  const parts = allParticipants();
-  return `<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div>${isParticipant ? `<button class="btn btn-primary" data-act="report-individual" data-pid="${state.user.id}">${t('rep_generate')}</button>` : `<div class="toolbar"><select class="select" id="reportParticipant" style="max-width:340px">${parts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div>`}</div>${isParticipant ? '' : `<div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')}</button></div>`}`;
+  const parts = isParticipant ? [] : allParticipants();
+  let allowedModules = [];
+  let spiderParticipants = [];
+  if (role === 'admin') {
+    allowedModules = sortModules(DB.modules);
+    spiderParticipants = parts;
+  } else if (role === 'trainer' || role === 'facilitator') {
+    allowedModules = myModules();
+    const ids = new Set();
+    allowedModules.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id)));
+    spiderParticipants = parts.filter(p => ids.has(p.id));
+  }
+  const overallScopeParticipants = role === 'admin' ? parts : spiderParticipants;
+  const overallCard = !isParticipant && ['admin','trainer','facilitator'].includes(role) ? `<div class="card overall-spider-card"><div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Overall Spider Web — All Modules & Participants' : 'Spider Web Keseluruhan — Semua Modul & Peserta'}</h2><span class="pill">${overallScopeParticipants.length} ${currentLang === 'en' ? 'participants' : 'peserta'}</span></div><p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'Combines all training days/modules into one cohort-level spider web. Each axis represents a module and shows the average Practical Assessment rubric score for assessed participants.' : 'Menggabungkan semua hari/modul latihan dalam satu Spider Web keseluruhan. Setiap paksi mewakili satu modul dan menunjukkan purata skor rubrik Penilaian Praktikal bagi peserta yang telah dinilai.'}</p>${renderOverallSpider(allowedModules, overallScopeParticipants)}<div class="toolbar" style="margin-top:12px"><button class="btn btn-primary" data-act="spider-print-overall">📄 ${currentLang === 'en' ? 'Print Overall Spider Web PDF' : 'Cetak PDF Spider Web Keseluruhan'}</button></div></div>` : '';
+  const spiderCard = !isParticipant && ['admin','trainer','facilitator'].includes(role) ? `<div class="card spider-review-card">
+    <div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Student Spider Web Assessment' : 'Spider Web Penilaian Pelajar'}</h2><span class="pill">${spiderParticipants.length} ${currentLang === 'en' ? 'students' : 'pelajar'}</span></div>
+    <p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'Select a student to review Practical Assessment performance by rubric criterion. Trainers and facilitators can only access students enrolled in their assigned modules.' : 'Pilih pelajar untuk melihat prestasi Practical Assessment mengikut kriteria rubrik. Jurulatih dan fasilitator hanya boleh melihat pelajar yang berdaftar dalam modul di bawah tugasan mereka.'}</p>
+    <div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:420px">${spiderParticipants.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang === 'en' ? 'View Spider Web' : 'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>
+    ${spiderParticipants.length ? '' : `<div class="empty">${currentLang === 'en' ? 'No students are enrolled in your assigned modules.' : 'Tiada pelajar berdaftar dalam modul yang ditugaskan.'}</div>`}
+  </div>` : '';
+  if (isParticipant) {
+    return `<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><button class="btn btn-primary" data-act="report-individual" data-pid="${state.user.id}">${t('rep_generate')}</button></div>`;
+  }
+  return `${overallCard}${spiderCard}<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar"><select class="select" id="reportParticipant" style="max-width:340px">${parts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div></div><div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')}</button></div>`;
 }
+
+function overallSpiderDataset(moduleScope, participantScope) {
+  const modules = (moduleScope || sortModules(DB.modules)).slice();
+  const participants = (participantScope || allParticipants()).filter(p => p && p.role === 'participant' && p.status === 'approved');
+  return modules.map(mod => {
+    const enrolled = participants.filter(p => isEnrolled(mod.id, p.id));
+    const acts = moduleActivitiesList(mod.id).filter(a => a.published);
+    const perParticipant = [];
+    enrolled.forEach(p => {
+      const vals = [];
+      acts.forEach(act => {
+        const criteria = getRubricCriteria(act);
+        if (!criteria.length) return;
+        const practical = getPractical(act.id, p.id);
+        criteria.forEach((criterion, ci) => {
+          const raw = practical && Array.isArray(practical.scores) && practical.scores[ci] !== undefined ? Number(practical.scores[ci]) : NaN;
+          const max = Math.max(0, ...(criterion.levels || []).map(level => Number(level.mark) || 0));
+          if (Number.isFinite(raw) && max > 0) vals.push(Math.max(0, Math.min(100, raw / max * 100)));
+        });
+      });
+      if (vals.length) perParticipant.push({ id:p.id, name:p.name, score:avg(vals), criteriaCount:vals.length });
+    });
+    return { id:mod.id, name:mod.name, enrolled:enrolled.length, assessed:perParticipant.length,
+      value:perParticipant.length ? avg(perParticipant.map(x => x.score)) : null, participants:perParticipant };
+  }).filter(m => moduleActivitiesList(m.id).some(a => a.published && getRubricCriteria(a).length));
+}
+function renderOverallSpider(moduleScope, participantScope, printMode=false) {
+  const rows = overallSpiderDataset(moduleScope, participantScope);
+  if (!rows.length) return `<div class="empty">${currentLang === 'en' ? 'No published practical assessment rubric criteria found for the selected modules.' : 'Tiada kriteria rubrik penilaian praktikal yang telah diterbitkan bagi modul yang dipilih.'}</div>`;
+  const W=760,H=560,cx=380,cy=245,R=165,n=rows.length;
+  const point=(i,v)=>{const a=-Math.PI/2+2*Math.PI*i/n,r=R*(Math.max(0,Math.min(100,v||0))/100);return{x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),a};};
+  const grid=[20,40,60,80,100].map(v=>`<polygon points="${rows.map((_,i)=>{const q=point(i,v);return `${q.x.toFixed(1)},${q.y.toFixed(1)}`}).join(' ')}" fill="none" stroke="#d8e4de"/>`).join('');
+  const spokes=rows.map((_,i)=>{const q=point(i,100);return `<line x1="${cx}" y1="${cy}" x2="${q.x}" y2="${q.y}" stroke="#d8e4de"/>`}).join('');
+  const ticks=[20,40,60,80,100].map(v=>`<text x="${cx+5}" y="${cy-R*v/100+3}" font-size="10" fill="#77877f">${v}</text>`).join('');
+  const scored=rows.map((r,i)=>({...r,i,p:r.value===null?null:point(i,r.value)}));
+  const polygon=scored.every(x=>x.p) && n>=3 ? `<polygon points="${scored.map(x=>`${x.p.x},${x.p.y}`).join(' ')}" fill="rgba(11,107,83,.18)" stroke="#0b6b53" stroke-width="3"/>` : scored.slice(0,-1).map((x,i)=>{const y=scored[i+1];return x.p&&y.p?`<line x1="${x.p.x}" y1="${x.p.y}" x2="${y.p.x}" y2="${y.p.y}" stroke="#0b6b53" stroke-width="3"/>`:''}).join('');
+  const markers=scored.map(x=>x.p?`<circle cx="${x.p.x}" cy="${x.p.y}" r="6" fill="#0b6b53" stroke="white" stroke-width="2"><title>${esc(x.name)}: ${x.value.toFixed(1)}%</title></circle>`:`<circle cx="${point(x.i,100).x}" cy="${point(x.i,100).y}" r="5" fill="white" stroke="#9aa9a1"><title>${esc(x.name)}: ${currentLang==='en'?'No scores':'Tiada skor'}</title></circle>`).join('');
+  const labels=scored.map(x=>{const q=point(x.i,119);const anchor=Math.abs(Math.cos(q.a))<.25?'middle':Math.cos(q.a)>0?'start':'end';const label=x.name.length>34?x.name.slice(0,31)+'…':x.name;return `<text x="${q.x}" y="${q.y}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>10?10:12}" fill="#34483f"><title>${esc(x.name)}</title>${esc(label)}</text>`}).join('');
+  const table=rows.map(r=>`<tr><td>${tce(r.name)}</td><td>${r.enrolled}</td><td>${r.assessed}</td><td>${r.value===null?'—':r.value.toFixed(1)+'%'}</td></tr>`).join('');
+  const assessedValues=rows.filter(r=>r.value!==null).map(r=>r.value);
+  const overall=assessedValues.length?avg(assessedValues):null;
+  return `<div class="overall-spider-block"><div class="overall-spider-summary"><div><small>${currentLang==='en'?'Modules included':'Jumlah modul'}</small><strong>${rows.length}</strong></div><div><small>${currentLang==='en'?'Participants included':'Jumlah peserta'}</small><strong>${new Set(rows.flatMap(r=>r.participants.map(p=>p.id))).size}</strong></div><div><small>${currentLang==='en'?'Overall cohort average':'Purata keseluruhan peserta'}</small><strong>${overall===null?'—':overall.toFixed(1)+'%'}</strong></div></div><div class="overall-spider-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall cohort spider web">${grid}${spokes}${ticks}${polygon}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Average Practical Assessment score across assessed participants (%)':'Purata skor Penilaian Praktikal bagi peserta yang telah dinilai (%)'}</div></div><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module / Training Day':'Modul / Hari Latihan'}</th><th>${currentLang==='en'?'Enrolled':'Berdaftar'}</th><th>${currentLang==='en'?'Assessed':'Dinilai'}</th><th>${currentLang==='en'?'Average score':'Purata skor'}</th></tr></thead><tbody>${table}</tbody></table></div><p class="muted" style="font-size:10px">${currentLang==='en'?'Each axis represents one module/day. The value is the average of each assessed participant’s normalised rubric-criterion scores in that module. Unassessed participants are excluded from that module average.':'Setiap paksi mewakili satu modul/hari. Nilai ialah purata skor kriteria rubrik yang dinormalkan bagi peserta yang telah dinilai dalam modul tersebut. Peserta yang belum dinilai tidak dimasukkan dalam purata modul berkenaan.'}</p></div>`;
+}
+function overallSpiderReportHTML(moduleScope, participantScope) {
+  const modules = moduleScope || sortModules(DB.modules);
+  const participants = participantScope || allParticipants();
+  const title=currentLang==='en'?'Overall Practical Assessment Performance — All Modules':'Prestasi Keseluruhan Penilaian Praktikal — Semua Modul';
+  const date=new Date().toLocaleString(locale(),{dateStyle:'long',timeStyle:'short'});
+  const body=renderOverallSpider(modules,participants,true);
+  const css=`*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24332d;margin:0;padding:24px;font-size:11px;line-height:1.45}.head{border-bottom:4px solid #0b6b53;padding-bottom:13px;margin-bottom:16px}.brand{font-size:10px;letter-spacing:2px;color:#0b6b53;font-weight:bold}.head h1{font-size:20px;color:#0b6b53;margin:5px 0}.head p{margin:0;color:#65736c}.overall-spider-summary{display:flex;gap:10px;margin:12px 0}.overall-spider-summary>div{flex:1;padding:10px;border:1px solid #dce6e1;border-radius:8px;background:#f7faf8}.overall-spider-summary small{display:block;color:#68766f;font-size:9px;text-transform:uppercase}.overall-spider-summary strong{display:block;font-size:17px;color:#0b6b53;margin-top:3px}.overall-spider-chart{text-align:center}.overall-spider-chart svg{width:100%;max-width:700px;height:auto;max-height:520px}.spider-legend{font-size:9px;color:#607068;margin:3px 0 12px}.table-wrap table{width:100%;border-collapse:collapse}.table-wrap th,.table-wrap td{border:1px solid #d6dfda;padding:7px;text-align:left;font-size:10px}.table-wrap th{background:#eaf3ee;color:#244c3b}.muted{color:#6b7771}.foot{margin-top:18px;border-top:1px solid #dce4df;padding-top:8px;color:#78837d;font-size:9px}@media print{@page{size:A4 portrait;margin:12mm}body{padding:0}.overall-spider-chart svg{max-height:440px}}`;
+  return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body><header class="head"><div class="brand">CFTP TRAINING MANAGEMENT</div><h1>${esc(title)}</h1><p>${currentLang==='en'?'Combined cohort performance across all assigned training modules':'Gabungan prestasi keseluruhan peserta merentas semua modul latihan'}</p></header>${body}<footer class="foot">CFTP Training Management · ${esc(date)}</footer></body></html>`;
+}
+
+function spiderReportHTML(pid, moduleScope) {
+  const p = DB.users.find(u => u.id === pid && u.role === 'participant');
+  if (!p) return '';
+  const permitted = moduleScope || (state.user.role === 'admin' ? sortModules(DB.modules) : myModules());
+  const modules = participantModules(pid).filter(m => permitted.some(x => x.id === m.id));
+  const chart = renderParticipantAssessmentSpider(pid, modules);
+  const ds = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
+  const labels = currentLang === 'en'
+    ? {title:'Assessment Performance by Module',subtitle:'Practical Assessment — Individual Spider Web Report',student:'Participant',organisation:'Organisation',id:'Participant ID',date:'Generated on',note:'Scores are normalised against the maximum mark for each rubric criterion. Unassessed criteria are shown as not assessed.'}
+    : {title:'Prestasi Penilaian Mengikut Modul',subtitle:'Penilaian Praktikal — Laporan Spider Web Individu',student:'Nama Peserta',organisation:'Organisasi',id:'ID Peserta',date:'Dijana pada',note:'Skor dinormalkan berdasarkan markah maksimum bagi setiap kriteria rubrik. Kriteria yang belum dinilai ditandakan sebagai belum dinilai.'};
+  const reportCss = `*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24332d;margin:0;padding:24px;font-size:11px;line-height:1.45;background:#fff}.report-head{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #0b6b53;padding:0 0 14px;margin-bottom:16px}.brand{font-size:10px;letter-spacing:2px;color:#0b6b53;font-weight:800}.report-head h1{font-size:21px;margin:4px 0;color:#0b6b53}.report-head p{margin:0;color:#66736d}.logo{width:54px;height:54px;border-radius:12px;background:#0b6b53;color:#fff;display:grid;place-items:center;font-weight:900;font-size:19px}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 18px}.meta div{padding:9px 11px;border:1px solid #dce6e1;border-radius:8px;background:#f7faf8}.meta b{display:block;color:#68766f;font-size:9px;text-transform:uppercase;letter-spacing:.5px}.meta span{font-size:12px;font-weight:700}.spider-dashboard{border:0!important;padding:0!important;margin:0!important}.spider-dashboard>.card-head{display:none}.spider-module{border:1px solid #d8e3dd;border-radius:10px;padding:12px;margin:14px 0;break-inside:avoid;page-break-inside:avoid}.spider-module-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e3ebe6;padding-bottom:7px}.spider-module-head h3{font-size:14px;color:#0b6b53;margin:0}.spider-layout{display:grid;grid-template-columns:42% 58%;gap:10px;align-items:center}.spider-chart-wrap{text-align:center;min-width:0}.spider-svg{width:100%;max-width:420px;height:auto;max-height:340px}.spider-data table{width:100%;border-collapse:collapse}.spider-data th,.spider-data td{border:1px solid #d6dfda;padding:6px;text-align:left;font-size:9px}.spider-data th{background:#eaf3ee;color:#244c3b}.spider-legend{font-size:9px;color:#607068;margin-top:3px}.badge{display:inline-block;padding:2px 6px;border-radius:12px;font-size:9px}.badge.ok{background:#e3f5ec;color:#1e7d4f}.badge.draft{background:#f3f4f6;color:#5c6670}.muted{color:#6b7771}.empty{padding:12px;color:#6b7771}.report-note{margin-top:12px;padding:9px 12px;background:#f5f8f6;border-left:3px solid #0b6b53;color:#53625a;font-size:10px}.foot{margin-top:22px;padding-top:8px;border-top:1px solid #dce4df;color:#78837d;font-size:9px;display:flex;justify-content:space-between}@media print{@page{size:A4 portrait;margin:12mm}body{padding:0}.spider-module{break-inside:avoid;page-break-inside:avoid}.spider-layout{grid-template-columns:40% 60%}.spider-svg{max-height:300px}}`;
+  return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${esc(labels.title)} - ${esc(p.name)}</title><style>${reportCss}</style></head><body>
+    <header class="report-head"><div><div class="brand">CFTP TRAINING MANAGEMENT</div><h1>${esc(labels.title)}</h1><p>${esc(labels.subtitle)}</p></div><div class="logo">CFTP</div></header>
+    <section class="meta"><div><b>${esc(labels.student)}</b><span>${tce(p.name)}</span></div><div><b>${esc(labels.organisation)}</b><span>${tce(p.org || '—')}</span></div><div><b>${esc(labels.id)}</b><span>${esc(p.id || '—')}</span></div><div><b>${esc(labels.date)}</b><span>${esc(ds)}</span></div></section>
+    ${chart || `<div class="empty">${esc(t('spider_no_assessments'))}</div>`}
+    <div class="report-note">${esc(labels.note)}</div><footer class="foot"><span>CFTP Training Management · ${esc(p.name)}</span><span>${esc(ds)}</span></footer>
+    </body></html>`;
+}
+
 const PRINT_CSS = `*{box-sizing:border-box}body{font-family:Arial;padding:26px;font-size:12px;line-height:1.5}.rpt-head{display:flex;justify-content:space-between;border-bottom:3px solid #0b6b53;padding-bottom:12px;margin-bottom:18px}.rpt-head h1{font-size:17px;margin:0;color:#0b6b53}.rpt-head p{margin:0;font-size:11px;color:#555}.rpt-logo{width:52px;height:52px;border-radius:10px;background:#0b6b53;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:17px}h2{font-size:13px;color:#0b6b53;margin:18px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;font-size:11px}th{background:#e8f2ee}.summary{display:flex;gap:10px;margin:10px 0}.summary .box{flex:1;border:1px solid #bbb;border-radius:6px;padding:8px;text-align:center}.summary .n{font-size:16px;font-weight:bold;color:#0b6b53}.summary .l{font-size:9px;color:#666;text-transform:uppercase}.foot{margin-top:26px;border-top:1px solid #ccc;padding-top:10px;font-size:10px;color:#666}@media print{body{padding:0}@page{margin:16mm}}`;
 function tagFor(o) {
   if (o === null) return `<span style="padding:1px 7px;border:1px solid #999;border-radius:8px;font-size:10px">${t('status_not_assessed')}</span>`;
@@ -6373,7 +6542,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'final-practical') handleSaveFinalPractical(form);
 });
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   if (e.target.classList && e.target.classList.contains('modal-backdrop')) {
     if (e.target.closest('#modalRoot2')) closeModal2(); else closeModal();
     return;
@@ -6391,10 +6560,26 @@ document.addEventListener('click', (e) => {
       const langName = (I18N[newLang] && I18N[newLang][langLabelKey]) || (newLang === 'ms' ? 'Bahasa Melayu' : 'English');
       try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
       try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
+      // Preserve unsaved rubric header fields before changing language.
+      const rn = document.getElementById('rubricName'), rd = document.getElementById('rubricDesc');
+      if (state.tempRubricMeta && rn) { if (currentLang === 'ms') state.tempRubricMeta.name = rn.value; else state.tempRubricMeta.name_en = rn.value; }
+      if (state.tempRubricMeta && rd) { if (currentLang === 'ms') state.tempRubricMeta.description = rd.value; else state.tempRubricMeta.description_en = rd.value; }
+      if (newLang === 'en') {
+        const toggle = tgt; toggle.disabled = true; toggle.textContent = '🌐 Translating…';
+        await translateAllRubricContent();
+        saveDB(); // persist translated rubric fields for subsequent sessions/devices
+        toggle.disabled = false;
+      }
       currentLang = newLang;
       localStorage.setItem('cftp_lang', currentLang);
       document.documentElement.lang = currentLang;
       render();
+      if (state.tempRubric && document.getElementById('rubricBuilderContainer')) {
+        const n = document.getElementById('rubricName'), d = document.getElementById('rubricDesc');
+        if (n) n.value = currentLang === 'en' ? (state.tempRubricMeta?.name_en || tc(state.tempRubricMeta?.name || '')) : (state.tempRubricMeta?.name || '');
+        if (d) d.value = currentLang === 'en' ? (state.tempRubricMeta?.description_en || tc(state.tempRubricMeta?.description || '')) : (state.tempRubricMeta?.description || '');
+        renderRubricBuilder();
+      }
       const switchedTpl = (I18N[newLang] && I18N[newLang]['lang_switched']) || 'Language switched to {0}.';
       toast('🌐 ' + switchedTpl.split('{0}').join(langName));
       break;
@@ -6464,6 +6649,11 @@ document.addEventListener('click', (e) => {
     case 'approve-user': approveUser(id); break;
     case 'reject-user': rejectUser(id); break;
     case 'vip-view-progress': openVipParticipantProgress(id); break;
+    case 'spider-print-self': { const pid = state.user.id; printHTML(spiderReportHTML(pid, participantModules(pid))); break; }
+    case 'spider-print-overall': { const role = state.user.role; if (!['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); break; } const mods = role === 'admin' ? sortModules(DB.modules) : myModules(); const ids = new Set(); mods.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id))); const ps = allParticipants().filter(p => ids.has(p.id)); printHTML(overallSpiderReportHTML(mods, ps)); break; }
+    case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } const p = DB.users.find(u => u.id === pid); const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(p?.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
+    case 'spider-print-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
+    case 'spider-print-review': { const pid = tgt.dataset.pid; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
     case 'report-individual': { const pid = tgt.dataset.pid; printHTML(individualReportHTML(pid)); break; }
     case 'report-individual-selected': { const sel = $('#reportParticipant'); if (!sel) break; printHTML(individualReportHTML(sel.value)); break; }
     case 'report-program': { const org = state.user.role === 'vip' ? state.user.org : null; printHTML(programReportHTML(org)); break; }
@@ -6643,13 +6833,15 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'regPassword') { updatePasswordMeter(e.target.value, 'register'); return; }
   if (e.target.id === 'newPassword') { updatePasswordMeter(e.target.value, 'change'); return; }
   if (e.target.matches && e.target.matches('[data-mc-count]')) { const idx = Number(e.target.dataset.mcCount); if (state.tempModuleConfigs && state.tempModuleConfigs[idx]) state.tempModuleConfigs[idx].questionCount = Number(e.target.value) || 0; return; }
+  if (e.target.id === 'rubricName' && state.tempRubricMeta) { if (currentLang === 'en') state.tempRubricMeta.name_en = e.target.value; else state.tempRubricMeta.name = e.target.value; return; }
+  if (e.target.id === 'rubricDesc' && state.tempRubricMeta) { if (currentLang === 'en') state.tempRubricMeta.description_en = e.target.value; else state.tempRubricMeta.description = e.target.value; return; }
   if (e.target.dataset.rb) {
     const ci = Number(e.target.dataset.ci), li = Number(e.target.dataset.li), key = e.target.dataset.rb;
-    if (key === 'name') state.tempRubric[ci].name = e.target.value;
+    if (key === 'name') { if (currentLang === 'en') state.tempRubric[ci].name_en = e.target.value; else state.tempRubric[ci].name = e.target.value; }
     else if (key === 'weight') state.tempRubric[ci].weight = Number(e.target.value) || 0;
-    else if (key === 'l_label') state.tempRubric[ci].levels[li].label = e.target.value;
+    else if (key === 'l_label') { if (currentLang === 'en') state.tempRubric[ci].levels[li].label_en = e.target.value; else state.tempRubric[ci].levels[li].label = e.target.value; }
     else if (key === 'l_mark') state.tempRubric[ci].levels[li].mark = Number(e.target.value) || 0;
-    else if (key === 'l_desc') state.tempRubric[ci].levels[li].description = e.target.value;
+    else if (key === 'l_desc') { if (currentLang === 'en') state.tempRubric[ci].levels[li].description_en = e.target.value; else state.tempRubric[ci].levels[li].description = e.target.value; }
     const tw = state.tempRubric.reduce((s,c) => s + c.weight, 0);
     const pill = document.querySelector('#rubricBuilderContainer .pill');
     if (pill) { pill.textContent = `${t('rb_total')}: ${tw}%`; if (tw !== 100) { pill.style.background = '#fdecea'; pill.style.color = 'var(--bad)'; } else { pill.style.background = ''; pill.style.color = ''; } }
