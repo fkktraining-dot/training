@@ -120,6 +120,17 @@ tbody tr:hover{background:#f9fcfb}
 .badge.info{background:#e6f0fb;color:#1f5fa8}
 .progress{height:8px;border-radius:999px;background:#e8efec;overflow:hidden}
 .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--brand-2),var(--brand));border-radius:999px;transition:width .3s ease}
+.transfer-monitor{display:none;position:sticky;top:57px;z-index:19;background:#f8fbfa;border-bottom:1px solid var(--line);padding:8px 22px;gap:12px;align-items:center;flex-wrap:wrap}
+.transfer-monitor.active{display:flex}
+.transfer-item{flex:1 1 260px;min-width:220px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+.transfer-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:.76rem;font-weight:700;margin-bottom:5px}
+.transfer-track{height:7px;border-radius:99px;background:#e8efec;overflow:hidden}
+.transfer-fill{height:100%;width:0;background:linear-gradient(90deg,var(--brand-2),var(--brand));transition:width .2s ease}
+.transfer-fill.indeterminate{width:35%;animation:transferMove 1.1s ease-in-out infinite alternate}
+@keyframes transferMove{from{transform:translateX(0)}to{transform:translateX(185%)}}
+.transfer-sub{font-size:.7rem;color:var(--muted);margin-top:4px}
+@media(max-width:600px){.transfer-monitor{top:51px;padding:7px 10px}.transfer-item{min-width:100%}}
+
 .q{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fbfdfc}
 .q-text{margin:0 0 .6rem;font-weight:600}
 .opt{display:flex;gap:.55rem;align-items:flex-start;padding:.4rem .55rem;border-radius:8px;cursor:pointer;font-size:.88rem}
@@ -344,6 +355,23 @@ tbody tr:hover{background:#f9fcfb}
   .quiz-timer .timer-value{font-size:1.15rem}
   .pwd-reqs{grid-template-columns:1fr}
 }
+
+/* Participant assessment spider/radar dashboard */
+.spider-dashboard{overflow:hidden}
+.spider-module{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px;background:var(--surface,#fff)}
+.spider-module-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.spider-module-head h3{font-size:1rem;margin:0;color:var(--text)}
+.spider-layout{display:grid;grid-template-columns:minmax(300px,440px) minmax(280px,1fr);gap:14px;align-items:center;margin-top:8px}
+.spider-chart-wrap{min-width:0;text-align:center}
+.spider-svg{width:100%;max-width:440px;height:auto;overflow:visible}
+.spider-legend{display:flex;justify-content:center;align-items:center;gap:7px;font-size:.75rem;color:var(--muted);margin-top:-2px}
+.spider-legend-dot{width:9px;height:9px;border-radius:50%;background:#15805b;display:inline-block}
+.spider-data{min-width:0}
+.spider-data table{font-size:.78rem}
+.spider-data th,.spider-data td{padding:7px 8px}
+@media(max-width:900px){.spider-layout{grid-template-columns:1fr}.spider-svg{max-width:400px}}
+@media(max-width:520px){.spider-module{padding:9px}.spider-svg{max-width:100%}.spider-data table{font-size:.7rem}}
+
 </style>
 </head>
 <body>
@@ -448,11 +476,14 @@ function applyDiff(baseState, diff) {
   return result;
 }
 
-function fileToBase64(file) {
+function fileToBase64(file, onProgress) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload  = () => resolve(String(reader.result).split(',')[1]);
+    reader.onload  = () => { if (onProgress) onProgress(50); resolve(String(reader.result).split(',')[1]); };
     reader.onerror = reject;
+    reader.onprogress = (event) => {
+      if (onProgress && event.lengthComputable && event.total > 0) onProgress(Math.round((event.loaded / event.total) * 50));
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -754,7 +785,7 @@ function downloadTimetableTemplate(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
   const headers = ['Modul', 'Tarikh (YYYY-MM-DD)', 'Masa Mula (HH:MM)', 'Masa Tamat (HH:MM)', 'Tajuk / Topik', 'Pengajar', 'Lokasi', 'Catatan'];
-  const sample = [[m.name, todayISO(), '09:00', '10:30', 'Tajuk contoh', userName(m.trainerId) || '', 'Lokasi', '']];
+  const sample = [[m.name, todayISO(), '09:00', '10:30', 'Tajuk contoh', moduleTrainerNames(m) || '', 'Lokasi', '']];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
   ws['!cols'] = [{wch:28},{wch:20},{wch:18},{wch:18},{wch:40},{wch:28},{wch:24},{wch:30}];
@@ -890,6 +921,15 @@ const I18N = {
     app_brand_sub: 'Chemical Fundamentals Training',
     lang_toggle: 'EN', lang_tooltip: 'Tukar ke Bahasa Inggeris',
     nav_dashboard: 'Dashboard', nav_modules: 'Pengurusan Modul', nav_modules_own: 'Modul Saya',
+    spider_title: 'Prestasi Penilaian Mengikut Modul',
+    spider_hint: 'Carta radar menunjukkan semua skor Quiz dan Practical Test bagi setiap modul yang anda sertai. Skor yang belum diperoleh ditandakan sebagai belum dinilai.',
+    spider_quiz: 'Quiz', spider_practical: 'Practical Test',
+    spider_no_assessments: 'Belum ada Quiz atau Practical Test untuk modul ini.',
+    spider_no_scores: 'Belum ada skor penilaian direkodkan.',
+    spider_assessment: 'Penilaian', spider_score: 'Skor',
+    spider_not_taken: 'Belum dinilai', spider_assessed: 'Dinilai',
+    spider_legend: 'Skor penilaian (%)',
+
     nav_modules_all: 'Semua Modul',
     nav_programs: 'Program Latihan', nav_activities: 'Aktiviti', nav_activities_own: 'Aktiviti Saya',
     nav_grading: 'Penilaian', nav_rubrik: 'Rubrik', nav_bank: 'Bank Soalan', nav_users: 'Pengguna',
@@ -935,12 +975,18 @@ const I18N = {
     btn_open: 'Buka', btn_close_tab: 'Tutup Tab', btn_retake: 'Ambil Semula', btn_publish: 'Terbitkan',
     btn_unpublish: 'Nyahterbit', btn_enroll: 'Daftar', btn_unenroll: 'Keluarkan',
     btn_upload: 'Muat Naik', btn_download: 'Muat Turun',
+    transfer_upload: 'Muat naik', transfer_download: 'Muat turun',
+    transfer_preparing: 'Menyediakan fail', transfer_sending: 'Menghantar ke Google Drive (peratus sebenar tidak disediakan oleh pelayan)',
+    transfer_verifying: 'Mengesahkan simpanan', transfer_complete: 'Selesai',
+    transfer_failed: 'Gagal', transfer_size_unknown: 'saiz keseluruhan tidak diketahui',
+    transfer_browser_managed: 'Muat turun diserahkan kepada pelayar; peratus tidak tersedia.',
     lbl_name: 'Nama', lbl_email: 'E-mel', lbl_password: 'Kata Laluan', lbl_role: 'Peranan',
     lbl_org: 'Organisasi', lbl_ic: 'No. KP', lbl_date: 'Tarikh', lbl_duration: 'Tempoh',
     lbl_status: 'Status', lbl_quiz: 'Kuiz', lbl_rubric: 'Rubrik', lbl_materials: 'Bahan',
     lbl_objectives: 'Objektif', lbl_instructions: 'Arahan', lbl_method: 'Kaedah', lbl_score: 'Skor',
     lbl_remarks: 'Catatan', lbl_title: 'Tajuk', lbl_description: 'Penerangan', lbl_trainer: 'Jurulatih',
     lbl_facilitator: 'Fasilitator',
+    module_assign_limit: 'Pilih maksimum 3 orang bagi setiap peranan.',
     lbl_module: 'Modul', lbl_activity: 'Aktiviti', lbl_participants: 'Peserta', lbl_enrollment: 'Enrollmen',
     lbl_attendance: 'Kehadiran', lbl_practical: 'Praktikal', lbl_actions: 'Aksi', lbl_questions: 'soalan',
     lbl_activities: 'Aktiviti', lbl_draft: 'Draf', lbl_published: 'Terbit', lbl_active: 'Aktif',
@@ -1001,7 +1047,7 @@ const I18N = {
     confirm_unenroll: 'Keluarkan {0}?', confirm_publish_all: 'Terbitkan {0} aktiviti draf?',
     confirm_retake_quiz: 'Ambil semula kuiz?', confirm_cannot_delete: 'Tidak boleh.',
     form_name: 'Nama', form_desc: 'Penerangan', form_title: 'Tajuk', form_date: 'Tarikh',
-    form_duration: 'Tempoh (jam)', form_method: 'Kaedah', form_objectives: 'Objektif',
+    form_duration: 'Tempoh (jam)', form_method: 'Kaedah', method_quiz: 'Quiz', method_practical: 'Practical Test', method_choose_hint: 'Pilih satu kaedah penilaian. Tetapan tarikh dan masa akan mengikut pilihan ini.', form_objectives: 'Objektif',
     form_instructions: 'Arahan', form_materials: 'Bahan', form_publish_now: 'Terbitkan segera',
     form_publish_now_hint: 'peserta boleh akses', form_rubric: 'Rubrik',
     form_rubric_hint: 'untuk penilaian praktikal',
@@ -1366,7 +1412,25 @@ const I18N = {
     excel_import_success: '{0} rekod berjaya diimport',
     excel_import_error: 'Gagal import fail Excel',
     excel_template_download: 'Muat Turun Template',
-    excel_import_upload: 'Import Excel'
+    excel_import_upload: 'Import Excel',
+    modules_print_all: 'Cetak Semua Modul (PDF)',
+    schedule_title: 'Tetapan Tarikh dan Masa',
+    schedule_quiz_title: 'Jadual Kuiz',
+    schedule_practical_title: 'Jadual Praktikal',
+    schedule_open_at: 'Tarikh & Masa Mula Dibuka',
+    schedule_close_at: 'Tarikh & Masa Tutup',
+    schedule_open_hint: 'Kosong = sentiasa dibuka',
+    schedule_close_hint: 'Kosong = tiada tarikh tutup',
+    schedule_invalid: 'Masa tutup mesti selepas masa mula dibuka.',
+    practical_not_open: 'Penilaian praktikal belum dibuka.',
+    practical_closed: 'Tempoh penilaian praktikal telah ditutup.',
+    grading_rubric: 'Rubrik Penilaian',
+    grading_choose_rubric: 'Pilih rubrik',
+    print_all_title: 'Senarai Semua Modul',
+    print_activities: 'Aktiviti',
+    print_materials: 'Bahan Pembelajaran',
+    print_no_activities: 'Tiada aktiviti direkodkan.',
+    print_no_materials: 'Tiada bahan pembelajaran direkodkan.'
   },
   en: {
     sys_title: 'Chemical Fundamentals Training Programme',
@@ -1375,6 +1439,15 @@ const I18N = {
     app_brand_sub: 'Chemical Fundamentals Training',
     lang_toggle: 'BM', lang_tooltip: 'Switch to Malay',
     nav_dashboard: 'Dashboard', nav_modules: 'Module Management', nav_modules_own: 'My Modules',
+    spider_title: 'Assessment Performance by Module',
+    spider_hint: 'Radar charts show all Quiz and Practical Test scores for each module you joined. Assessments without a score are marked as not yet assessed.',
+    spider_quiz: 'Quiz', spider_practical: 'Practical Test',
+    spider_no_assessments: 'There are no Quiz or Practical Test assessments in this module yet.',
+    spider_no_scores: 'No assessment scores have been recorded yet.',
+    spider_assessment: 'Assessment', spider_score: 'Score',
+    spider_not_taken: 'Not assessed', spider_assessed: 'Assessed',
+    spider_legend: 'Assessment score (%)',
+
     nav_modules_all: 'All Modules',
     nav_programs: 'Training Programme', nav_activities: 'Activities', nav_activities_own: 'My Activities',
     nav_grading: 'Assessment', nav_rubrik: 'Rubrics', nav_bank: 'Question Bank', nav_users: 'Users',
@@ -1421,6 +1494,11 @@ const I18N = {
     btn_open: 'Open', btn_close_tab: 'Close Tab', btn_retake: 'Retake', btn_publish: 'Publish',
     btn_unpublish: 'Unpublish', btn_enroll: 'Enrol', btn_unenroll: 'Remove',
     btn_upload: 'Upload', btn_download: 'Download',
+    transfer_upload: 'Upload', transfer_download: 'Download',
+    transfer_preparing: 'Preparing file', transfer_sending: 'Sending to Google Drive (server does not expose exact transfer percentage)',
+    transfer_verifying: 'Verifying saved file', transfer_complete: 'Complete',
+    transfer_failed: 'Failed', transfer_size_unknown: 'total size unknown',
+    transfer_browser_managed: 'Download handed to browser; percentage is unavailable.',
     lbl_name: 'Name', lbl_email: 'Email', lbl_password: 'Password', lbl_role: 'Role',
     lbl_org: 'Organisation', lbl_ic: 'IC No.', lbl_date: 'Date', lbl_duration: 'Duration',
     lbl_status: 'Status', lbl_quiz: 'Quiz', lbl_rubric: 'Rubric', lbl_materials: 'Materials',
@@ -1428,6 +1506,7 @@ const I18N = {
     lbl_score: 'Score', lbl_remarks: 'Remarks', lbl_title: 'Title', lbl_description: 'Description',
     lbl_trainer: 'Trainer',
     lbl_facilitator: 'Facilitator',
+    module_assign_limit: 'Select up to 3 people for each role.',
     lbl_module: 'Module', lbl_activity: 'Activity',
     lbl_participants: 'Participants', lbl_enrollment: 'Enrolments', lbl_attendance: 'Attendance',
     lbl_practical: 'Practical', lbl_actions: 'Actions', lbl_questions: 'questions',
@@ -1490,7 +1569,7 @@ const I18N = {
     confirm_unenroll: 'Remove {0}?', confirm_publish_all: 'Publish {0} draft activities?',
     confirm_retake_quiz: 'Retake quiz?', confirm_cannot_delete: 'Cannot delete.',
     form_name: 'Name', form_desc: 'Description', form_title: 'Title', form_date: 'Date',
-    form_duration: 'Duration (hours)', form_method: 'Method', form_objectives: 'Objectives',
+    form_duration: 'Duration (hours)', form_method: 'Method', method_quiz: 'Quiz', method_practical: 'Practical Test', method_choose_hint: 'Choose one assessment method. Date and time settings will follow this selection.', form_objectives: 'Objectives',
     form_instructions: 'Instructions', form_materials: 'Materials', form_publish_now: 'Publish now',
     form_publish_now_hint: 'participants can access', form_rubric: 'Rubric',
     form_rubric_hint: 'for practical assessment',
@@ -1855,7 +1934,25 @@ const I18N = {
     excel_import_success: '{0} records imported successfully',
     excel_import_error: 'Failed to import Excel file',
     excel_template_download: 'Download Template',
-    excel_import_upload: 'Import Excel'
+    excel_import_upload: 'Import Excel',
+    modules_print_all: 'Print All Modules (PDF)',
+    schedule_title: 'Date and Time Settings',
+    schedule_quiz_title: 'Quiz Schedule',
+    schedule_practical_title: 'Practical Schedule',
+    schedule_open_at: 'Opening Date & Time',
+    schedule_close_at: 'Closing Date & Time',
+    schedule_open_hint: 'Empty = always open',
+    schedule_close_hint: 'Empty = no closing date',
+    schedule_invalid: 'Closing time must be after opening time.',
+    practical_not_open: 'The practical assessment is not open yet.',
+    practical_closed: 'The practical assessment window has closed.',
+    grading_rubric: 'Assessment Rubric',
+    grading_choose_rubric: 'Choose a rubric',
+    print_all_title: 'All Modules',
+    print_activities: 'Activities',
+    print_materials: 'Learning Materials',
+    print_no_activities: 'No activities recorded.',
+    print_no_materials: 'No learning materials recorded.'
   }
 };
 
@@ -2426,10 +2523,15 @@ function migrateDB() {
   }
   DB.modules.forEach(m => {
     if (!Array.isArray(m.materials)) m.materials = [];
-    if (m.facilitatorId === undefined) m.facilitatorId = null;
+    if (!Array.isArray(m.trainerIds)) m.trainerIds = m.trainerId ? [m.trainerId] : [];
+    if (!Array.isArray(m.facilitatorIds)) m.facilitatorIds = m.facilitatorId ? [m.facilitatorId] : [];
+    m.trainerIds = [...new Set(m.trainerIds.filter(Boolean))].slice(0, 3);
+    m.facilitatorIds = [...new Set(m.facilitatorIds.filter(Boolean))].slice(0, 3);
+    m.trainerId = m.trainerIds[0] || null; // legacy compatibility
+    m.facilitatorId = m.facilitatorIds[0] || null; // legacy compatibility
     if (m.startDate === undefined) m.startDate = null;
   });
-  DB.activities.forEach(a => { const m = DB.modules.find(mm => mm.id === a.moduleId); if (m) a.trainerId = m.trainerId; });
+  DB.activities.forEach(a => { const m = DB.modules.find(mm => mm.id === a.moduleId); if (m) a.trainerId = m.trainerIds[0] || m.trainerId; });
 
   if (!DB.enrollments.length) {
     const seen = new Set();
@@ -2499,6 +2601,13 @@ const sortModules = (arr) => arr.slice().sort((a, b) => {
 const allTrainers = () => DB.users.filter(u => u.role === 'trainer' && u.status === 'approved');
 const allFacilitators = () => DB.users.filter(u => u.role === 'facilitator' && u.status === 'approved');
 const allTrainersAndFacilitators = () => DB.users.filter(u => (u.role === 'trainer' || u.role === 'facilitator') && u.status === 'approved');
+const moduleTrainerIds = (m) => m ? (Array.isArray(m.trainerIds) ? m.trainerIds : (m.trainerId ? [m.trainerId] : [])) : [];
+const moduleFacilitatorIds = (m) => m ? (Array.isArray(m.facilitatorIds) ? m.facilitatorIds : (m.facilitatorId ? [m.facilitatorId] : [])) : [];
+const moduleHasTrainer = (m, uid) => moduleTrainerIds(m).includes(uid);
+const moduleHasFacilitator = (m, uid) => moduleFacilitatorIds(m).includes(uid);
+const moduleTrainerNames = (m) => moduleTrainerIds(m).map(userName).filter(Boolean).join(', ');
+const moduleFacilitatorNames = (m) => moduleFacilitatorIds(m).map(userName).filter(Boolean).join(', ');
+
 const allParticipants = () => DB.users.filter(u => u.role === 'participant' && u.status === 'approved');
 const allVips = () => DB.users.filter(u => u.role === 'vip' && u.status === 'approved');
 const userName = (id) => (DB.users.find(u => u.id === id) || {}).name || '—';
@@ -2538,7 +2647,7 @@ function cancelRetest(aid, pid) {
     logAudit('Cancel Retest', 'Aktiviti', `${aid}:${pid}`, userName(pid));
   }
 }
-const myModules = () => sortModules(DB.modules.filter(m => m.trainerId === state.user.id || m.facilitatorId === state.user.id));
+const myModules = () => sortModules(DB.modules.filter(m => moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)));
 const isEnrolled = (mid, pid) => DB.enrollments.some(e => e.moduleId === mid && e.participantId === pid);
 const moduleActivitiesList = (mid) => sortActs(DB.activities.filter(a => a.moduleId === mid));
 const enrolledParticipants = (mid) => DB.enrollments.filter(e => e.moduleId === mid).map(e => ({ enroll: e, user: DB.users.find(u => u.id === e.participantId) })).filter(x => x.user && x.user.status === 'approved');
@@ -2609,7 +2718,7 @@ function trainerPendingQuestionSubmissions(trainerId) {
     (fe.moduleConfigs || []).forEach(mc => {
       const m = getModule(mc.moduleId);
       if (!m) return;
-      if ((m.trainerId === trainerId) && !mc.submitted && (mc.questionCount || 0) > 0) out.push({ fe, mc, m });
+      if (moduleHasTrainer(m, trainerId) && !mc.submitted && (mc.questionCount || 0) > 0) out.push({ fe, mc, m });
     });
   });
   return out;
@@ -2622,16 +2731,16 @@ function canTrainerAccessModule(mid) {
   if (state.user.role === 'admin') return true;
   const m = getModule(mid);
   if (!m) return false;
-  if (state.user.role === 'trainer') return m.trainerId === state.user.id || m.facilitatorId === state.user.id;
-  if (state.user.role === 'facilitator') return m.facilitatorId === state.user.id;
+  if (state.user.role === 'trainer') return moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id);
+  if (state.user.role === 'facilitator') return moduleHasFacilitator(m, state.user.id);
   return false;
 }
 function canTrainerAccessActivity(aid) { const a = getActivity(aid); if (!a) return false; return canTrainerAccessModule(a.moduleId); }
-function isFacilitatorOf(moduleId, userId) { const m = getModule(moduleId); if (!m) return false; return m.facilitatorId === userId && m.trainerId !== userId; }
-function isTrainerOf(moduleId, userId) { const m = getModule(moduleId); return !!m && m.trainerId === userId; }
+function isFacilitatorOf(moduleId, userId) { const m = getModule(moduleId); return !!m && moduleHasFacilitator(m, userId) && !moduleHasTrainer(m, userId); }
+function isTrainerOf(moduleId, userId) { const m = getModule(moduleId); return !!m && moduleHasTrainer(m, userId); }
 function pendingApprovalCountFor(userId) {
   if (!Array.isArray(DB.pendingApprovals)) return 0;
-  const modIds = DB.modules.filter(m => m.trainerId === userId).map(m => m.id);
+  const modIds = DB.modules.filter(m => moduleHasTrainer(m, userId)).map(m => m.id);
   return DB.pendingApprovals.filter(x => x.status === 'pending' && modIds.includes(x.moduleId)).length;
 }
 function pendingApprovalCountAll() { return Array.isArray(DB.pendingApprovals) ? DB.pendingApprovals.filter(x => x.status === 'pending').length : 0; }
@@ -2645,6 +2754,15 @@ const quizWindowStatus = (act) => {
   const now = Date.now();
   const open = act.quizOpenAt ? new Date(act.quizOpenAt).getTime() : null;
   const close = act.quizCloseAt ? new Date(act.quizCloseAt).getTime() : null;
+  if (open && now < open) return { state: 'not-open', open, close };
+  if (close && now > close) return { state: 'closed', open, close };
+  return { state: 'open', open, close };
+};
+const practicalWindowStatus = (act) => {
+  if (!act) return { state: 'open', open: null, close: null };
+  const now = Date.now();
+  const open = act.practicalOpenAt ? new Date(act.practicalOpenAt).getTime() : null;
+  const close = act.practicalCloseAt ? new Date(act.practicalCloseAt).getTime() : null;
   if (open && now < open) return { state: 'not-open', open, close };
   if (close && now > close) return { state: 'closed', open, close };
   return { state: 'open', open, close };
@@ -2697,9 +2815,9 @@ function practicalBadge(a, pid) {
   return `<span class="badge ${pct >= 70 ? 'ok' : 'warn'}">${pct}%</span>`;
 }
 function trainerFacilitatorLine(m) {
-  const tr = userName(m.trainerId);
-  const fa = m.facilitatorId ? userName(m.facilitatorId) : '';
-  return `👤 ${tce(tr)}${fa ? ` · 🧑‍🏫 ${tce(fa)}` : ''}`;
+  const tr = moduleTrainerNames(m) || '—';
+  const fa = moduleFacilitatorNames(m);
+  return `👤 ${t('lbl_trainer')}: ${tce(tr)}${fa ? ` · 🧑‍🏫 ${t('lbl_facilitator')}: ${tce(fa)}` : ''}`;
 }
 
 function toast(msg, type = 'ok') {
@@ -2832,6 +2950,39 @@ function doLogout() {
   render();
 }
 
+
+function updateTransferMonitor(kind, pct, detail, active, indeterminate) {
+  const root = document.getElementById('transferMonitor');
+  const item = document.getElementById(kind === 'upload' ? 'transferUpload' : 'transferDownload');
+  const bar = document.getElementById(kind === 'upload' ? 'transferUploadBar' : 'transferDownloadBar');
+  const pctEl = document.getElementById(kind === 'upload' ? 'transferUploadPct' : 'transferDownloadPct');
+  const detailEl = document.getElementById(kind === 'upload' ? 'transferUploadDetail' : 'transferDownloadDetail');
+  if (!root || !item || !bar) return;
+  item.style.display = active ? 'block' : 'none';
+  if (pctEl) pctEl.textContent = (pct == null ? '—' : Math.max(0, Math.min(100, Math.round(pct))) + '%');
+  if (detailEl) detailEl.textContent = detail || '';
+  bar.classList.toggle('indeterminate', !!indeterminate);
+  if (!indeterminate && pct != null) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+  root.classList.toggle('active', !!active);
+}
+function startUploadMonitor(filename, size) {
+  updateTransferMonitor('upload', 0, `${filename || ''} · ${formatFileSize(size || 0)} · ${t('transfer_preparing')}`, true, false);
+  const label = document.getElementById('transferUploadLabel');
+  if (label) label.textContent = '⬆️ ' + t('transfer_upload');
+}
+function finishUploadMonitor(success, detail) {
+  updateTransferMonitor('upload', success ? 100 : null, detail || (success ? t('transfer_complete') : t('transfer_failed')), true, false);
+  const pct = document.getElementById('transferUploadPct');
+  if (pct) pct.textContent = success ? '100%' : '!';
+  setTimeout(() => {
+    const item = document.getElementById('transferUpload');
+    if (item) item.style.display = 'none';
+    const root = document.getElementById('transferMonitor');
+    const down = document.getElementById('transferDownload');
+    if (root && (!down || down.style.display === 'none')) root.classList.remove('active');
+  }, success ? 3500 : 6000);
+}
+
 function showDownloadModal(filename) {
   const id = 'dlModal_' + Math.random().toString(36).slice(2,7);
   const html = `<div class="sync-overlay" id="${id}">
@@ -2873,6 +3024,9 @@ function finishDownloadModal(id, success, errMsg) {
 
 async function downloadWithProgress(url, filename, logInfo) {
   const id = showDownloadModal(filename);
+  const dlLabel = document.getElementById('transferDownloadLabel');
+  if (dlLabel) dlLabel.textContent = '⬇️ ' + t('transfer_download') + ' · ' + (filename || '');
+  updateTransferMonitor('download', 0, filename || t('dl_preparing'), true, false);
   try {
     const response = await fetch(url, { credentials: 'omit' });
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -2885,8 +3039,14 @@ async function downloadWithProgress(url, filename, logInfo) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value); received += value.length;
-        if (total > 0) updateDownloadProgress(id, Math.round(received / total * 100), received, total);
-        else updateDownloadProgress(id, null, received, total);
+        if (total > 0) {
+          const pct = Math.round(received / total * 100);
+          updateDownloadProgress(id, pct, received, total);
+          updateTransferMonitor('download', pct, `${formatFileSize(received)} / ${formatFileSize(total)}`, true, false);
+        } else {
+          updateDownloadProgress(id, null, received, total);
+          updateTransferMonitor('download', null, `${formatFileSize(received)} · ${t('transfer_size_unknown')}`, true, true);
+        }
       }
       const blob = new Blob(chunks);
       const blobUrl = URL.createObjectURL(blob);
@@ -2901,6 +3061,8 @@ async function downloadWithProgress(url, filename, logInfo) {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
     }
     finishDownloadModal(id, true);
+    updateTransferMonitor('download', 100, t('transfer_complete'), true, false);
+    setTimeout(() => { const el = document.getElementById('transferDownload'); if (el) el.style.display = 'none'; const root = document.getElementById('transferMonitor'); const up = document.getElementById('transferUpload'); if (root && (!up || up.style.display === 'none')) root.classList.remove('active'); }, 3500);
     if (logInfo) logAudit('Download File', logInfo.entity, logInfo.entityId, logInfo.details);
     return true;
   } catch (err) {
@@ -2910,6 +3072,8 @@ async function downloadWithProgress(url, filename, logInfo) {
       a.href = url; a.download = filename; a.target = '_blank'; a.rel = 'noopener';
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       finishDownloadModal(id, true);
+      updateTransferMonitor('download', null, t('transfer_browser_managed'), true, true);
+      setTimeout(() => { const el = document.getElementById('transferDownload'); if (el) el.style.display = 'none'; const root = document.getElementById('transferMonitor'); const up = document.getElementById('transferUpload'); if (root && (!up || up.style.display === 'none')) root.classList.remove('active'); }, 5000);
       if (logInfo) logAudit('Download File', logInfo.entity, logInfo.entityId, logInfo.details);
       return true;
     } catch (e2) { finishDownloadModal(id, false, err.message); return false; }
@@ -3388,6 +3552,7 @@ function shell() {
       <header class="topbar">
         <h1>${esc(titleFor(state.view))}</h1>
         <div class="tb-right">
+          ${u.role === 'admin' ? `<button class="btn btn-sm btn-primary" data-act="print-system-book" title="${currentLang === 'en' ? 'Print all system information as a book' : 'Cetak semua maklumat sistem sebagai buku'}">📚 ${currentLang === 'en' ? 'Print All' : 'Cetak Semua'}</button>` : ''}
           ${showManualSync ? `<button class="btn btn-sm" id="syncNowBtn" data-act="manual-sync" title="${esc(t('sync_manual_title'))}" aria-label="${esc(t('sync_manual_title'))}">☁️</button>` : ''}
           ${langToggleHtml()}
           <span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span>
@@ -3395,6 +3560,18 @@ function shell() {
           <button class="btn btn-sm topbar-logout" data-act="logout" title="${esc(t('logout'))}" aria-label="${esc(t('logout'))}">🚪</button>
         </div>
       </header>
+      <section id="transferMonitor" class="transfer-monitor" aria-live="polite">
+        <div id="transferUpload" class="transfer-item" style="display:none">
+          <div class="transfer-head"><span id="transferUploadLabel">⬆️ Upload</span><span id="transferUploadPct">0%</span></div>
+          <div class="transfer-track"><div id="transferUploadBar" class="transfer-fill"></div></div>
+          <div id="transferUploadDetail" class="transfer-sub"></div>
+        </div>
+        <div id="transferDownload" class="transfer-item" style="display:none">
+          <div class="transfer-head"><span id="transferDownloadLabel">⬇️ Download</span><span id="transferDownloadPct">0%</span></div>
+          <div class="transfer-track"><div id="transferDownloadBar" class="transfer-fill"></div></div>
+          <div id="transferDownloadDetail" class="transfer-sub"></div>
+        </div>
+      </section>
       <main id="view"></main>
     </div>
   </div>`;
@@ -3640,6 +3817,85 @@ function openVipParticipantProgress(pid) {
     <div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button><button class="btn btn-primary" data-act="report-individual" data-pid="${pid}">${t('rep_generate')}</button></div>`, 'modal-lg');
 }
 
+
+function renderParticipantAssessmentSpider(pid, modules) {
+  const moduleCards = (modules || []).map(mod => {
+    const modActs = accessibleActivities(pid).filter(a => a.moduleId === mod.id && a.published);
+    const axes = [];
+    modActs.forEach(act => {
+      const score = scoreFor(act, pid);
+      if (Array.isArray(act.quiz) && act.quiz.length) {
+        axes.push({ label: `${act.title} · ${t('spider_quiz')}`, shortLabel: `${act.title} · ${t('spider_quiz')}`, value: score.quizPct, actTitle: act.title, type: t('spider_quiz') });
+      }
+      if (getRubricCriteria(act).length) {
+        axes.push({ label: `${act.title} · ${t('spider_practical')}`, shortLabel: `${act.title} · ${t('spider_practical')}`, value: score.pracPct, actTitle: act.title, type: t('spider_practical') });
+      }
+    });
+    if (!axes.length) return `<div class="spider-module"><h3>${tce(mod.name)}</h3><div class="empty">${t('spider_no_assessments')}</div></div>`;
+
+    const W = 440, H = 360, cx = 220, cy = 166, R = 112;
+    const n = axes.length;
+    const pointAt = (i, pct) => {
+      const angle = (-Math.PI / 2) + (2 * Math.PI * i / n);
+      const rr = R * (pct / 100);
+      return { x: cx + rr * Math.cos(angle), y: cy + rr * Math.sin(angle), ax: cx + R * Math.cos(angle), ay: cy + R * Math.sin(angle), angle };
+    };
+    const grid = [20,40,60,80,100].map(level => {
+      const pts = axes.map((_,i) => { const p = pointAt(i, level); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
+      return `<polygon points="${pts}" fill="none" stroke="#dce7e2" stroke-width="1"/>`;
+    }).join('');
+    const spokes = axes.map((a,i) => {
+      const p = pointAt(i,100);
+      return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#dce7e2" stroke-width="1"/>`;
+    }).join('');
+    const ticks = [20,40,60,80,100].map(level => `<text x="${cx+4}" y="${(cy-R*level/100+3).toFixed(1)}" font-size="8" fill="#80918a">${level}</text>`).join('');
+    const valid = axes.map((a,i) => ({...a, i, p: a.value === null || a.value === undefined || !Number.isFinite(Number(a.value)) ? null : pointAt(i, Math.max(0,Math.min(100,Number(a.value))))}));
+    const allScored = valid.every(v => v.p);
+    const segments = [];
+    if (allScored && valid.length >= 3) {
+      segments.push(`<polygon points="${valid.map(v => `${v.p.x.toFixed(1)},${v.p.y.toFixed(1)}`).join(' ')}" fill="rgba(21,128,91,.16)" stroke="#15805b" stroke-width="2.5" stroke-linejoin="round"/>`);
+    } else {
+      for (let i=0;i<valid.length;i++) {
+        const a = valid[i], b = valid[(i+1)%valid.length];
+        if (a.p && b.p) segments.push(`<line x1="${a.p.x}" y1="${a.p.y}" x2="${b.p.x}" y2="${b.p.y}" stroke="#15805b" stroke-width="2.5" stroke-linecap="round"/>`);
+      }
+    }
+    const markers = valid.map(v => v.p
+      ? `<circle cx="${v.p.x}" cy="${v.p.y}" r="4.5" fill="#15805b" stroke="#fff" stroke-width="1.5"><title>${esc(v.label)}: ${Math.round(v.value)}%</title></circle>`
+      : `<circle cx="${pointAt(v.i,100).x}" cy="${pointAt(v.i,100).y}" r="4" fill="#fff" stroke="#aab8b1" stroke-width="1.5"><title>${esc(v.label)}: ${esc(t('spider_not_taken'))}</title></circle>`
+    ).join('');
+    const labels = axes.map((a,i) => {
+      const p = pointAt(i, 119);
+      const anchor = Math.abs(Math.cos(p.angle)) < .28 ? 'middle' : (Math.cos(p.angle) > 0 ? 'start' : 'end');
+      const short = a.shortLabel.length > 25 ? a.shortLabel.slice(0,22) + '…' : a.shortLabel;
+      return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>8?8:9}" fill="#52645c"><title>${esc(a.label)}</title>${esc(short)}</text>`;
+    }).join('');
+    const scoreRows = axes.map(a => `<tr><td>${tce(a.actTitle)}</td><td>${esc(a.type)}</td><td>${a.value !== null && a.value !== undefined ? `<strong>${Math.round(a.value)}%</strong>` : `<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value !== null && a.value !== undefined ? `<span class="badge ok">${t('spider_assessed')}</span>` : `<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
+    const scoredCount = axes.filter(a => a.value !== null && a.value !== undefined).length;
+    return `<div class="spider-module">
+      <div class="spider-module-head"><h3>${tce(mod.name)}</h3><span class="badge info">${scoredCount}/${axes.length} ${t('spider_assessed').toLowerCase()}</span></div>
+      <div class="spider-layout">
+        <div class="spider-chart-wrap">
+          <svg class="spider-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('spider_title'))}">
+            ${grid}${spokes}${ticks}${segments.join('')}${markers}${labels}
+          </svg>
+          <div class="spider-legend"><span class="spider-legend-dot"></span>${t('spider_legend')}</div>
+        </div>
+        <div class="spider-data">
+          <div class="table-wrap"><table><thead><tr><th>${t('spider_assessment')}</th><th>${t('lbl_method')}</th><th>${t('spider_score')}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${scoreRows}</tbody></table></div>
+          ${scoredCount === 0 ? `<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+  if (!moduleCards) return '';
+  return `<section class="card spider-dashboard">
+    <div class="card-head"><h2>🕸️ ${t('spider_title')}</h2></div>
+    <p class="muted" style="font-size:.84rem;margin:-4px 0 14px">${t('spider_hint')}</p>
+    ${moduleCards}
+  </section>`;
+}
+
 function participantDashboard() {
   const me = state.user;
   const myMods = participantModules(me.id);
@@ -3656,6 +3912,7 @@ function participantDashboard() {
     <div class="stat"><div class="label">${t('stat_avg_score')}</div><div class="value">${avgScore ?? '—'}${avgScore !== null ? '%' : ''}</div></div>
     <div class="stat"><div class="label">${t('stat_competent')}</div><div class="value">${kompeten}</div></div>
   </div>
+  ${renderParticipantAssessmentSpider(me.id, myMods)}
   ${renderFinalExamNotificationWidget(me.id)}
   ${pendingQuizzes.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📝 ${t('pending_quiz_title')} (${pendingQuizzes.length})</h2></div><p class="muted" style="font-size:.85rem;margin-bottom:12px">${t('pending_quiz_hint')}</p>${pendingQuizzes.map(a => { const w = quizWindowStatus(a); const retest = hasPendingRetest(a.id, me.id); const attempt = getAttempt(a.id, me.id); const statusBadge = retest ? `<span class="badge info">🔄 ${t('retest_pending_badge')}</span>` : (w.state === 'not-open' ? `<span class="badge draft">🕐 ${t('status_not_open')}</span>` : w.state === 'closed' ? `<span class="badge bad">🔒 ${t('status_closed')}</span>` : `<span class="badge ok">✓ ${t('status_open')}</span>`); const btnLabel = w.state === 'open' ? (retest ? '🔄 ' + t('retest_take') + ' →' : t('quiz_take') + ' →') : t('quiz_view') + ' →'; const bestNote = attempt ? ` · 🏆 ${Math.round(attempt.score/attempt.total*100)}%` : ''; return `<div class="pending-quiz-card" style="${retest ? 'border-color:var(--brand-2);background:linear-gradient(135deg,#e8f5ec,#fff)' : ''}"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(a.title)} ${statusBadge}</div><div class="pq-meta">${tce(moduleName(a.moduleId))} · ${a.quiz.length} ${t('lbl_questions')} · ${fmtDate(a.date)}${a.quizDuration ? ` · ⏱️ ${a.quizDuration} ${t('lbl_minutes')}` : ''}${a.quizOpenAt && w.state === 'not-open' ? ` · ${t('quiz_open_at')}: ${fmtDT(a.quizOpenAt)}` : ''}${a.quizCloseAt ? ` · ${t('quiz_close_at')}: ${fmtDT(a.quizCloseAt)}` : ''}${bestNote}</div></div><button class="btn btn-primary btn-sm" data-act="open-quiz-tab" data-id="${a.id}">${btnLabel}</button></div>`; }).join('')}</div>` : ''}
   ${renderUpcomingTimetableWidget(me.id)}
@@ -3679,7 +3936,7 @@ function renderUpcomingTimetableWidget(pid) {
 }
 function trainerDashboard() {
   const mods = myModules();
-  const acts = sortActs(DB.activities.filter(a => a.trainerId === state.user.id || (a.moduleId && getModule(a.moduleId)?.facilitatorId === state.user.id)));
+  const acts = sortActs(DB.activities.filter(a => a.moduleId && canTrainerAccessModule(a.moduleId)));
   const pub = acts.filter(a => a.published).length;
   const drafts = acts.filter(a => !a.published).length;
   const totalEnroll = mods.reduce((s,m) => s + enrolledParticipants(m.id).length, 0);
@@ -3699,7 +3956,7 @@ function trainerDashboard() {
   </div>
   ${paCount ? `<div class="info-box warn"><h4>📥 ${t('pa_title')} (${paCount})</h4><p style="margin:4px 0 0">${t('pa_sub')} <button class="btn btn-sm btn-primary" data-act="nav" data-view="approvals" style="margin-left:6px">${t('pa_review')} →</button></p></div>` : ''}
   ${drafts ? `<div class="info-box warn"><h4>⚠️ ${t('modules_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}
-  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
+  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
 }
 function adminDashboard() {
   const mods = sortModules(DB.modules);
@@ -3727,7 +3984,7 @@ function adminDashboard() {
 
 function facilitatorDashboard() {
   const me = state.user;
-  const mods = myModules().filter(m => m.facilitatorId === me.id);
+  const mods = myModules().filter(m => moduleHasFacilitator(m, me.id));
   const totalParticipants = mods.reduce((s, m) => s + enrolledParticipants(m.id).length, 0);
   let assessmentCount = 0, pendingCount = 0;
   mods.forEach(m => {
@@ -3773,7 +4030,7 @@ function facilitatorDashboard() {
         <div class="fm-icon">📦</div>
         <div class="fm-body">
           <div class="fm-name">${tce(m.name)}</div>
-          <div class="fm-meta">👤 ${t('lbl_trainer')}: ${tce(userName(m.trainerId))}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}${m.published ? ' · <span class="badge ok" style="font-size:.65rem">' + t('lbl_active') + '</span>' : ' · <span class="badge draft" style="font-size:.65rem">' + t('lbl_draft') + '</span>'}</div>
+          <div class="fm-meta">👤 ${t('lbl_trainer')}: ${tce(moduleTrainerNames(m))}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}${m.published ? ' · <span class="badge ok" style="font-size:.65rem">' + t('lbl_active') + '</span>' : ' · <span class="badge draft" style="font-size:.65rem">' + t('lbl_draft') + '</span>'}</div>
           <div class="fm-stats">
             <span><strong>${acts.length}</strong> ${t('lbl_activities')}</span>
             <span><strong>${parts.length}</strong> ${t('lbl_participants')}</span>
@@ -3853,7 +4110,7 @@ function renderApprovalCard(pa) {
 function approvalsView() {
   if (!['admin','trainer'].includes(state.user.role)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   const isAdmin = state.user.role === 'admin';
-  const myModIds = (isAdmin ? DB.modules : DB.modules.filter(m => m.trainerId === state.user.id)).map(m => m.id);
+  const myModIds = (isAdmin ? DB.modules : DB.modules.filter(m => moduleHasTrainer(m, state.user.id))).map(m => m.id);
   const all = (DB.pendingApprovals || []).filter(x => isAdmin || myModIds.includes(x.moduleId));
   const pending = all.filter(x => x.status === 'pending').sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt));
   const history = all.filter(x => x.status !== 'pending').sort((a,b) => new Date(b.reviewedAt||b.submittedAt) - new Date(a.reviewedAt||a.submittedAt)).slice(0, 20);
@@ -3900,11 +4157,12 @@ function modulesView() {
     <div class="card-head">
       <div><h2>${isVip ? t('nav_modules_all') : (isAdmin ? t('modules_all') : t('modules_mine'))}</h2>${isVip ? `<small class="muted">${t('vip_all_modules_hint')}</small>` : ''}</div>
       <div class="toolbar">
+        <button class="btn" data-act="print-all-modules">📄 ${t('modules_print_all')}</button>
         ${isAdmin ? `<button class="btn btn-primary" data-act="new-module">➕ ${t('lbl_module')}</button>` : ''}
         ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
     </div>
-    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && m.facilitatorId === state.user.id && m.trainerId !== state.user.id; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')}</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${m.id}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${m.id}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
+    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')}</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${m.id}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${m.id}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
   </div>`;
 }
 
@@ -4011,8 +4269,8 @@ function moduleDetailView() {
   if (!m) return `<div class="card"><div class="empty">${t('msg_not_found')}</div></div>`;
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  const isOwner = m.trainerId === state.user.id;
-  const isFac = m.facilitatorId === state.user.id && !isOwner;
+  const isOwner = moduleHasTrainer(m, state.user.id);
+  const isFac = moduleHasFacilitator(m, state.user.id) && !isOwner;
   const isParticipant = state.user.role === 'participant';
   if (!isAdmin && !isOwner && !isFac && !isParticipant && !isVip) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   if (isVip) return vipModuleDetailView(m);
@@ -4047,7 +4305,7 @@ function openTimetableForm(mid, entryId) {
   const isEdit = !!entryId;
   const e = isEdit ? DB.timetables.find(x => x.id === entryId) : null;
   if (isEdit && !e) { toast(t('msg_not_found'), 'bad'); return; }
-  const v = isEdit ? e : { date: todayISO(), startTime: '09:00', endTime: '10:30', title: '', instructor: userName(m.trainerId) || '', location: '', notes: '' };
+  const v = isEdit ? e : { date: todayISO(), startTime: '09:00', endTime: '10:30', title: '', instructor: moduleTrainerNames(m) || '', location: '', notes: '' };
   const startVal = normalizeTimeStr(v.startTime) || '09:00';
   const endVal = normalizeTimeStr(v.endTime) || '10:30';
   openModal(`<h2>${isEdit ? t('tt_edit') : t('tt_new')}</h2><p class="muted">${tce(m.name)}</p>
@@ -4097,7 +4355,7 @@ function finalExamsView() {
   if (!isAdmin && !isVip) exams = allExams.filter(fe => feModuleIds(fe).some(mid => canTrainerAccessModule(mid)));
   const getMyModuleProgress = (fe) => {
     if (isAdmin || isVip) return null;
-    const mine = (fe.moduleConfigs || []).filter(mc => { const m = getModule(mc.moduleId); return m && (m.trainerId === state.user.id || m.facilitatorId === state.user.id); });
+    const mine = (fe.moduleConfigs || []).filter(mc => { const m = getModule(mc.moduleId); return m && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)); });
     if (!mine.length) return null;
     const count = mine.reduce((s, mc) => s + (mc.questions||[]).length, 0);
     const target = mine.reduce((s, mc) => s + (mc.questionCount||0), 0);
@@ -4311,7 +4569,7 @@ function openFinalExamQuestionsEditor(feid) {
   const isAdmin = state.user.role === 'admin';
   const allModules = (fe.moduleConfigs || []).map(mc => {
     const m = getModule(mc.moduleId);
-    const canEdit = isAdmin || (m && (m.trainerId === state.user.id || m.facilitatorId === state.user.id));
+    const canEdit = isAdmin || (m && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)));
     return { mc, m, canEdit };
   });
   const submittedCount = feSubmittedModulesCount(fe);
@@ -4334,7 +4592,7 @@ function openFinalExamQuestionsEditor(feid) {
       const actionBtn = canEdit ? `<button class="btn btn-primary btn-sm" data-act="fe-edit-module-questions" data-feid="${feid}" data-mid="${mc.moduleId}">${done ? '✏️ ' + t('btn_edit') : '➕ ' + t('qb_add_question')}</button>` : `<span class="badge ${done ? 'ok' : 'warn'}" style="font-size:.7rem">${done ? '✓ ' + t('fe_module_submitted') : '⏳ ' + t('fe_module_pending')}</span>`;
       return `<div class="fe-mod-submit-card ${cardCls}" style="${!canEdit ? 'opacity:.85;border-color:var(--line);background:#fbfdfc' : ''}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:200px"><div style="font-weight:700;font-size:.95rem">📦 ${tce(m ? m.name : mc.moduleId)}${canEdit ? '' : ' <span class="badge draft" style="font-size:.62rem">👁️</span>'}</div><div class="muted" style="font-size:.8rem;margin-top:2px">👤 ${tce(m ? userName(m.trainerId) : '—')} · ${qCount} / ${target} ${t('lbl_questions')} ${done ? ' · ✅ ' + t('fe_module_submitted') : ' · ⏳ ' + t('fe_module_pending')}</div></div>
+          <div style="flex:1;min-width:200px"><div style="font-weight:700;font-size:.95rem">📦 ${tce(m ? m.name : mc.moduleId)}${canEdit ? '' : ' <span class="badge draft" style="font-size:.62rem">👁️</span>'}</div><div class="muted" style="font-size:.8rem;margin-top:2px">👤 ${tce(m ? moduleTrainerNames(m) : '—')} · ${qCount} / ${target} ${t('lbl_questions')} ${done ? ' · ✅ ' + t('fe_module_submitted') : ' · ⏳ ' + t('fe_module_pending')}</div></div>
           ${actionBtn}
         </div>
       </div>`;
@@ -4347,7 +4605,7 @@ function openModuleQuestionEditor(feid, moduleId) {
   const mc = (fe.moduleConfigs || []).find(x => x.moduleId === moduleId);
   if (!mc) { toast('⚠️ ' + t('msg_not_found'), 'bad'); return; }
   const m = getModule(moduleId);
-  if (state.user.role !== 'admin') { if (!m || (m.trainerId !== state.user.id && m.facilitatorId !== state.user.id)) { toast(t('msg_no_access'), 'bad'); return; } }
+  if (state.user.role !== 'admin') { if (!m || (!moduleHasTrainer(m, state.user.id) && !moduleHasFacilitator(m, state.user.id))) { toast(t('msg_no_access'), 'bad'); return; } }
   state.editingFinalExamId = feid;
   state.editingModuleId = moduleId;
   state.tempFeQuestions = JSON.parse(JSON.stringify(mc.questions || []));
@@ -4516,8 +4774,11 @@ function programsView() {
 
 function openModuleForm(mod) {
   const isEdit = !!mod;
-  const m = mod || { name:'', description:'', trainerId: (allTrainers()[0] || {}).id, facilitatorId: null, published: true, startDate: '' };
+  const m = mod || { name:'', description:'', trainerIds: (allTrainers()[0] || {}).id ? [(allTrainers()[0] || {}).id] : [], facilitatorIds: [], published: true, startDate: '' };
+  const selectedTrainers = moduleTrainerIds(m);
+  const selectedFacilitators = moduleFacilitatorIds(m);
   const facOptions = allTrainersAndFacilitators();
+  const multiGroup = (name, label, users, selected, required) => `<div class="field"><label>${label}${required ? ' *' : ''} <small class="muted">(${currentLang === 'en' ? 'select up to 3' : 'pilih maksimum 3'})</small></label><div class="multi-assignee-list" data-max="3" data-group="${name}" style="border:1px solid var(--line);border-radius:9px;padding:9px;max-height:190px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px">${users.map(u => `<label style="display:flex;align-items:center;gap:7px;font-size:.85rem;padding:5px;border-radius:6px;background:var(--surface-2,#f7faf9)"><input type="checkbox" name="${name}" value="${esc(u.id)}" ${selected.includes(u.id) ? 'checked' : ''} /> <span>${tce(u.name)}${u.role === 'facilitator' ? ' (F)' : ''}</span></label>`).join('') || `<span class="muted">${t('msg_no_data')}</span>`}</div></div>`;
   openModal(`<h2>${isEdit ? t('form_edit') + ' ' + t('lbl_module') : t('form_new') + ' ' + t('lbl_module')}</h2>
     <form data-form="module" data-id="${isEdit ? m.id : ''}">
       <div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(m.name)}" /></div>
@@ -4526,23 +4787,37 @@ function openModuleForm(mod) {
         <div class="field"><label>📅 ${t('module_start_date')}</label><input class="input" type="date" name="startDate" value="${esc(m.startDate || '')}" /><small class="muted" style="display:block;margin-top:4px">${currentLang === 'en' ? 'Modules are sorted by this date' : 'Modul disusun mengikut tarikh ini'}</small></div>
         <div class="field"><label>${t('lbl_status')}</label><select class="select" name="published"><option value="true" ${m.published ? 'selected' : ''}>${t('lbl_active')}</option><option value="false" ${!m.published ? 'selected' : ''}>${t('lbl_draft')}</option></select></div>
       </div>
-      <div class="grid2"><div class="field"><label>👤 ${t('lbl_trainer')} *</label><select class="select" name="trainerId" required>${allTrainers().map(tr => `<option value="${tr.id}" ${m.trainerId === tr.id ? 'selected' : ''}>${tce(tr.name)}</option>`).join('')}</select></div><div class="field"><label>🧑‍🏫 ${t('lbl_facilitator')}</label><select class="select" name="facilitatorId"><option value="">— ${t('form_no_facilitator')} —</option>${facOptions.map(tr => `<option value="${tr.id}" ${m.facilitatorId === tr.id ? 'selected' : ''}>${tce(tr.name)}${tr.role === 'facilitator' ? ' (F)' : ''}</option>`).join('')}</select></div></div>
+      ${multiGroup('trainerIds', '👤 ' + t('lbl_trainer'), allTrainers(), selectedTrainers, true)}
+      ${multiGroup('facilitatorIds', '🧑‍🏫 ' + t('lbl_facilitator'), facOptions, selectedFacilitators, false)}
       <div class="info-box" style="font-size:.82rem"><p style="margin:0">💡 ${t('pa_facilitator_note')}</p></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
+  const modal = document.querySelector('#modalRoot form[data-form="module"]');
+  if (modal) modal.querySelectorAll('.multi-assignee-list').forEach(group => {
+    group.addEventListener('change', ev => {
+      if (!ev.target.matches('input[type="checkbox"]')) return;
+      const checked = group.querySelectorAll('input[type="checkbox"]:checked');
+      if (checked.length > 3) { ev.target.checked = false; toast(currentLang === 'en' ? 'Maximum 3 selections allowed.' : 'Maksimum 3 pilihan sahaja.', 'bad'); }
+    });
+  });
 }
 function handleSaveModule(form) {
   const id = form.dataset.id;
+  const trainerIds = [...form.querySelectorAll('input[name="trainerIds"]:checked')].map(x => x.value).slice(0, 3);
+  const facilitatorIds = [...form.querySelectorAll('input[name="facilitatorIds"]:checked')].map(x => x.value).slice(0, 3);
   const data = {
     name: form.name.value.trim(), description: form.description.value.trim(),
-    trainerId: form.trainerId.value, facilitatorId: (form.facilitatorId && form.facilitatorId.value) || null,
+    trainerIds, facilitatorIds, trainerId: trainerIds[0] || null, facilitatorId: facilitatorIds[0] || null,
     published: form.published.value === 'true', startDate: (form.startDate && form.startDate.value) || null, updatedAt: nowISO()
   };
   if (!data.name) { toast(t('msg_required'), 'bad'); return; }
+  if (!trainerIds.length) { toast(currentLang === 'en' ? 'Select at least one trainer.' : 'Pilih sekurang-kurangnya seorang jurulatih.', 'bad'); return; }
+  if (trainerIds.length > 3 || facilitatorIds.length > 3) { toast(currentLang === 'en' ? 'Maximum 3 trainers and 3 facilitators.' : 'Maksimum 3 jurulatih dan 3 fasilitator.', 'bad'); return; }
+  if (trainerIds.some(x => facilitatorIds.includes(x))) { toast(currentLang === 'en' ? 'A person cannot be assigned as both trainer and facilitator in the same module.' : 'Individu yang sama tidak boleh dipilih sebagai jurulatih dan fasilitator bagi modul yang sama.', 'bad'); return; }
   if (id) {
-    const m = getModule(id); const oldTrainerId = m.trainerId;
+    const m = getModule(id); const oldTrainerIds = moduleTrainerIds(m);
     Object.assign(m, data);
-    DB.activities.filter(a => a.moduleId === id).forEach(a => { a.module = data.name; if (oldTrainerId !== data.trainerId) a.trainerId = data.trainerId; });
+    DB.activities.filter(a => a.moduleId === id).forEach(a => { a.module = data.name; a.trainerId = data.trainerId; });
     saveDB(); logAudit('Update Module', 'Modul', id, data.name); toast(t('msg_updated'));
   } else {
     const nm = Object.assign({ id: uid('mod'), createdBy: state.user.id, createdAt: nowISO(), materials: [] }, data);
@@ -4706,7 +4981,7 @@ function activityDetailView() {
   const isParticipant = state.user.role === 'participant';
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  const isOwner = act.trainerId === state.user.id;
+  const isOwner = !!getModule(act.moduleId) && moduleHasTrainer(getModule(act.moduleId), state.user.id);
   if (isVip) return vipActivityDetailView(act);
   if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(act.id)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   if (isParticipant) { if (!act.published) return `<div class="card"><div class="empty">${t('msg_not_published')}</div></div>`; if (!isEnrolled(act.moduleId, state.user.id)) return `<div class="card"><div class="empty">${t('msg_not_enrolled')}</div></div>`; }
@@ -4732,45 +5007,81 @@ function activityDetailView() {
   } else if (isParticipant) {
     quizSection = `<div class="card"><div class="empty">${t('act_no_quiz', fmtDate(act.date))}</div></div>`;
   }
-  const pracInfo = isParticipant && !prac && rubric.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge ${rubricObj.approvalStatus === 'approved' ? 'info' : 'warn'}">${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : ''}</div><div class="info-box warn"><h4>🕐 ${t('act_practical_wait', fmtDate(act.date))}</h4><p style="margin:0">${t('act_practical_eval_hint')}</p></div><div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td><small class="muted">${c.levels.map(l => `${tce(l.label)} (${l.mark})`).join(' · ')}</small></td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div></div>` : '';
+  const pWindow = practicalWindowStatus(act);
+  const pracInfo = isParticipant && !prac && rubric.length ? (pWindow.state !== 'open'
+    ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2><span class="badge ${pWindow.state === 'closed' ? 'bad' : 'draft'}">${pWindow.state === 'closed' ? t('status_closed') : t('status_not_open')}</span></div><div class="info-box warn"><h4>🕐 ${pWindow.state === 'closed' ? t('practical_closed') : t('practical_not_open')}</h4><p style="margin:0">${pWindow.state === 'not-open' && act.practicalOpenAt ? fmtDT(act.practicalOpenAt) : (act.practicalCloseAt ? fmtDT(act.practicalCloseAt) : '')}</p></div></div>`
+    : `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge ${rubricObj.approvalStatus === 'approved' ? 'info' : 'warn'}">${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : ''}</div><div class="info-box warn"><h4>🕐 ${t('act_practical_wait', fmtDate(act.date))}</h4><p style="margin:0">${t('act_practical_eval_hint')}</p></div><div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td><small class="muted">${c.levels.map(l => `${tce(l.label)} (${l.mark})`).join(' · ')}</small></td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div></div>`) : '';
   const pracSection = isParticipant && prac ? `<div class="card"><div class="card-head"><h2>📏 ${t('act_practical_eval')}</h2><span class="badge ${prac.total >= 70 ? 'ok' : 'warn'}">${Math.round(prac.total)}%</span></div><div class="table-wrap"><table><thead><tr><th>${t('rb_col_name')}</th><th style="text-align:center">${t('rb_weights')}</th><th style="text-align:center">${t('rb_col_marks')}</th><th style="text-align:center">%</th></tr></thead><tbody>${rubric.map((c, i) => { const mark = prac.scores[i] ?? 0; const mx = Math.max(...c.levels.map(l => l.mark)); const p = mx > 0 ? Math.round((mark / mx) * c.weight) : 0; return `<tr><td>${tce(c.name)}</td><td style="text-align:center">${c.weight}%</td><td style="text-align:center"><strong>${mark}</strong></td><td><div class="progress" style="min-width:100px"><span style="width:${p}%"></span></div></td></tr>`; }).join('')}<tr style="background:#f4f9f7"><td><strong>${t('act_practical_total')}</strong></td><td style="text-align:center"><strong>100%</strong></td><td style="text-align:center"><strong>${prac.scores.reduce((s,v) => s+v, 0)}</strong></td><td style="text-align:center"><strong>${Math.round(prac.total)}%</strong></td></tr></tbody></table></div>${prac.remarks ? `<p style="margin-top:10px"><strong>${t('lbl_remarks')}:</strong> ${tce(prac.remarks)}</p>` : ''}</div>` : '';
   return `<div class="card"><div class="card-head"><div><h2>${tce(act.title)}</h2><small class="muted">📦 ${tce(moduleName(act.moduleId))} · 👤 ${tce(userName(act.trainerId))}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="activities">←</button>${canEdit ? `<button class="btn btn-sm ${act.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${act.id}">${act.published ? '🚫 ' + t('btn_unpublish') : '✅ ' + t('btn_publish')}</button><button class="btn btn-sm" data-act="edit-activity" data-id="${act.id}">✏️</button>` : ''}${canEditRubric ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${act.id}">📏</button>` : ''}${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️</button>` : ''}</div></div>${canEdit && !act.published ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p style="margin:0">${t('act_publish_warn')}</p></div>` : ''}<div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_date')}</div><div class="v">${fmtDate(act.date)}</div></div><div class="meta-item"><div class="k">${t('lbl_duration')}</div><div class="v">${act.duration} ${t('lbl_hours')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${act.published ? '✅ ' + t('lbl_published') : '⚠️ ' + t('lbl_draft')}</div></div><div class="meta-item"><div class="k">${t('lbl_quiz')}</div><div class="v">${(act.quiz||[]).length}${act.quizDuration ? ` · ⏱️ ${act.quizDuration}m` : ''}</div></div></div><h3>${t('act_objectives')}</h3><p>${tce(act.objectives)}</p><h3>${t('act_instructions')}</h3><p>${tce(act.instructions)}</p><h3>${t('act_materials')}</h3><p>${tce(act.materials)}</p><h3>${t('act_rubric_section')} ${rubricObj ? `<small class="muted" style="font-weight:400">— ${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳ ' + t('rb_pending_approval') : ''}</small>` : ''}</h3>${rubric.length ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td>${c.levels.map(l => `<span class="badge draft" style="margin-right:4px">${tce(l.label)} (${l.mark})</span>`).join('')}</td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted">${t('act_rubric_none_hint')}</p>`}</div>
   ${mod && (mod.materials||[]).length ? `<div class="card" style="background:#fbfdfc"><div class="card-head"><h2>📎 ${t('act_module_materials')}</h2><span class="badge info">${mod.materials.length}</span></div><p class="muted" style="font-size:.85rem">${t('act_module_materials_hint')} <strong>${tce(mod.name)}</strong></p><div class="material-list">${mod.materials.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type)}</div><div class="mat-body"><div class="mat-name">${tce(mat.name)}</div><div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.fileId ? ' · ☁️ Drive' : ''}</div></div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${mod.id}" data-matid="${mat.id}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${mod.id}" data-matid="${mat.id}">⬇️</button></div></div>`).join('')}</div></div>` : ''}
   ${quizSection}${pracInfo}${pracSection}`;
 }
 
+function isPracticalActivityMethod(method) {
+  const m = String(method || '').toLowerCase();
+  return m === 'practical test' || m.includes('praktikal') || m.includes('practical');
+}
+function canonicalActivityMethod(method) {
+  return isPracticalActivityMethod(method) ? 'Practical Test' : 'Quiz';
+}
+
 function openActivityForm(act, presetModuleId) {
   const isEdit = !!act;
   const isAdmin = state.user.role === 'admin';
-  const a = act || { title:'', date: todayISO(), duration:2, objectives:'', instructions:'', materials:'', method:'Kuiz + Praktikal', published: false, moduleId: presetModuleId || '', rubricId: null };
+  const a = act || { title:'', date: todayISO(), duration:2, objectives:'', instructions:'', materials:'', method:'Quiz', published: false, moduleId: presetModuleId || '', rubricId: null, quizOpenAt:null, quizCloseAt:null, practicalOpenAt:null, practicalCloseAt:null };
   const avail = isAdmin ? sortModules(DB.modules) : myModules();
   if (!avail.length) { openModal(`<h2>${t('act_new')}</h2><div class="info-box warn"><h4>${t('msg_no_module')}</h4><p>${isAdmin ? t('msg_select_module_first') : t('act_no_module_assigned')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button></div>`); return; }
   const preMod = a.moduleId && avail.find(m => m.id === a.moduleId) ? a.moduleId : avail[0].id;
-  const isPractical = a.method && a.method.includes('Praktikal');
+  const isPractical = isPracticalActivityMethod(a.method);
+  state.editingActivityId = isEdit ? a.id : null;
+  state.activityDraftModuleId = preMod;
+  state.tempQuiz = JSON.parse(JSON.stringify(a.quiz || []));
   const rubrics = (DB.rubrics || []).filter(rb => rb.approvalStatus === 'approved').slice().sort((x,y) => (x.name||'').localeCompare(y.name||''));
   openModal(`<h2>${isEdit ? t('act_edit') : t('act_new')}</h2>
     <form data-form="activity" data-id="${isEdit ? a.id : ''}">
-      <div class="field"><label>${t('lbl_module')} *</label><select class="select" name="moduleId" required>${avail.map(m => `<option value="${m.id}" ${preMod === m.id ? 'selected' : ''}>${tce(m.name)}${m.published ? '' : ' (' + t('lbl_draft') + ')'}</option>`).join('')}</select></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_title')} *</label><input class="input" name="title" required value="${esc(a.title)}" /></div><div class="field"><label>${t('lbl_date')} *</label><input class="input" type="date" name="date" required value="${esc(a.date)}" /></div><div class="field"><label>${t('form_duration')} *</label><input class="input" type="number" min="0.5" step="0.5" name="duration" required value="${a.duration}" /></div><div class="field"><label>${t('lbl_method')}</label><select class="select" name="method" id="activityMethod" data-change="activity-method">${['Kuiz + Praktikal','Kuiz Teori','Penilaian Praktikal','Kehadiran Sahaja'].map(mth => `<option ${a.method === mth ? 'selected' : ''}>${mth}</option>`).join('')}</select></div></div>
+      <div class="field"><label>${t('lbl_module')} *</label><select class="select" name="moduleId" id="activityModuleSelect" required>${avail.map(m => `<option value="${m.id}" ${preMod === m.id ? 'selected' : ''}>${tce(m.name)}${m.published ? '' : ' (' + t('lbl_draft') + ')'}</option>`).join('')}</select></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_title')} *</label><input class="input" name="title" required value="${esc(a.title)}" /></div><div class="field"><label>${t('lbl_date')} *</label><input class="input" type="date" name="date" required value="${esc(a.date)}" /></div><div class="field"><label>${t('form_duration')} *</label><input class="input" type="number" min="0.5" step="0.5" name="duration" required value="${a.duration}" /></div><div class="field"><label>${t('lbl_method')} *</label><select class="select" name="method" id="activityMethod" data-change="activity-method" required><option value="Quiz" ${!isPractical ? 'selected' : ''}>${t('method_quiz')}</option><option value="Practical Test" ${isPractical ? 'selected' : ''}>${t('method_practical')}</option></select><small class="muted">${t('method_choose_hint')}</small></div></div>
       <div class="field" id="rubricTemplateField" style="display:${isPractical ? 'block' : 'none'};background:#f7fbf9;border:1px solid var(--line);border-radius:10px;padding:12px"><label>📏 ${t('lbl_rubric')} <small class="muted" style="font-weight:400">(${t('form_rubric_hint')})</small></label><select class="select" name="rubricId"><option value="">${t('form_no_rubric')}</option>${rubrics.map(rb => `<option value="${rb.id}" ${a.rubricId === rb.id ? 'selected' : ''}>${tce(rb.name)}</option>`).join('')}</select></div>
+      <div class="card" style="box-shadow:none;margin:12px 0;padding:14px">
+        <h3>🕒 ${t('schedule_title')}</h3>
+        <div id="quizScheduleFields" style="display:${isPractical ? 'none' : 'block'};margin-top:10px"><strong>${t('schedule_quiz_title')}</strong><div class="grid2" style="margin-top:8px">
+          <div class="field"><label>${t('schedule_open_at')}</label><input class="input" type="datetime-local" name="quizOpenAt" value="${esc(toLocalInput(a.quizOpenAt))}" /><small class="muted">${t('schedule_open_hint')}</small></div>
+          <div class="field"><label>${t('schedule_close_at')}</label><input class="input" type="datetime-local" name="quizCloseAt" value="${esc(toLocalInput(a.quizOpenAt ? a.quizCloseAt : a.quizCloseAt))}" /><small class="muted">${t('schedule_close_hint')}</small></div>
+          <div class="field"><label>${t('qb_duration')}</label><input class="input" type="number" min="0" step="1" name="quizDuration" value="${a.quizDuration != null ? a.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted">${t('qb_duration_hint')}</small></div>
+        </div>
+        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div id="activityQuizBuilderSection"></div></div>
+        </div>
+        <div id="practicalScheduleFields" style="display:${isPractical ? 'block' : 'none'};margin-top:10px"><strong>${t('schedule_practical_title')}</strong><div class="grid2" style="margin-top:8px">
+          <div class="field"><label>${t('schedule_open_at')}</label><input class="input" type="datetime-local" name="practicalOpenAt" value="${esc(toLocalInput(a.practicalOpenAt))}" /><small class="muted">${t('schedule_open_hint')}</small></div>
+          <div class="field"><label>${t('schedule_close_at')}</label><input class="input" type="datetime-local" name="practicalCloseAt" value="${esc(toLocalInput(a.practicalCloseAt))}" /><small class="muted">${t('schedule_close_hint')}</small></div>
+        </div></div>
+      </div>
       <div class="field"><label>${t('act_objectives')} *</label><textarea class="textarea" name="objectives" required>${esc(a.objectives)}</textarea></div>
       <div class="field"><label>${t('act_instructions')}</label><textarea class="textarea" name="instructions">${esc(a.instructions)}</textarea></div>
       <div class="field"><label>${t('act_materials')}</label><textarea class="textarea" name="materials">${esc(a.materials)}</textarea></div>
       <div class="field" style="background:#f7fbf9;border:1px solid var(--line);border-radius:10px;padding:12px"><label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:.88rem;margin:0"><input type="checkbox" name="publishNow" ${a.published ? 'checked' : ''} style="accent-color:var(--brand);width:18px;height:18px" /><span><strong>${t('form_publish_now')}</strong> — ${t('form_publish_now_hint')}</span></label></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${isEdit ? t('btn_save') : t('btn_add')}</button></div>
     </form>`);
+  renderQuizBuilder();
 }
 function handleSaveActivity(form) {
   const id = form.dataset.id;
   const mod = getModule(form.moduleId.value);
   if (!mod) { toast(t('msg_module_required'), 'bad'); return; }
   const publishNow = !!(form.publishNow && form.publishNow.checked);
-  const method = form.method.value;
-  const isPractical = method.includes('Praktikal');
+  const method = canonicalActivityMethod(form.method.value);
+  const isPractical = method === 'Practical Test';
   const rubricId = isPractical && form.rubricId && form.rubricId.value ? form.rubricId.value : null;
-  const data = { title: form.title.value.trim(), moduleId: mod.id, module: mod.name, date: form.date.value, duration: Number(form.duration.value) || 1, objectives: form.objectives.value.trim(), instructions: form.instructions.value.trim(), materials: form.materials.value.trim(), method, trainerId: mod.trainerId, rubricId, updatedAt: nowISO() };
-  if (id) { const act = getActivity(id); Object.assign(act, data); act.published = publishNow; saveDB(); logAudit('Update Activity', 'Aktiviti', id, data.title); toast(t('msg_updated')); }
-  else { const maxOrder = DB.activities.filter(a => a.moduleId === mod.id).reduce((m,a) => Math.max(m, a.order), 0); const newAct = Object.assign({ id: uid('act'), order: maxOrder + 1, published: publishNow, quiz: [], quizOpenAt: null, quizCloseAt: null, quizDuration: null, createdAt: nowISO() }, data); DB.activities.push(newAct); saveDB(); logAudit('Create Activity', 'Aktiviti', newAct.id, newAct.title); toast(publishNow ? t('msg_saved_publish') : t('msg_saved_draft')); }
+  const quizOpenAt = !isPractical && form.quizOpenAt ? (form.quizOpenAt.value || null) : null;
+  const quizCloseAt = !isPractical && form.quizCloseAt ? (form.quizCloseAt.value || null) : null;
+  const practicalOpenAt = isPractical && form.practicalOpenAt ? (form.practicalOpenAt.value || null) : null;
+  const practicalCloseAt = isPractical && form.practicalCloseAt ? (form.practicalCloseAt.value || null) : null;
+  if ((quizOpenAt && quizCloseAt && quizOpenAt >= quizCloseAt) || (practicalOpenAt && practicalCloseAt && practicalOpenAt >= practicalCloseAt)) { toast('⚠️ ' + t('schedule_invalid'), 'bad'); return; }
+  const quizDuration = !isPractical && form.quizDuration && Number(form.quizDuration.value) > 0 ? Number(form.quizDuration.value) : null;
+  const data = { title: form.title.value.trim(), moduleId: mod.id, module: mod.name, date: form.date.value, duration: Number(form.duration.value) || 1, objectives: form.objectives.value.trim(), instructions: form.instructions.value.trim(), materials: form.materials.value.trim(), method, trainerId: mod.trainerId, rubricId, quizOpenAt, quizCloseAt, practicalOpenAt, practicalCloseAt, updatedAt: nowISO() };
+  if (id) { const act = getActivity(id); Object.assign(act, data); if (!isPractical) { act.quiz = JSON.parse(JSON.stringify(state.tempQuiz || [])); act.quizDuration = quizDuration; } act.published = publishNow; saveDB(); logAudit('Update Activity', 'Aktiviti', id, data.title + (isPractical ? '' : ` · ${(act.quiz||[]).length} questions`)); toast(t('msg_updated')); }
+  else { const maxOrder = DB.activities.filter(a => a.moduleId === mod.id).reduce((m,a) => Math.max(m, a.order), 0); const newAct = Object.assign({ id: uid('act'), order: maxOrder + 1, published: publishNow, quiz: isPractical ? [] : JSON.parse(JSON.stringify(state.tempQuiz || [])), quizOpenAt: null, quizCloseAt: null, quizDuration: isPractical ? null : quizDuration, createdAt: nowISO() }, data); DB.activities.push(newAct); saveDB(); logAudit('Create Activity', 'Aktiviti', newAct.id, newAct.title + (isPractical ? '' : ` · ${(newAct.quiz||[]).length} questions`)); toast(publishNow ? t('msg_saved_publish') : t('msg_saved_draft')); }
+  state.tempQuiz = []; state.editingActivityId = null; state.activityDraftModuleId = null;
   closeModal(); render();
 }
 
@@ -4813,14 +5124,19 @@ async function handleUploadMaterial(form) {
   const progressEl = document.getElementById('uploadProgress');
   const progressBar = document.getElementById('uploadProgressBar');
   if (progressEl) progressEl.style.display = 'block';
-  if (progressBar) progressBar.style.width = '10%';
+  if (progressBar) progressBar.style.width = '0%';
+  startUploadMonitor(file.name, file.size);
   try {
-    if (progressBar) progressBar.style.width = '25%';
-    const base64 = await fileToBase64(file);
-    if (progressBar) progressBar.style.width = '55%';
+    const base64 = await fileToBase64(file, pct => {
+      if (progressBar) progressBar.style.width = pct + '%';
+      updateTransferMonitor('upload', pct, `${file.name} · ${t('transfer_preparing')}`, true, false);
+    });
+    if (progressBar) progressBar.style.width = '50%';
+    updateTransferMonitor('upload', 50, `${file.name} · ${t('transfer_sending')}`, true, true);
     const res = await driveAPI('uploadModuleMaterial', { payload: { moduleId: mid, moduleName: m.name, filename: file.name, mimeType: file.type || 'application/octet-stream', base64, description: (form.description ? form.description.value : '').trim() } });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
     if (progressBar) progressBar.style.width = '90%';
+    updateTransferMonitor('upload', 95, `${file.name} · ${t('transfer_verifying')}`, true, true);
     const displayName = (form.displayName.value || '').trim() || file.name;
     const mat = { id: uid('mat'), fileId: res.file.id, name: displayName, originalName: file.name, type: fileTypeFromName(file.name), mime: res.file.mimeType, size: res.file.size, downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl, folderId: res.file.folderId, folderUrl: res.file.folderUrl, description: (form.description ? form.description.value : '').trim(), uploadedBy: state.user.id, uploadedAt: nowISO() };
     if (!Array.isArray(m.materials)) m.materials = [];
@@ -4830,8 +5146,10 @@ async function handleUploadMaterial(form) {
     logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
     if (progressBar) progressBar.style.width = '100%';
     state.pendingFile = null; closeModal(); toast('✅ ' + t('mat_upload_success')); render();
+    finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
   } catch (err) {
     console.error('Upload error:', err);
+    finishUploadMonitor(false, `${file.name} · ${err.message || t('transfer_failed')}`);
     if (progressEl) progressEl.style.display = 'none';
     toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
@@ -4881,7 +5199,7 @@ function rubricView() {
   const isFacilitator = state.user.role === 'facilitator';
   const isReviewer = ['admin','trainer'].includes(state.user.role);
   const rubrics = (DB.rubrics || []).slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const practicalActs = sortActs(DB.activities.filter(a => a.method && a.method.includes('Praktikal') && (state.user.role === 'admin' || canTrainerAccessActivity(a.id))));
+  const practicalActs = sortActs(DB.activities.filter(a => isPracticalActivityMethod(a.method) && (state.user.role === 'admin' || canTrainerAccessActivity(a.id))));
   const usedByCount = (rid) => DB.activities.filter(a => a.rubricId === rid).length;
   const approvedRubrics = rubrics.filter(r => r.approvalStatus === 'approved');
   const pendingRubrics = rubrics.filter(r => r.approvalStatus === 'pending');
@@ -4992,6 +5310,7 @@ function deleteRubric(id) {
 function openQuizEditor(aid) {
   const act = getActivity(aid); if (!act) return;
   state.editingActivityId = aid;
+  state.activityDraftModuleId = null;
   state.tempQuiz = JSON.parse(JSON.stringify(act.quiz || []));
   openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${t('qb_title')}</h2><p class="muted" style="margin:0">${tce(act.title)} · 📦 ${tce(moduleName(act.moduleId))}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-quiz-config">💾 ${t('btn_save')}</button></div></div>
     ${state.retestContext ? `<div class="retest-banner">🔄 ${t('retest_title')} — ${tce(userName(state.retestContext.pid))}</div>` : ''}
@@ -5001,11 +5320,12 @@ function openQuizEditor(aid) {
   renderQuizBuilder();
 }
 function renderQuizBuilder() {
-  const c = document.getElementById('quizBuilderSection'); if (!c) return;
+  const c = document.getElementById('activityQuizBuilderSection') || document.getElementById('quizBuilderSection'); if (!c) return;
   const quiz = state.tempQuiz || [];
   const act = getActivity(state.editingActivityId);
-  const bankCount = act ? DB.questionBank.filter(b => b.moduleId === act.moduleId).length : DB.questionBank.length;
-  c.innerHTML = `<div class="quiz-builder">${quiz.length ? quiz.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="qb-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="qb-down" data-idx="${i}" ${i === quiz.length-1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="qb-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="qb-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('qb_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="qb-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="qb-pick-bank">🗂️ ${t('qb_pick_bank')} — ${tce(moduleName(act ? act.moduleId : ''))} (${bankCount})</button><span class="pill" style="margin-left:auto">${quiz.length} ${t('lbl_questions')}</span></div></div>`;
+  const moduleId = act ? act.moduleId : (state.activityDraftModuleId || (document.querySelector('#modalRoot form[data-form="activity"] [name="moduleId"]') || {}).value || null);
+  const bankCount = DB.questionBank.filter(b => !moduleId || b.moduleId === moduleId).length;
+  c.innerHTML = `<div class="quiz-builder">${quiz.length ? quiz.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="qb-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="qb-down" data-idx="${i}" ${i === quiz.length-1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="qb-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="qb-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('qb_no_questions')}</p>`}<div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="qb-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="qb-pick-bank">🗂️ ${t('qb_pick_bank')} — ${tce(moduleName(moduleId || ''))} (${bankCount})</button><span class="pill" style="margin-left:auto">${quiz.length} ${t('lbl_questions')}</span></div></div>`;
 }
 function handleSaveQuizConfig() {
   const aid = state.editingActivityId; if (!aid) return;
@@ -5022,7 +5342,8 @@ function handleSaveQuizConfig() {
 }
 function openBankPicker() {
   const act = getActivity(state.editingActivityId);
-  state.pickerModuleId = act ? act.moduleId : null;
+  const draftForm = document.querySelector('#modalRoot form[data-form="activity"]');
+  state.pickerModuleId = act ? act.moduleId : (draftForm && draftForm.moduleId ? draftForm.moduleId.value : state.activityDraftModuleId || null);
   const pool = DB.questionBank.filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId);
   const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
   openModal2(`<h2>${t('qb_pick_from_bank')}</h2><div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.pickerModuleId))}</strong> — ${pool.length} ${t('lbl_questions')}</p></div><div class="picker-toolbar"><input class="input" id="pickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="pickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select><select class="select" id="pickerDiff"><option value="">${t('qb_pick_all')}</option><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div><form data-form="bank-picker"><div class="picker-list" id="pickerList"></div><div class="modal-actions"><span class="pill" id="pickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
@@ -5060,7 +5381,9 @@ function handleSaveInlineQuestion(form) {
   else {
     const act = getActivity(state.editingActivityId);
     if (form.saveToBank && form.saveToBank.checked) {
-      const b = Object.assign({ id: uid('qb'), createdAt: nowISO(), moduleId: act ? act.moduleId : null }, newQ, { category: form.category?.value.trim() || '', difficulty: form.difficulty?.value || 'Mudah' });
+      const draftForm = document.querySelector('#modalRoot form[data-form="activity"]');
+      const currentModuleId = act ? act.moduleId : (draftForm && draftForm.moduleId ? draftForm.moduleId.value : state.activityDraftModuleId || null);
+      const b = Object.assign({ id: uid('qb'), createdAt: nowISO(), moduleId: currentModuleId }, newQ, { category: form.category?.value.trim() || '', difficulty: form.difficulty?.value || 'Mudah' });
       DB.questionBank.push(b); newQ.sourceBankId = b.id; newQ.moduleId = b.moduleId; saveDB();
     }
     state.tempQuiz.push(newQ);
@@ -5102,6 +5425,7 @@ function gradingView() {
       <div><h2>${t('grad_title')}</h2>${isVip ? `<small class="muted">${t('vip_read_only')}</small>` : ''}</div>
       <div class="toolbar">
         <select class="select" style="max-width:340px" data-change="grading-activity">${acts.map(a => `<option value="${a.id}" ${a.id === selId ? 'selected' : ''}>${tce(a.title)}${a.published ? '' : ' ⚠️'}</option>`).join('')}</select>
+        ${!isVip && ['admin','trainer','facilitator'].includes(state.user.role) && isPracticalActivityMethod(act.method) ? `<select class="select" style="max-width:240px" data-change="grading-rubric" data-aid="${act.id}" title="${esc(t('grading_rubric'))}"><option value="">— ${t('grading_choose_rubric')} —</option>${(DB.rubrics||[]).filter(r => r.approvalStatus === 'approved').sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(r => `<option value="${r.id}" ${act.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select>` : ''}
         ${!isVip && (act.quiz && act.quiz.length) ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️ ${t('qb_title')}</button>` : ''}
         ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
@@ -5235,10 +5559,18 @@ function deleteUser(id) {
   if (!confirm(t('confirm_delete_user', u.name))) return;
   DB.users = DB.users.filter(x => x.id !== id);
   if (u.role === 'trainer' || u.role === 'facilitator') {
-    const mids = DB.modules.filter(m => m.trainerId === id).map(m => m.id);
+    const orphanModuleIds = [];
+    DB.modules.forEach(m => {
+      m.trainerIds = moduleTrainerIds(m).filter(x => x !== id);
+      m.facilitatorIds = moduleFacilitatorIds(m).filter(x => x !== id);
+      m.trainerId = m.trainerIds[0] || null;
+      m.facilitatorId = m.facilitatorIds[0] || null;
+      if (!m.trainerIds.length) orphanModuleIds.push(m.id);
+    });
+    const mids = orphanModuleIds;
     const aids = DB.activities.filter(a => mids.includes(a.moduleId)).map(a => a.id);
     const feids = (DB.finalExams || []).filter(fe => feModuleIds(fe).some(mid => mids.includes(mid))).map(fe => fe.id);
-    DB.modules = DB.modules.filter(m => m.trainerId !== id);
+    DB.modules = DB.modules.filter(m => !mids.includes(m.id));
     DB.activities = DB.activities.filter(a => !mids.includes(a.moduleId));
     DB.attempts = DB.attempts.filter(a => !aids.includes(a.activityId));
     DB.attendance = DB.attendance.filter(a => !aids.includes(a.activityId));
@@ -5251,7 +5583,6 @@ function deleteUser(id) {
     DB.questionBank = (DB.questionBank || []).filter(x => !mids.includes(x.moduleId));
     if (Array.isArray(DB.retests)) DB.retests = DB.retests.filter(x => !aids.includes(x.activityId));
     if (Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = DB.pendingApprovals.filter(x => !mids.includes(x.moduleId));
-    DB.modules.forEach(m => { if (m.facilitatorId === id) m.facilitatorId = null; });
   }
   if (u.role === 'participant') {
     DB.attempts = DB.attempts.filter(a => a.participantId !== id);
@@ -5339,10 +5670,190 @@ function timetableReportHTML(mid) {
   }).join('');
   return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('tt_title')}</title><style>${PRINT_CSS}</style></head><body>
     <div class="rpt-head"><div><h1>CFTP Malaysia</h1><p>${t('tt_title')} — ${tce(m.name)}</p></div><div class="rpt-logo">CF</div></div>
-    <table><tr><td><b>${t('lbl_module')}:</b> ${tce(m.name)}</td><td><b>${t('lbl_trainer')}:</b> ${tce(userName(m.trainerId))}</td></tr><tr><td><b>${t('module_start_date')}:</b> ${m.startDate ? fmtDate(m.startDate) : '—'}</td><td><b>${t('lbl_facilitator')}:</b> ${m.facilitatorId ? tce(userName(m.facilitatorId)) : '—'}</td></tr><tr><td><b>${t('tt_entries_count', entries.length)}</b></td><td><b>${t('lbl_date')}:</b> ${ds}</td></tr></table>
+    <table><tr><td><b>${t('lbl_module')}:</b> ${tce(m.name)}</td><td><b>${t('lbl_trainer')}:</b> ${tce(moduleTrainerNames(m))}</td></tr><tr><td><b>${t('module_start_date')}:</b> ${m.startDate ? fmtDate(m.startDate) : '—'}</td><td><b>${t('lbl_facilitator')}:</b> ${moduleFacilitatorNames(m) ? tce(moduleFacilitatorNames(m)) : '—'}</td></tr><tr><td><b>${t('tt_entries_count', entries.length)}</b></td><td><b>${t('lbl_date')}:</b> ${ds}</td></tr></table>
     <h2>${t('tt_title')}</h2>
     <table><thead><tr><th style="width:130px">${t('quiz_time')}</th><th>${t('tt_topic')}</th><th>${t('tt_instructor')}</th><th>${t('tt_location')}</th><th>${t('tt_notes')}</th></tr></thead><tbody>${rows || `<tr><td colspan="5" style="text-align:center;color:#888">${t('tt_no_entries')}</td></tr>`}</tbody></table>
     <div class="foot"><span>CFTP Malaysia</span><span>${t('rpt_generated')} ${ds}</span></div></body></html>`;
+}
+
+function printAllModulesPDF() {
+  const modules = sortModules(['admin','vip'].includes(state.user.role) ? (DB.modules || []) : myModules());
+  if (!modules.length) { toast(t('msg_no_module'), 'warn'); return; }
+  const safe = v => esc(v || '—');
+  const body = modules.map((m, idx) => {
+    const activities = moduleActivitiesList(m.id), materials = m.materials || [];
+    const activityRows = activities.length ? activities.map((a,i) => `<tr><td>${i+1}</td><td>${safe(a.title)}</td><td>${safe(a.date ? fmtDate(a.date) : '—')}</td><td>${safe(a.method)}</td><td>${a.published ? (currentLang === 'ms' ? 'Diterbitkan' : 'Published') : (currentLang === 'ms' ? 'Draf' : 'Draft')}</td></tr>`).join('') : `<tr><td colspan="5">${t('print_no_activities')}</td></tr>`;
+    const materialRows = materials.length ? materials.map((x,i) => `<tr><td>${i+1}</td><td>${safe(x.name)}</td><td>${safe(fileTypeLabel(x.type))}</td><td>${safe(x.description || '')}</td></tr>`).join('') : `<tr><td colspan="4">${t('print_no_materials')}</td></tr>`;
+    return `<section class="module-page"><h1>${idx+1}. ${safe(m.name)}</h1><p>${safe(m.description || '')}</p>
+      <table><tr><th>${t('lbl_trainer')}</th><td>${safe(moduleTrainerNames(m))}</td><th>${t('lbl_facilitator')}</th><td>${safe(moduleFacilitatorNames(m) || '—')}</td></tr><tr><th>${t('module_start_date')}</th><td>${m.startDate ? fmtDate(m.startDate) : '—'}</td><th>${t('lbl_status')}</th><td>${m.published ? (currentLang === 'ms' ? 'Aktif' : 'Active') : (currentLang === 'ms' ? 'Draf' : 'Draft')}</td></tr></table>
+      <h2>${t('print_activities')} (${activities.length})</h2><table><thead><tr><th>#</th><th>${t('lbl_title')}</th><th>${t('lbl_date')}</th><th>${t('lbl_method')}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${activityRows}</tbody></table>
+      <h2>${t('print_materials')} (${materials.length})</h2><table><thead><tr><th>#</th><th>${t('lbl_name')}</th><th>${t('lbl_type')}</th><th>${t('lbl_description')}</th></tr></thead><tbody>${materialRows}</tbody></table></section>`;
+  }).join('');
+  const html = `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${t('print_all_title')}</title><style>body{font-family:Arial,sans-serif;color:#172b24;font-size:11px;margin:22px}h1{font-size:20px;color:#0b6b53;border-bottom:2px solid #0b6b53;padding-bottom:8px}h2{font-size:14px;color:#0b6b53;margin:18px 0 7px}p{line-height:1.5}table{width:100%;border-collapse:collapse;margin:7px 0 14px}th,td{border:1px solid #cbd8d2;padding:6px;text-align:left;vertical-align:top}th{background:#edf5f1}.module-page{page-break-after:always;break-after:page}.module-page:last-child{page-break-after:auto;break-after:auto}@media print{@page{size:A4;margin:15mm}}</style></head><body><h1>${t('print_all_title')}</h1><p>${t('lbl_module')}: ${modules.length} · ${t('rpt_generated')} ${fmtDate(todayISO())}</p>${body}<script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`;
+  printHTML(html);
+}
+
+
+function printSystemBookPDF() {
+  if (!state.user || state.user.role !== 'admin') {
+    toast(t('msg_no_access'), 'bad');
+    return;
+  }
+
+  const en = currentLang === 'en';
+  const L = (ms, english) => en ? english : ms;
+  const escBook = value => esc(value == null || value === '' ? '—' : String(value));
+  const safeObject = (value, keyName = '') => {
+    const blocked = /password|passwd|secret|token|authorization|api.?key|base64|dataurl|binary|blob|rawdata|filecontent|icnumber|identitynumber/i;
+    if (blocked.test(keyName)) return '[REDACTED]';
+    if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      if (/^(data:|blob:)/i.test(value)) return '[FILE DATA OMITTED]';
+      return value.length > 1200 ? value.slice(0, 1200) + ' … [truncated]' : value;
+    }
+    if (Array.isArray(value)) return value.map(v => safeObject(v, keyName));
+    if (typeof value === 'object') {
+      const out = {};
+      Object.keys(value).forEach(k => { if (!blocked.test(k)) out[k] = safeObject(value[k], k); });
+      return out;
+    }
+    return String(value);
+  };
+  const fmtValue = value => {
+    const cleaned = safeObject(value);
+    if (cleaned == null || cleaned === '') return '—';
+    if (typeof cleaned === 'object') return JSON.stringify(cleaned, null, 2);
+    return String(cleaned);
+  };
+  const fieldLabel = key => String(key)
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+  const sections = [];
+  const addSection = (id, title, description, records, emptyText) => {
+    const list = Array.isArray(records) ? records : [];
+    const rows = list.length ? list.map((record, index) => {
+      const obj = safeObject(record);
+      const fields = obj && typeof obj === 'object' && !Array.isArray(obj)
+        ? Object.entries(obj).filter(([k]) => !/password|passwd|secret|token|authorization|api.?key|base64|dataurl|binary|blob|rawdata|filecontent|icnumber|identitynumber/i.test(k))
+        : [['Value', obj]];
+      return `<article class="record"><h3>${index + 1}. ${escBook(record && (record.name || record.title || record.label || record.id) || L('Rekod', 'Record'))}</h3><table><tbody>${fields.map(([k,v]) => `<tr><th>${escBook(fieldLabel(k))}</th><td><pre>${escBook(fmtValue(v))}</pre></td></tr>`).join('')}</tbody></table></article>`;
+    }).join('') : `<p class="empty">${escBook(emptyText || L('Tiada rekod tersedia.', 'No records available.'))}</p>`;
+    sections.push({ id, title, count: list.length, html: `<section class="book-section" id="sec-${id}"><h2>${escBook(title)} <small>(${list.length})</small></h2>${description ? `<p class="section-desc">${escBook(description)}</p>` : ''}${rows}</section>` });
+  };
+
+  const modules = sortModules(DB.modules || []);
+  const activities = sortActs(DB.activities || []);
+  const users = (DB.users || []).map(u => ({
+    id:u.id, name:u.name, username:u.username, email:u.email, role:roleLabel(u.role),
+    status:u.status, organisation:u.org, createdAt:u.createdAt
+  }));
+
+  // Front matter and module-by-module content.
+  const moduleRecords = modules.map(m => ({
+    id:m.id, name:m.name, description:m.description, trainer:moduleTrainerNames(m),
+    facilitator:moduleFacilitatorNames(m) || '—',
+    startDate:m.startDate, status:m.published ? L('Aktif','Published') : L('Draf','Draft'),
+    activities:moduleActivitiesList(m.id).map(a => ({
+      id:a.id, title:a.title, date:a.date, method:a.method, description:a.description,
+      status:a.published ? L('Diterbitkan','Published') : L('Draf','Draft'),
+      quizOpenAt:a.quizOpenAt, quizCloseAt:a.quizCloseAt,
+      practicalOpenAt:a.practicalOpenAt, practicalCloseAt:a.practicalCloseAt,
+      quizQuestionCount:(a.quiz || []).length, rubricId:a.rubricId
+    })),
+    materials:(m.materials || []).map(x => ({
+      name:x.name, type:fileTypeLabel(x.type), description:x.description,
+      size:x.size, uploadedAt:x.uploadedAt, url:x.url ? '[LINK / DRIVE REFERENCE]' : undefined
+    })),
+    timetable:moduleTimetable(m.id).map(x => ({
+      date:x.date, startTime:x.startTime, endTime:x.endTime, title:x.title,
+      instructor:x.instructor, location:x.location, notes:x.notes
+    }))
+  }));
+  addSection('modules', L('Pengurusan Modul','Module Management'),
+    L('Senarai modul, maklumat pengajar, aktiviti, bahan pembelajaran dan jadual bagi setiap modul.','Modules, trainers, activities, learning materials and schedules for each module.'),
+    moduleRecords, L('Tiada modul direkodkan.','No modules recorded.'));
+
+  addSection('users', L('Pengurusan Pengguna','User Management'),
+    L('Maklumat akaun dan status pengguna. Kata laluan, nombor pengenalan dan data keselamatan tidak dicetak.','Account and user status information. Passwords, identity numbers and security data are excluded.'),
+    users, L('Tiada pengguna direkodkan.','No users recorded.'));
+  addSection('enrolments', L('Pendaftaran Peserta','Participant Enrolments'),
+    L('Rekod pendaftaran peserta ke modul.','Participant enrolment records by module.'),
+    DB.enrollments || []);
+  addSection('attendance', L('Kehadiran','Attendance'),
+    L('Rekod kehadiran peserta bagi aktiviti latihan.','Participant attendance records for training activities.'),
+    DB.attendance || []);
+  addSection('quiz-attempts', L('Percubaan Kuiz dan Penilaian Aktiviti','Quiz and Activity Assessment Attempts'),
+    L('Rekod percubaan, markah dan masa penilaian yang disimpan dalam sistem.','Stored attempts, scores and assessment timestamps.'),
+    DB.attempts || []);
+  addSection('practical', L('Penilaian Praktikal','Practical Assessments'),
+    L('Rekod skor, kriteria dan ulasan penilaian praktikal.','Practical assessment scores, criteria and remarks.'),
+    DB.practical || []);
+  addSection('question-bank', L('Bank Soalan','Question Bank'),
+    L('Soalan yang disimpan dalam bank soalan.','Questions stored in the question bank.'),
+    DB.questionBank || []);
+  addSection('rubrics', L('Rubrik Penilaian','Assessment Rubrics'),
+    L('Rubrik dan kriteria pemarkahan yang disimpan.','Stored rubrics and marking criteria.'),
+    DB.rubrics || []);
+  addSection('final-exams', L('Peperiksaan Akhir','Final Examinations'),
+    L('Konfigurasi peperiksaan akhir, modul berkaitan dan status penerbitan.','Final examination configuration, linked modules and publication status.'),
+    DB.finalExams || []);
+  addSection('final-attempts', L('Percubaan Peperiksaan Akhir','Final Examination Attempts'),
+    L('Rekod percubaan teori peperiksaan akhir.','Final examination theory attempt records.'),
+    DB.feAttempts || []);
+  addSection('final-practical', L('Penilaian Praktikal Peperiksaan Akhir','Final Examination Practical Assessments'),
+    L('Rekod penilaian praktikal peperiksaan akhir.','Final examination practical assessment records.'),
+    DB.fePractical || []);
+  addSection('retests', L('Penilaian Ulangan','Retests'),
+    L('Rekod penilaian atau percubaan ulangan.','Retest and reassessment records.'),
+    DB.retests || []);
+  addSection('approvals', L('Kelulusan dan Pengesahan','Approvals and Reviews'),
+    L('Rekod kelulusan yang menunggu atau telah diproses.','Pending and processed approval records.'),
+    DB.pendingApprovals || []);
+  addSection('certificates', L('Rekod Sijil','Certificates'),
+    L('Metadata sijil yang direkodkan. Kandungan fail sijil tidak dimasukkan.','Certificate metadata. Certificate file contents are not embedded.'),
+    (DB.certificates || []).map(c => ({...c, fileUrl:c.fileUrl ? '[DRIVE FILE REFERENCE]' : undefined, url:c.url ? '[DRIVE FILE REFERENCE]' : undefined})));
+  addSection('audit', L('Audit Trail','Audit Trail'),
+    L('Sejarah tindakan pengguna yang direkodkan dalam sistem.','Recorded history of user actions in the system.'),
+    (DB.audit || []).slice().sort((a,b) => new Date(b.at || 0) - new Date(a.at || 0)));
+
+  const totalRecords = sections.reduce((n, x) => n + x.count, 0);
+  const generated = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
+  const toc = sections.map((x,i) => `<li><span>${i+1}. ${escBook(x.title)}</span><b>${x.count}</b></li>`).join('');
+  const overview = [
+    [L('Pengguna','Users'), (DB.users||[]).length],
+    [L('Modul','Modules'), (DB.modules||[]).length],
+    [L('Aktiviti','Activities'), (DB.activities||[]).length],
+    [L('Pendaftaran','Enrolments'), (DB.enrollments||[]).length],
+    [L('Percubaan Kuiz','Quiz Attempts'), (DB.attempts||[]).length],
+    [L('Kehadiran','Attendance'), (DB.attendance||[]).length],
+    [L('Bank Soalan','Question Bank'), (DB.questionBank||[]).length],
+    [L('Rubrik','Rubrics'), (DB.rubrics||[]).length],
+    [L('Audit Trail','Audit Trail'), (DB.audit||[]).length]
+  ];
+  const html = `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${L('Buku Maklumat Sistem CFTP','CFTP System Information Book')}</title>
+  <style>
+  *{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#20332c;font-size:10px;line-height:1.5;margin:0}
+  .cover{min-height:250mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:25mm;page-break-after:always;background:linear-gradient(145deg,#eaf4ef,#fff)}
+  .cover .logo{width:76px;height:76px;border-radius:18px;background:#0b6b53;color:#fff;display:grid;place-items:center;font-size:26px;font-weight:bold;margin-bottom:25px}
+  .cover h1{font-size:30px;color:#0b6b53;margin:0 0 12px}.cover h2{font-size:16px;color:#48645a;border:0;margin:0 0 45px}
+  .cover .meta{border-top:2px solid #0b6b53;padding-top:14px;color:#52665d;font-size:12px}
+  .front{padding:16mm;page-break-after:always}.front h2,.book-section>h2{font-size:19px;color:#0b6b53;border-bottom:2px solid #0b6b53;padding-bottom:7px;margin:0 0 12px}
+  .front h3{color:#0b6b53;margin-top:22px}.front ul{padding-left:20px}.front li{padding:4px 0;border-bottom:1px dotted #ccd8d2;display:flex;justify-content:space-between}
+  .overview{width:100%;border-collapse:collapse;margin-top:12px}.overview td,.overview th{border:1px solid #cbd8d2;padding:7px;text-align:left}.overview th{background:#eaf3ef}
+  .book-section{padding:12mm 14mm;page-break-before:always}.book-section>h2 small{font-size:11px;color:#61756c}
+  .section-desc{color:#60736b;margin:0 0 14px}.record{margin:12px 0 18px;break-inside:avoid}.record h3{font-size:12px;color:#0b6b53;background:#edf5f1;padding:7px 9px;border-left:3px solid #0b6b53;margin:0}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #d3ddd8;padding:5px 7px;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{width:24%;background:#f4f7f5;color:#334a40}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:9px/1.45 Arial,sans-serif;margin:0}
+  .empty{padding:16px;color:#77877f;font-style:italic;border:1px dashed #ccd8d2}
+  .footer-note{margin-top:20px;border-top:1px solid #ccd8d2;padding-top:8px;color:#708078;font-size:9px}
+  @page{size:A4;margin:13mm} @media print{.cover{min-height:265mm}.book-section{padding:0}.record{break-inside:avoid}thead{display:table-header-group}}
+  </style></head><body>
+  <section class="cover"><div class="logo">CF</div><h1>${L('BUKU MAKLUMAT SISTEM','SYSTEM INFORMATION BOOK')}</h1><h2>${L('Chemical Fundamentals Training Programme','Chemical Fundamentals Training Programme')}</h2><div class="meta"><b>CFTP Malaysia</b><br>${L('Disediakan untuk kegunaan pentadbiran','Prepared for administrative use')}<br>${L('Tarikh dijana','Generated')}: ${escBook(generated)}<br>${L('Jumlah rekod','Total records')}: ${totalRecords}</div></section>
+  <section class="front"><h2>${L('Kandungan Buku','Book Contents')}</h2><ol>${toc}</ol><h3>${L('Ringkasan Sistem','System Overview')}</h3><table class="overview"><thead><tr><th>${L('Kategori','Category')}</th><th>${L('Bilangan Rekod','Record Count')}</th></tr></thead><tbody>${overview.map(x=>`<tr><td>${escBook(x[0])}</td><td>${x[1]}</td></tr>`).join('')}</tbody></table><p class="footer-note">${L('Nota: Maklumat keselamatan seperti kata laluan, token dan nombor pengenalan tidak dicetak. Fail asal yang disimpan di Google Drive tidak dibenamkan ke dalam buku ini; hanya rekod dan metadata yang tersedia dalam pangkalan data dipaparkan.','Note: Security information such as passwords, tokens and identity numbers is excluded. Original files stored in Google Drive are not embedded; only records and metadata available in the database are included.')}</p></section>
+  ${sections.map(x=>x.html).join('')}
+  </body></html>`;
+  printHTML(html);
 }
 
 function printHTML(html) {
@@ -5457,8 +5968,12 @@ async function handleUploadCertificate(form) {
   if (file.size > MAX_CERT_SIZE) { toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_CERT_SIZE)), 'bad'); return; }
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_not_found'), 'bad'); return; }
+  startUploadMonitor(file.name, file.size);
   try {
-    const base64 = await fileToBase64(file);
+    const base64 = await fileToBase64(file, pct => {
+      updateTransferMonitor('upload', pct, `${file.name} · ${t('transfer_preparing')}`, true, false);
+    });
+    updateTransferMonitor('upload', 50, `${file.name} · ${t('transfer_sending')}`, true, true);
     const res = await driveAPI('uploadCertificate', { payload: { participantId: pid, participantName: p.name, filename: file.name, mimeType: 'application/pdf', base64, description: (form.description ? form.description.value : '').trim() } });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
     const displayName = (form.displayName.value || '').trim() || res.file.name;
@@ -5467,8 +5982,10 @@ async function handleUploadCertificate(form) {
     DB.certificates.push(cert);
     saveDB(); logAudit('Upload Certificate', 'Sijil', pid, displayName);
     state.pendingFile = null; closeModal(); toast('✅ ' + t('sijil_uploaded')); render();
+    finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
   } catch (err) {
     console.error('Upload cert error:', err);
+    finishUploadMonitor(false, `${file.name} · ${err.message || t('transfer_failed')}`);
     toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
 }
@@ -5559,6 +6076,8 @@ document.addEventListener('click', (e) => {
   const act = tgt.dataset.act, id = tgt.dataset.id;
   switch (act) {
     case 'manual-sync': manualSyncNow(); break;
+    case 'print-all-modules': printAllModulesPDF(); break;
+    case 'print-system-book': printSystemBookPDF(); break;
     case 'toggle-lang': {
       const newLang = currentLang === 'ms' ? 'en' : 'ms';
       const langLabelKey = newLang === 'ms' ? 'lang_name_ms' : 'lang_name_en';
@@ -5756,7 +6275,14 @@ document.addEventListener('change', (e) => {
   if (tgt && tgt.dataset.change === 'bank-diff') { state.params.bankDiff = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'bank-module') { state.params.bankModule = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-activity') { state.params.gradingActivity = tgt.value; render(); return; }
-  if (tgt && tgt.dataset.change === 'activity-method') { const field = document.getElementById('rubricTemplateField'); if (field) field.style.display = tgt.value.includes('Praktikal') ? 'block' : 'none'; return; }
+  if (tgt && tgt.dataset.change === 'grading-rubric') {
+    const aid = tgt.dataset.aid, a = getActivity(aid);
+    const rb = (DB.rubrics||[]).find(r => r.id === tgt.value && r.approvalStatus === 'approved');
+    if (a) { a.rubricId = rb ? rb.id : null; a.updatedAt = nowISO(); saveDB(); logAudit('Assign Rubric', 'Aktiviti', aid, rb ? rb.name : 'None'); toast(t('rb_saved')); render(); }
+    return;
+  }
+  if (tgt && tgt.dataset.change === 'activity-method') { const practical = tgt.value === 'Practical Test'; const field = document.getElementById('rubricTemplateField'); const quizFields = document.getElementById('quizScheduleFields'); const practicalFields = document.getElementById('practicalScheduleFields'); if (field) field.style.display = practical ? 'block' : 'none'; if (quizFields) quizFields.style.display = practical ? 'none' : 'block'; if (practicalFields) practicalFields.style.display = practical ? 'block' : 'none'; return; }
+  if (tgt && tgt.id === 'activityModuleSelect') { state.activityDraftModuleId = tgt.value; if (document.getElementById('activityQuizBuilderSection')) renderQuizBuilder(); return; }
   if (tgt && tgt.dataset.change === 'activity-rubric') {
     const aid = tgt.dataset.aid; const a = getActivity(aid);
     if (a) { a.rubricId = tgt.value || null; a.updatedAt = nowISO(); saveDB(); logAudit('Assign Rubric', 'Aktiviti', aid, tgt.value ? getRubric(a).name : 'None'); toast(tgt.value ? t('rb_saved') : t('msg_deleted')); render(); }
