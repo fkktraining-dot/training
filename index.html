@@ -376,6 +376,7 @@ tbody tr:hover{background:#f9fcfb}
 .spider-data th,.spider-data td{padding:7px 8px}
 @media(max-width:900px){.spider-layout{grid-template-columns:1fr}.spider-svg{max-width:400px}}
 @media(max-width:520px){.spider-module{padding:9px}.spider-svg{max-width:100%}.spider-data table{font-size:.7rem}}
+.overall-participant-spider{border-color:#a9d3c0;background:linear-gradient(180deg,#f5fbf7,#fff)}.overall-participant-spider .spider-module-head h3{color:#0b6b53}@media(max-width:520px){.overall-participant-spider .spider-layout{gap:8px}.overall-participant-spider .spider-data th,.overall-participant-spider .spider-data td{padding:5px 4px;overflow-wrap:anywhere}.overall-participant-spider .spider-svg{width:100%;height:auto}}
 
 
 /* CORPORATE INTERFACE REFRESH — PRESENTATION ONLY
@@ -446,7 +447,7 @@ async function driveAPI(action, data) {
 const MERGEABLE_COLLECTIONS = [
   'users','modules','activities','enrollments','attempts','attendance','practical',
   'audit','questionBank','rubrics','timetables','certificates','finalExams',
-  'feAttempts','fePractical','retests','pendingApprovals'
+  'feAttempts','fePractical','retests','retestRequests','pendingApprovals'
 ];
 
 function cloneDB(db) { return JSON.parse(JSON.stringify(db)); }
@@ -966,6 +967,114 @@ async function translateAllRubricContent() {
   if (state.tempRubricMeta) { add(state.tempRubricMeta, 'name'); add(state.tempRubricMeta, 'description'); }
   await Promise.all(jobs);
 }
+/* =========================================================
+   SYSTEM-WIDE LANGUAGE CONSISTENCY
+   Translates visible UI text, dynamic content, placeholders, titles and
+   accessibility labels, not only the predefined I18N dictionary.
+   ========================================================= */
+const SYSTEM_TRANSLATION_CACHE = new Map();
+const SYSTEM_TRANSLATION_ORIGINALS = new WeakMap();
+let systemTranslationRun = 0;
+let systemTranslationObserver = null;
+const SYSTEM_TRANSLATE_SKIP_TAGS = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','PATH','TEXTAREA']);
+function systemTranslationKey(text, target) { return target + '\u0000' + String(text || '').trim(); }
+function systemTranslationShouldSkipNode(node) {
+  if (!node || !node.parentElement) return true;
+  const el = node.parentElement;
+  if (SYSTEM_TRANSLATE_SKIP_TAGS.has(el.tagName)) return true;
+  if (el.closest('[data-no-translate],.notranslate,[contenteditable="true"]')) return true;
+  const value = String(node.nodeValue || '').trim();
+  if (!value || value.length < 2 || /^[\d\W_]+$/.test(value)) return true;
+  // Keep compact language switches, identifiers, file extensions and codes unchanged.
+  if (/^(BM|EN|MS|PDF|CSV|XLSX|CFTP|FTIR|UV-?VIS)$/i.test(value)) return true;
+  return false;
+}
+async function systemTranslateText(text, target) {
+  const value = String(text || '').trim();
+  if (!value || target === 'ms' && !value) return value;
+  const key = systemTranslationKey(value, target);
+  if (SYSTEM_TRANSLATION_CACHE.has(key)) return SYSTEM_TRANSLATION_CACHE.get(key);
+  // Existing curated translations take priority when switching to English.
+  if (target === 'en' && CONTENT_I18N[value] !== undefined) {
+    const known = CONTENT_I18N[value]; SYSTEM_TRANSLATION_CACHE.set(key, known); return known;
+  }
+  try {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + target + '&dt=t&q=' + encodeURIComponent(value);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Translation service unavailable');
+    const data = await response.json();
+    const translated = (data[0] || []).map(part => part[0] || '').join('').trim() || value;
+    SYSTEM_TRANSLATION_CACHE.set(key, translated);
+    return translated;
+  } catch (error) {
+    console.warn('System-wide translation unavailable for:', value, error);
+    SYSTEM_TRANSLATION_CACHE.set(key, value);
+    return value;
+  }
+}
+async function translateSystemElement(el, target, runId) {
+  if (!el || !el.isConnected || runId !== systemTranslationRun) return;
+  const textNodes = [];
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) { return systemTranslationShouldSkipNode(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; }
+  });
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  const attrNames = ['placeholder','title','aria-label','alt'];
+  const attrTargets = [];
+  const elements = [el, ...el.querySelectorAll('*')];
+  for (const item of elements) {
+    if (SYSTEM_TRANSLATE_SKIP_TAGS.has(item.tagName) || item.closest('[data-no-translate],.notranslate')) continue;
+    for (const attr of attrNames) {
+      const value = item.getAttribute && item.getAttribute(attr);
+      if (value && value.trim().length > 1 && !/^[\d\W_]+$/.test(value.trim())) attrTargets.push({item, attr, value});
+    }
+    if (item.tagName === 'INPUT' && ['button','submit','reset'].includes((item.type || '').toLowerCase())) {
+      const value = item.value;
+      if (value && value.trim().length > 1) attrTargets.push({item, attr:'value', value});
+    }
+  }
+  // Translate a limited number concurrently to keep the UI responsive.
+  const tasks = [];
+  for (const node of textNodes) {
+    if (!SYSTEM_TRANSLATION_ORIGINALS.has(node)) SYSTEM_TRANSLATION_ORIGINALS.set(node, node.nodeValue);
+    const source = SYSTEM_TRANSLATION_ORIGINALS.get(node);
+    tasks.push(async () => {
+      const translated = await systemTranslateText(source, target);
+      if (runId === systemTranslationRun && node.isConnected) node.nodeValue = translated;
+    });
+  }
+  for (const item of attrTargets) {
+    tasks.push(async () => {
+      const translated = await systemTranslateText(item.value, target);
+      if (runId === systemTranslationRun && item.item.isConnected) item.item.setAttribute(item.attr, translated);
+    });
+  }
+  let cursor = 0;
+  async function worker() { while (cursor < tasks.length && runId === systemTranslationRun) { const task = tasks[cursor++]; await task(); } }
+  await Promise.all(Array.from({length: 5}, worker));
+}
+async function translateWholeSystem(target) {
+  const runId = ++systemTranslationRun;
+  if (systemTranslationObserver) systemTranslationObserver.disconnect();
+  // Re-render first so the base strings come from the selected language dictionary.
+  await translateSystemElement(document.body, target, runId);
+  if (runId !== systemTranslationRun) return;
+  systemTranslationObserver = new MutationObserver(records => {
+    if (runId !== systemTranslationRun) return;
+    const added = [];
+    for (const record of records) for (const node of record.addedNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE && node !== document.body) added.push(node);
+      else if (node.nodeType === Node.TEXT_NODE && !systemTranslationShouldSkipNode(node)) {
+        const parent = node.parentElement;
+        if (parent) added.push(parent);
+      }
+    }
+    // Debounce naturally by translating only newly inserted subtrees.
+    for (const node of [...new Set(added)]) translateSystemElement(node, target, runId);
+  });
+  systemTranslationObserver.observe(document.body, {childList:true, subtree:true});
+}
+
 function rubricText(obj, field) {
   if (!obj) return '';
   if (currentLang === 'en' && obj[field + '_en']) return obj[field + '_en'];
@@ -1415,6 +1524,7 @@ const I18N = {
     retest_view_result: 'Lihat Keputusan',
     retest_edit_hint_toast: 'Soalan disimpan. Klik 🔄 pada peserta untuk buka retest.',
     retest_attempt_count: '{0} percubaan',
+    rr_title: 'Permohonan Retest Peserta', rr_request: 'Mohon Retest', rr_reason_label: 'Sebab permohonan', rr_reason_placeholder: 'Terangkan mengapa anda ingin menjawab semula...', rr_request_sent: 'Permohonan retest telah dihantar kepada jurulatih.', rr_pending: 'Menunggu kelulusan jurulatih', rr_approved: 'Permohonan diluluskan', rr_rejected: 'Permohonan ditolak', rr_already_pending: 'Permohonan anda masih menunggu kelulusan.', rr_already_approved: 'Retest telah diluluskan dan tersedia untuk anda.', rr_need_attempt: 'Anda perlu menjawab penilaian ini dahulu.', rr_approve: 'Luluskan & Buka Retest', rr_reject: 'Tolak Permohonan', rr_no_requests: 'Tiada permohonan retest menunggu.', rr_reason: 'Sebab', rr_requested_by: 'Dimohon oleh', rr_request_date: 'Tarikh permohonan', rr_approved_msg: 'Permohonan retest {0} diluluskan.', rr_rejected_msg: 'Permohonan retest {0} ditolak.', rr_reject_prompt: 'Nyatakan sebab penolakan (pilihan):', rr_confirm_approve: 'Luluskan permohonan retest ini dan benarkan peserta menjawab semula?', rr_confirm_reject: 'Tolak permohonan retest ini?',
     sync_upload_title: 'Menyimpan Data',
     sync_upload_desc: 'Data anda sedang dimuat naik ke sistem. Sila tunggu sebentar...',
     sync_upload_status_connecting: 'Menghubungi server…',
@@ -1939,6 +2049,7 @@ const I18N = {
     retest_view_result: 'View Result',
     retest_edit_hint_toast: 'Questions saved. Click 🔄 on the participant to grant retest.',
     retest_attempt_count: '{0} attempts',
+    rr_title: 'Participant Retest Requests', rr_request: 'Request Retest', rr_reason_label: 'Reason for request', rr_reason_placeholder: 'Explain why you would like to retake this assessment...', rr_request_sent: 'Your retest request has been sent to the trainer.', rr_pending: 'Awaiting trainer approval', rr_approved: 'Request approved', rr_rejected: 'Request rejected', rr_already_pending: 'Your request is still awaiting approval.', rr_already_approved: 'Retest has been approved and is available to you.', rr_need_attempt: 'You must complete this assessment first.', rr_approve: 'Approve & Grant Retest', rr_reject: 'Reject Request', rr_no_requests: 'No pending retest requests.', rr_reason: 'Reason', rr_requested_by: 'Requested by', rr_request_date: 'Request date', rr_approved_msg: 'Retest request for {0} approved.', rr_rejected_msg: 'Retest request for {0} rejected.', rr_reject_prompt: 'Enter rejection reason (optional):', rr_confirm_approve: 'Approve this retest request and allow the participant to retake the assessment?', rr_confirm_reject: 'Reject this retest request?',
     sync_upload_title: 'Saving Data',
     sync_upload_desc: 'Your data is being uploaded to the system. Please wait...',
     sync_upload_status_connecting: 'Connecting to server…',
@@ -2561,6 +2672,7 @@ function migrateDB() {
   if (!Array.isArray(DB.fePractical)) DB.fePractical = [];
   if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = [];
   if (!Array.isArray(DB.retests)) DB.retests = [];
+  if (!Array.isArray(DB.retestRequests)) DB.retestRequests = [];
 
   if (typeof DB._rev !== 'number') DB._rev = 0;
   if (!DB._syncTs) DB._syncTs = nowISO();
@@ -2715,6 +2827,31 @@ const getRetestRecord = (aid, pid) => {
   return DB.retests.filter(x => x.activityId === aid && x.participantId === pid).sort((a, b) => new Date(b.grantedAt) - new Date(a.grantedAt))[0] || null;
 };
 const hasPendingRetest = (aid, pid) => { const r = getRetestRecord(aid, pid); return !!(r && !r.usedAt); };
+const getRetestRequest = (aid, pid) => (DB.retestRequests || []).filter(x => x.activityId === aid && x.participantId === pid).sort((a,b) => new Date(b.requestedAt) - new Date(a.requestedAt))[0] || null;
+const hasPendingRetestRequest = (aid, pid) => { const r = getRetestRequest(aid, pid); return !!(r && r.status === 'pending'); };
+function requestRetest(aid, pid, reason) {
+  if (!Array.isArray(DB.retestRequests)) DB.retestRequests = [];
+  if (state.user.role !== 'participant' || state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
+  if (!getAttempt(aid, pid)) { toast(t('rr_need_attempt'), 'bad'); return; }
+  if (hasPendingRetestRequest(aid, pid)) { toast(t('rr_already_pending'), 'bad'); return; }
+  const existing = getRetestRequest(aid, pid);
+  if (existing && existing.status === 'approved' && hasPendingRetest(aid, pid)) { toast(t('rr_already_approved'), 'bad'); return; }
+  DB.retestRequests.push({ id: uid('rr'), activityId: aid, participantId: pid, moduleId: (getActivity(aid)||{}).moduleId || '', reason: String(reason || '').trim(), status: 'pending', requestedAt: nowISO(), reviewedBy: null, reviewedAt: null, reviewRemarks: '' });
+  saveDB(); logAudit('Request Retest', 'Assessment', `${aid}:${pid}`, String(reason || '').trim());
+  toast('✅ ' + t('rr_request_sent')); render();
+}
+function reviewRetestRequest(requestId, approve, remarks) {
+  if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
+  const req = (DB.retestRequests || []).find(x => x.id === requestId);
+  if (!req || req.status !== 'pending') return;
+  const act = getActivity(req.activityId);
+  const isAdmin = state.user.role === 'admin';
+  if (!isAdmin && (!act || !moduleHasTrainer(getModule(act.moduleId), state.user.id))) { toast(t('msg_no_access'), 'bad'); return; }
+  req.status = approve ? 'approved' : 'rejected'; req.reviewedBy = state.user.id; req.reviewedAt = nowISO(); req.reviewRemarks = String(remarks || '').trim();
+  if (approve) grantRetest(req.activityId, req.participantId);
+  saveDB(); logAudit(approve ? 'Approve Retest Request' : 'Reject Retest Request', 'Assessment', req.id, userName(req.participantId));
+  toast(approve ? t('rr_approved_msg', userName(req.participantId)) : t('rr_rejected_msg', userName(req.participantId))); render();
+}
 function grantRetest(aid, pid) {
   if (!Array.isArray(DB.retests)) DB.retests = [];
   DB.retests.push({ id: uid('rt'), activityId: aid, participantId: pid, grantedBy: state.user.id, grantedAt: nowISO(), usedAt: null });
@@ -3911,6 +4048,49 @@ function openVipParticipantProgress(pid) {
 }
 
 
+function renderParticipantOverallModuleSpider(pid, modules) {
+  const participantActs = accessibleActivities(pid).filter(a => a.published);
+  const axes = (modules || []).map(mod => {
+    const values = [];
+    participantActs.filter(a => a.moduleId === mod.id).forEach(act => {
+      const criteria = getRubricCriteria(act);
+      const practical = getPractical(act.id, pid);
+      criteria.forEach((criterion, ci) => {
+        const mark = practical && Array.isArray(practical.scores) && practical.scores[ci] !== undefined
+          ? Number(practical.scores[ci]) : null;
+        const maxMark = Math.max(0, ...(criterion.levels || []).map(level => Number(level.mark) || 0));
+        if (mark !== null && Number.isFinite(mark) && maxMark > 0) {
+          values.push({ value: Math.max(0, Math.min(100, mark / maxMark * 100)), weight: Math.max(0, Number(criterion.weight) || 0) });
+        }
+      });
+    });
+    if (!values.length) return { id:mod.id, label:mod.name || 'Module', value:null, count:0 };
+    const weightTotal = values.reduce((sum, x) => sum + x.weight, 0);
+    const score = weightTotal > 0
+      ? values.reduce((sum, x) => sum + x.value * x.weight, 0) / weightTotal
+      : values.reduce((sum, x) => sum + x.value, 0) / values.length;
+    return { id:mod.id, label:mod.name || 'Module', value:score, count:values.length };
+  });
+  if (!axes.length) return '';
+  const W=520, H=410, cx=260, cy=190, R=120, n=axes.length;
+  const pointAt=(i,pct)=>{const angle=-Math.PI/2+2*Math.PI*i/n, rr=R*pct/100;return{x:cx+rr*Math.cos(angle),y:cy+rr*Math.sin(angle),angle};};
+  const grid=[20,40,60,80,100].map(level=>`<polygon points="${axes.map((_,i)=>{const q=pointAt(i,level);return `${q.x.toFixed(1)},${q.y.toFixed(1)}`;}).join(' ')}" fill="none" stroke="#dce7e2" stroke-width="1"/>`).join('');
+  const spokes=axes.map((_,i)=>{const q=pointAt(i,100);return `<line x1="${cx}" y1="${cy}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}" stroke="#dce7e2" stroke-width="1"/>`;}).join('');
+  const ticks=[20,40,60,80,100].map(v=>`<text x="${cx+4}" y="${(cy-R*v/100+3).toFixed(1)}" font-size="8" fill="#80918a">${v}</text>`).join('');
+  const scored=axes.map((a,i)=>({...a,i,p:a.value===null?null:pointAt(i,a.value)}));
+  const points=scored.filter(a=>a.p);
+  let shape='';
+  if(points.length>=3 && points.length===axes.length) shape=`<polygon points="${scored.map(a=>`${a.p.x.toFixed(1)},${a.p.y.toFixed(1)}`).join(' ')}" fill="rgba(21,128,91,.16)" stroke="#15805b" stroke-width="2.5" stroke-linejoin="round"/>`;
+  else for(let i=0;i<scored.length;i++){const a=scored[i],b=scored[(i+1)%scored.length];if(a.p&&b.p&&scored.length>1)shape+=`<line x1="${a.p.x}" y1="${a.p.y}" x2="${b.p.x}" y2="${b.p.y}" stroke="#15805b" stroke-width="2.5" stroke-linecap="round"/>`;}
+  const markers=scored.map(a=>{const q=a.p||pointAt(a.i,100);return `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="4.5" fill="${a.p?'#15805b':'#fff'}" stroke="${a.p?'#fff':'#aab8b1'}" stroke-width="1.5"><title>${esc(a.label)}: ${a.value===null?esc(t('spider_not_taken')):Math.round(a.value)+'%'}</title></circle>`;}).join('');
+  const labels=scored.map(a=>{const q=pointAt(a.i,120),anchor=Math.abs(Math.cos(q.angle))<.28?'middle':(Math.cos(q.angle)>0?'start':'end'),label=String(a.label);const short=label.length>25?label.slice(0,22)+'…':label;return `<text x="${q.x.toFixed(1)}" y="${q.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>8?8:9}" fill="#52645c"><title>${esc(label)}</title>${esc(short)}</text>`;}).join('');
+  const scoredCount=axes.filter(a=>a.value!==null).length;
+  const rows=axes.map(a=>`<tr><td><strong>${tce(a.label)}</strong></td><td>${a.count}</td><td>${a.value!==null?`<strong>${Math.round(a.value)}%</strong>`:`<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value!==null?`<span class="badge ok">${t('spider_assessed')}</span>`:`<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
+  const heading=currentLang==='en'?'Overall Performance — Combined Modules':'Prestasi Keseluruhan — Gabungan Semua Modul';
+  const desc=currentLang==='en'?'One overall spider web for this participant. Each axis is one enrolled module; each module score is the weighted average of assessed rubric-criterion percentages (or a simple average when weights are zero).':'Satu spider web keseluruhan untuk peserta ini. Setiap paksi mewakili satu modul yang diambil; skor modul ialah purata berwajaran peratus kriteria rubrik yang telah dinilai (atau purata biasa jika semua wajaran sifar).';
+  return `<div class="spider-module overall-participant-spider"><div class="spider-module-head"><h3>🕸️ ${heading}</h3><span class="badge info">${scoredCount}/${axes.length} ${currentLang==='en'?'modules assessed':'modul dinilai'}</span></div><p class="muted" style="font-size:.8rem;margin:8px 0">${desc}</p><div class="spider-layout"><div class="spider-chart-wrap"><svg class="spider-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(heading)}">${grid}${spokes}${ticks}${shape}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Overall module score (%)':'Skor keseluruhan modul (%)'}</div></div><div class="spider-data"><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module':'Modul'}</th><th>${currentLang==='en'?'Assessed criteria':'Kriteria dinilai'}</th><th>${currentLang==='en'?'Overall score':'Skor keseluruhan'}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${rows}</tbody></table></div>${scoredCount===0?`<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>`:''}</div></div></div>`;
+}
+
 function renderParticipantAssessmentSpider(pid, modules) {
   const moduleCards = (modules || []).map(mod => {
     const modActs = accessibleActivities(pid).filter(a => a.moduleId === mod.id && a.published);
@@ -3996,9 +4176,11 @@ function renderParticipantAssessmentSpider(pid, modules) {
     </div>`;
   }).filter(Boolean).join('');
   if (!moduleCards) return '';
+  const overallModuleSpider = renderParticipantOverallModuleSpider(pid, modules);
   return `<section class="card spider-dashboard">
     <div class="card-head"><h2>🕸️ ${t('spider_title')}</h2><button class="btn btn-primary" data-act="spider-print-self" data-pid="${esc(state.user.id)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>
     <p class="muted" style="font-size:.84rem;margin:-4px 0 14px">${t('spider_hint')}</p>
+    ${overallModuleSpider}
     ${moduleCards}
   </section>`;
 }
@@ -4219,9 +4401,11 @@ function approvalsView() {
   const isAdmin = state.user.role === 'admin';
   const myModIds = (isAdmin ? DB.modules : DB.modules.filter(m => moduleHasTrainer(m, state.user.id))).map(m => m.id);
   const all = (DB.pendingApprovals || []).filter(x => isAdmin || myModIds.includes(x.moduleId));
+  const retestRequests = (DB.retestRequests || []).filter(x => (isAdmin || myModIds.includes(x.moduleId)) && x.status === 'pending').sort((a,b) => new Date(b.requestedAt) - new Date(a.requestedAt));
   const pending = all.filter(x => x.status === 'pending').sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt));
   const history = all.filter(x => x.status !== 'pending').sort((a,b) => new Date(b.reviewedAt||b.submittedAt) - new Date(a.reviewedAt||a.submittedAt)).slice(0, 20);
-  return `<div class="card"><div class="card-head"><div><h2>📥 ${t('pa_title')}</h2><small class="muted">${t('pa_sub')}</small></div><span class="badge ${pending.length ? 'warn' : 'ok'}">${pending.length} ${t('pa_pending')}</span></div>
+  const retestPanel = `<div class="card"><div class="card-head"><div><h2>🔄 ${t('rr_title')}</h2><small class="muted">${t('rr_pending')}</small></div><span class="badge ${retestRequests.length ? 'warn' : 'ok'}">${retestRequests.length}</span></div>${retestRequests.length ? retestRequests.map(req => { const a = getActivity(req.activityId); if (!a) return ''; return `<div class="approval-card"><div class="ap-head"><div><div class="ap-title">${tce(userName(req.participantId))} — ${tce(a.title)}</div><div class="ap-meta">${tce(moduleName(a.moduleId))} · ${t('rr_request_date')}: ${fmtDateTime(req.requestedAt)}</div><div class="ap-meta"><strong>${t('rr_reason')}:</strong> ${tce(req.reason || '—')}</div></div><span class="badge warn">⏳ ${t('rr_pending')}</span></div><div class="ap-actions"><button class="btn btn-sm btn-danger" data-act="reject-retest-request" data-id="${req.id}">✖ ${t('rr_reject')}</button><button class="btn btn-sm btn-primary" data-act="approve-retest-request" data-id="${req.id}">✅ ${t('rr_approve')}</button></div></div>`; }).join('') : `<div class="empty">${t('rr_no_requests')}</div>`}</div>`;
+  return retestPanel + `<div class="card"><div class="card-head"><div><h2>📥 ${t('pa_title')}</h2><small class="muted">${t('pa_sub')}</small></div><span class="badge ${pending.length ? 'warn' : 'ok'}">${pending.length} ${t('pa_pending')}</span></div>
     ${pending.length ? pending.map(renderApprovalCard).join('') : `<div class="empty">${t('pa_no_pending')}</div>`}
   </div>
   ${history.length ? `<div class="card"><div class="card-head"><h2>📜 ${t('pa_history')}</h2></div>${history.map(renderApprovalCard).join('')}</div>` : ''}`;
@@ -5248,7 +5432,7 @@ function activityDetailView() {
   if (act.quiz && act.quiz.length) {
     if (isParticipant) {
       const w = quizWindowStatus(act);
-      if (attempt && !pendingRetest) { quizSection = `<div class="card"><div class="card-head"><h2>📝 ${t('lbl_quiz')} — ${t('quiz_completed')}</h2><span class="badge ${attempt.score/attempt.total >= 0.7 ? 'ok' : 'warn'}">${attempt.score}/${attempt.total} (${Math.round(attempt.score/attempt.total*100)}%)</span></div><p class="muted">${fmtDateTime(attempt.at)}${attempt.auto ? ' · ⏱️ ' + t('quiz_auto_submitted') : ''}</p><div class="toolbar"><button class="btn btn-primary" data-act="open-quiz-tab" data-id="${act.id}">📝 ${t('quiz_view_tab')}</button></div></div>`; }
+      if (attempt && !pendingRetest) { const rr = getRetestRequest(act.id, state.user.id); const rrPending = rr && rr.status === 'pending'; const rrStatus = rr ? (rr.status === 'pending' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rr_pending')}</p></div>` : rr.status === 'approved' ? `<div class="info-box ok"><p style="margin:0">✅ ${t('rr_approved')}</p></div>` : `<div class="info-box warn"><p style="margin:0">✖ ${t('rr_rejected')}${rr.reviewRemarks ? ': ' + tce(rr.reviewRemarks) : ''}</p></div>`) : ''; quizSection = `<div class="card"><div class="card-head"><h2>📝 ${t('lbl_quiz')} — ${t('quiz_completed')}</h2><span class="badge ${attempt.score/attempt.total >= 0.7 ? 'ok' : 'warn'}">${attempt.score}/${attempt.total} (${Math.round(attempt.score/attempt.total*100)}%)</span></div><p class="muted">${fmtDateTime(attempt.at)}${attempt.auto ? ' · ⏱️ ' + t('quiz_auto_submitted') : ''}</p>${rrStatus}<div class="toolbar"><button class="btn btn-primary" data-act="open-quiz-tab" data-id="${act.id}">📝 ${t('quiz_view_tab')}</button>${!rrPending && !(rr && rr.status === 'approved' && hasPendingRetest(act.id,state.user.id)) ? `<button class="btn" data-act="request-retest" data-aid="${act.id}">🔄 ${t('rr_request')}</button>` : ''}</div></div>`; }
       else if (w.state === 'not-open') { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; quizSection = `<div class="card" style="border-color:#f0d98a;background:#fffdf5">${retestBanner}<div class="card-head"><h2>📝 ${t('lbl_quiz')}</h2><span class="badge draft">🕐 ${t('status_not_open')}</span></div><div class="info-box warn"><h4>🕐 ${t('quiz_not_open')}</h4><p style="margin:0">${t('quiz_not_open_notice', fmtDT(act.quizOpenAt))}${act.quizDuration ? ` · ${act.quizDuration} ${t('lbl_minutes')}` : ''}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.85rem">${t('quiz_close_at')}: <strong>${fmtDT(act.quizCloseAt)}</strong></p>` : ''}</div><button class="btn btn-block" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_view')} →</button></div>`; }
       else if (w.state === 'closed') { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; quizSection = `<div class="card">${retestBanner}<div class="card-head"><h2>📝 ${t('lbl_quiz')}</h2><span class="badge bad">🔒 ${t('status_closed')}</span></div><div class="info-box warn"><h4>🔒 ${t('quiz_closed')}</h4><p style="margin:0">${t('quiz_closed_notice', act.quizCloseAt ? fmtDT(act.quizCloseAt) : '—')}</p></div></div>`; }
       else { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; const title = pendingRetest ? `🔄 ${t('retest_pending_badge')}` : `📝 ${t('quiz_ready')}`; quizSection = `<div class="card" style="border-color:var(--brand-2);background:#f7fdfa">${retestBanner}<div class="card-head"><h2>${title}</h2><div class="toolbar"><span class="badge ok">${act.quiz.length} ${t('lbl_questions')}</span>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : `<span class="badge info">${t('lbl_no_deadline')}</span>`}</div></div><div class="info-box ok"><h4>✅ ${t('quiz_open_notice')}</h4><p style="margin:0">${act.quizDuration ? t('quiz_open_notice_timed', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div><button class="btn btn-primary btn-block" data-act="open-quiz-tab" data-id="${act.id}">${pendingRetest ? '🔄 ' + t('retest_take') : '📝 ' + t('quiz_open_new_tab')} →</button></div>`; }
@@ -6574,6 +6758,12 @@ document.addEventListener('click', async (e) => {
       localStorage.setItem('cftp_lang', currentLang);
       document.documentElement.lang = currentLang;
       render();
+      // Apply one language consistently across the entire rendered system,
+      // including labels and dynamic content not covered by the I18N dictionary.
+      const langToggle = document.querySelector('[data-act="toggle-lang"]');
+      if (langToggle) { langToggle.disabled = true; }
+      try { await translateWholeSystem(currentLang); }
+      finally { if (langToggle) langToggle.disabled = false; }
       if (state.tempRubric && document.getElementById('rubricBuilderContainer')) {
         const n = document.getElementById('rubricName'), d = document.getElementById('rubricDesc');
         if (n) n.value = currentLang === 'en' ? (state.tempRubricMeta?.name_en || tc(state.tempRubricMeta?.name || '')) : (state.tempRubricMeta?.name || '');
@@ -6752,6 +6942,9 @@ document.addEventListener('click', async (e) => {
       renderModuleConfigsList(avail, type);
       break;
     }
+    case 'request-retest': { const aid = tgt.dataset.aid; if (state.user.role !== 'participant') { toast(t('msg_no_access'), 'bad'); break; } const reason = prompt(t('rr_reason_label') + '\n' + t('rr_reason_placeholder')); if (reason === null) break; if (!reason.trim()) { toast(t('rr_reason_label'), 'bad'); break; } requestRetest(aid, state.user.id, reason); break; }
+    case 'approve-retest-request': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } if (!confirm(t('rr_confirm_approve'))) break; reviewRetestRequest(id, true, ''); break; }
+    case 'reject-retest-request': { if (!['admin','trainer'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } if (!confirm(t('rr_confirm_reject'))) break; const reason = prompt(t('rr_reject_prompt')); if (reason === null) break; reviewRetestRequest(id, false, reason); break; }
     case 'retest-modal': { if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } openRetestModal(tgt.dataset.aid, tgt.dataset.pid); break; }
     case 'retest-grant': { if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const aid = tgt.dataset.aid, pid = tgt.dataset.pid; if (!confirm(t('retest_confirm_grant', userName(pid)))) break; grantRetest(aid, pid); closeModal(); toast('✅ ' + t('msg_retest_granted', userName(pid))); render(); break; }
     case 'retest-cancel': { if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; } const aid = tgt.dataset.aid, pid = tgt.dataset.pid; if (!confirm(t('retest_confirm_cancel', userName(pid)))) break; cancelRetest(aid, pid); closeModal(); toast(t('msg_retest_cancelled')); render(); break; }
@@ -6943,6 +7136,12 @@ setTimeout(() => {
     $('#app').innerHTML = `<div class="login-wrap"><div class="login-card"><h2>⚠️ Boot Error</h2><p class="muted">${esc(e.message || 'Unknown error')}</p><button class="btn btn-primary" onclick="location.reload()">Reload</button></div></div>`;
   }
 }, 0);
+
+// Keep all interface text aligned with the language saved by the user on initial load.
+window.addEventListener('load', () => {
+  if (currentLang === 'en') translateWholeSystem('en');
+}, { once: true });
+
 </script>
 </body>
 </html>
