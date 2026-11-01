@@ -2332,6 +2332,23 @@ function base64ToBlob(dataUrl) {
 
 const DB_KEY = 'cftpmy_db_v1';
 const SESSION_KEY = 'cftpmy_session_v1';
+// Keep an active login when a background server refresh returns a temporarily
+// incomplete users list. A refresh is not an explicit logout operation.
+function restoreActiveSessionUser() {
+  const sid = localStorage.getItem(SESSION_KEY);
+  if (!sid) { state.user = null; return false; }
+  const serverUser = Array.isArray(DB?.users) ? DB.users.find(u => String(u.id) === String(sid)) : null;
+  if (serverUser) { state.user = serverUser; return false; }
+  if (state.user && String(state.user.id) === String(sid)) {
+    if (!Array.isArray(DB.users)) DB.users = [];
+    DB.users.push(state.user);
+    console.warn('[session] Active user was absent from refreshed data; preserving the local session.');
+    return true;
+  }
+  // No verified local user object is available (e.g. first boot on a new device).
+  state.user = null;
+  return false;
+}
 const QUIZSTART_PREFIX = 'cftpmy_quizstart_';
 const FESTART_PREFIX = 'cftpmy_festart_';
 let DB = null;
@@ -2608,8 +2625,7 @@ function fastBoot() {
   } catch(e) {}
 
   if (!lastSyncedSnapshot) lastSyncedSnapshot = cloneDB(DB);
-  const sid = localStorage.getItem(SESSION_KEY);
-  if (sid) state.user = DB.users.find(u => u.id === sid) || null;
+  restoreActiveSessionUser();
   if (state.user) {
     try { history.replaceState({ view: state.view, params: state.params, cftp: true }, ''); lastPushedStateKey = stateKeyOf(state.view, state.params); } catch (e) {}
   }
@@ -2633,10 +2649,9 @@ async function serverPullInBackground() {
         migrateDB();
         lastSyncedSnapshot = cloneDB(serverState);
         try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
-        const sid = localStorage.getItem(SESSION_KEY);
-        if (sid) state.user = DB.users.find(u => u.id === sid) || null;
+        const sessionUserRestored = restoreActiveSessionUser();
         if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
-        if (hasPending) scheduleServerSave();
+        if (hasPending || sessionUserRestored) scheduleServerSave();
       } else if (res.ok) {
         lastSyncedSnapshot = cloneDB(DB);
         try {
@@ -5691,11 +5706,16 @@ function participantAssessmentView() {
           <div><strong>${tce(a.title)}</strong> <small class="muted">— ${tce(moduleName(a.moduleId))}</small></div>
           <span class="badge ${rb ? (rb.approvalStatus === 'approved' ? 'ok' : 'warn') : 'warn'}">${rb ? tce(rb.name) + (rb.approvalStatus !== 'approved' ? ' ⏳' : '') : t('act_rubric_none')}</span>
         </div>
+        ${rb && rb.approvalStatus === 'approved' ? `<div class="toolbar" style="margin:0 0 12px">
+          <button class="btn btn-sm" data-act="print-rubric-cohort" data-aid="${a.id}">🖨️ ${currentLang === 'ms' ? 'Cetak Rubrik Semua Peserta' : 'Print Rubric for All Participants'}</button>
+          <button class="btn btn-sm" data-act="excel-practical-download" data-aid="${a.id}">📥 ${currentLang === 'ms' ? 'Muat Turun Excel Markah' : 'Download Marks Excel'}</button>
+          <button class="btn btn-sm btn-primary" data-act="excel-practical-upload" data-aid="${a.id}">📤 ${currentLang === 'ms' ? 'Upload Markah Excel' : 'Upload Marks Excel'}</button>
+        </div>` : ''}
         ${!rb ? `<div class="info-box warn" style="margin-bottom:8px"><p style="margin:0">${t('grad_no_rubric')}</p></div>` : `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_status')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>
           ${parts.map(({ user }) => {
             const pr = getPractical(a.id, user.id);
             const pct = pr ? Math.round(pr.total) : null;
-            return `<tr><td>${tce(user.name)}</td><td>${pct !== null ? pct + '%' : '—'}</td><td>${badgeStatus(pct)}</td><td><button class="btn btn-sm" data-act="practical-form" data-aid="${a.id}" data-pid="${user.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button></td></tr>`;
+            return `<tr><td>${tce(user.name)}</td><td>${pct !== null ? pct + '%' : '—'}</td><td>${badgeStatus(pct)}</td><td><div class="toolbar" style="gap:4px"><button class="btn btn-sm" data-act="practical-form" data-aid="${a.id}" data-pid="${user.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button><button class="btn btn-sm" title="${currentLang === 'ms' ? 'Cetak rubrik peserta' : 'Print participant rubric'}" data-act="print-rubric-one" data-aid="${a.id}" data-pid="${user.id}">🖨️</button></div></td></tr>`;
           }).join('')}
         </tbody></table></div>`}
       </div>`;
@@ -5945,6 +5965,118 @@ function gradingView() {
     ${isPractical && rubric.length ? `<p class="muted" style="font-size:.8rem;margin-top:10px">${t('pf_save_direct')} — ${t('grad_practical_form')}. ${t('pf_saved')}</p>` : ''}
   </div>`;
 }
+/* =========================================================
+   COHORT PRACTICAL RUBRIC PRINT + EXCEL MARKS WORKFLOW
+   - One printable rubric per participant (or print the whole cohort).
+   - Excel template contains every enrolled participant and criterion columns.
+   - Upload matches by immutable Participant ID, never by display name.
+   ========================================================= */
+function practicalAssessmentContext(aid) {
+  const act = getActivity(aid);
+  if (!act || !isPracticalActivityMethod(act.method)) throw new Error('Aktiviti praktikal tidak ditemui.');
+  if (!['admin','trainer','facilitator'].includes(state.user.role) || (state.user.role !== 'admin' && !canTrainerAccessActivity(aid))) throw new Error(t('msg_no_access'));
+  const rb = getRubric(act);
+  const criteria = getRubricCriteria(act);
+  if (!rb || rb.approvalStatus !== 'approved' || !criteria.length) throw new Error('Rubrik yang diluluskan diperlukan sebelum penilaian.');
+  const participants = enrolledParticipants(act.moduleId).map(x => x.user).filter(Boolean).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  return { act, rb, criteria, participants };
+}
+function practicalRubricPrintHTML(aid, onlyPid) {
+  const {act, rb, criteria, participants} = practicalAssessmentContext(aid);
+  const cohort = onlyPid ? participants.filter(p=>p.id===onlyPid) : participants;
+  if (!cohort.length) throw new Error('Tiada peserta berdaftar untuk aktiviti ini.');
+  const pages = cohort.map((p, idx) => {
+    const existing = getPractical(aid,p.id);
+    const rows = criteria.map((c,ci) => {
+      const levels = (c.levels||[]).slice().sort((a,b)=>Number(b.mark)-Number(a.mark));
+      return `<tr><td><b>${esc(c.name)}</b><div class="muted">${Number(c.weight)||0}%</div></td><td>${levels.map(l=>`<div class="level"><span class="tick">□</span><b>${esc(l.label)}</b> <span class="mark">${esc(l.mark)}</span><div class="muted">${esc(l.description||'')}</div></div>`).join('')}</td><td class="scorebox">${existing && existing.scores && existing.scores[ci]!==undefined ? esc(existing.scores[ci]) : ''}</td></tr>`;
+    }).join('');
+    return `<section class="rubric-page"><header><div class="brand">CFTP TRAINING MANAGEMENT</div><h1>PRACTICAL ASSESSMENT RUBRIC</h1><h2>${esc(act.title)}</h2><p>${esc(moduleName(act.moduleId))} · ${esc(rb.name)}</p></header><div class="participant"><div><small>PARTICIPANT NAME</small><b>${esc(p.name||'')}</b></div><div><small>PARTICIPANT ID</small><b>${esc(p.id)}</b></div><div><small>ORGANISATION</small><b>${esc(p.org||'—')}</b></div><div><small>DATE</small><b>________________</b></div></div><table><thead><tr><th style="width:23%">ASSESSMENT CRITERION</th><th>PERFORMANCE LEVEL / DESCRIPTOR</th><th style="width:12%">MARK</th></tr></thead><tbody>${rows}</tbody></table><div class="total"><span>OVERALL MARK</span><b>${existing ? Number(existing.total).toFixed(1)+'%' : '__________ %'}</b></div><div class="remarks"><b>TRAINER / FACILITATOR REMARKS</b><div>${existing && existing.remarks ? esc(existing.remarks) : ''}</div></div><div class="signatures"><div>_________________________<br>Trainer / Facilitator</div><div>_________________________<br>Participant</div></div><footer>Printed on ${esc(new Date().toLocaleString())} · Page ${idx+1} of ${cohort.length}</footer></section>`;
+  }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Practical Assessment Rubric</title><style>
+  @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#26352e;margin:0}.rubric-page{page-break-after:always;break-after:page;min-height:265mm;position:relative}.rubric-page:last-child{page-break-after:auto;break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px}.brand{font-size:9px;letter-spacing:2px;font-weight:bold;color:#0b6b53}h1{font-size:18px;color:#0b6b53;margin:5px 0}h2{font-size:14px;margin:0 0 3px}header p{margin:0;color:#657b74}.participant{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;margin:12px 0}.participant>div{border:1px solid #ccd9d2;border-radius:5px;padding:8px;min-height:43px}.participant small{display:block;font-size:8px;color:#657b74;margin-bottom:4px}.participant b{font-size:10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left;font-size:9px}.level{padding:4px 2px;border-bottom:1px dotted #d8e1dc;min-height:25px}.level:last-child{border:0}.tick{font-size:15px;margin-right:5px}.mark{float:right;font-weight:bold;background:#edf4f0;padding:1px 5px;border-radius:3px}.muted{font-size:9px;color:#6b7771}.scorebox{font-size:15px;text-align:center;font-weight:bold}.total{display:flex;justify-content:flex-end;gap:25px;align-items:center;padding:12px;border:1px solid #b9cfc3;background:#f4faf6;margin-top:10px}.total b{font-size:17px;color:#0b6b53}.remarks{margin-top:14px}.remarks>div{height:48px;border:1px solid #cbd8d1;margin-top:5px;padding:6px}.signatures{display:flex;justify-content:space-between;margin-top:25px;text-align:center;font-size:9px}footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #dce5df;padding-top:5px;color:#7a867f;font-size:8px}@media print{.rubric-page{min-height:270mm}}
+  </style></head><body>${pages}</body></html>`;
+}
+function printPracticalRubric(aid,pid) {
+  try { printHTML(practicalRubricPrintHTML(aid,pid||null)); }
+  catch(e) { toast('⚠️ '+(e.message||'Gagal menyediakan rubrik.'),'bad'); }
+}
+function downloadPracticalMarksTemplate(aid) {
+  try {
+    if (!ensureXLSX()) return;
+    const {act,rb,criteria,participants}=practicalAssessmentContext(aid);
+    const headers=['Participant ID','Participant Name','Organisation',...criteria.map(c=>String(c.name||'Criterion').trim()),'Remarks'];
+    const rows=participants.map(p=>[p.id,p.name||'',p.org||'',...criteria.map((c,i)=>{const pr=getPractical(aid,p.id);return pr&&pr.scores&&pr.scores[i]!==undefined?pr.scores[i]:'';}),getPractical(aid,p.id)?.remarks||'']);
+    const ws=XLSX.utils.aoa_to_sheet([[`Activity: ${act.title}`],[`Module: ${moduleName(act.moduleId)}`],[`Rubric: ${rb.name}`],[`Instruction: Enter the numeric mark for each criterion. Use one of the rubric level marks shown in the rubric. Do not change Participant ID or criterion headers.`],[],headers,...rows]);
+    ws['!cols']=[{wch:24},{wch:30},{wch:24},...criteria.map(()=>({wch:20})),{wch:36}];
+    ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:5,c:0},e:{r:5+rows.length,c:headers.length-1}})};
+    ws['!freeze']={xSplit:3,ySplit:6};
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Practical Marks');
+    const guide=[['FIELD','INSTRUCTION'],['Participant ID','Unique key. Do not edit.'],['Participant Name / Organisation','Reference information only.'],['Criterion columns','Enter marks exactly as listed in the printed rubric performance levels.'],['Remarks','Optional trainer/facilitator comments.'],['Upload','Save as .xlsx and upload through the same activity. Rows are matched using Participant ID.']];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(guide),'Instructions');
+    XLSX.writeFile(wb,`Practical_Marks_${String(act.title||'Activity').replace(/[^a-z0-9_-]/gi,'_')}.xlsx`);
+    toast(currentLang==='ms'?'Template Excel semua peserta berjaya dimuat turun.':'Excel template for all participants downloaded.');
+  } catch(e) { toast('⚠️ '+e.message,'bad'); }
+}
+async function importPracticalMarksExcel(file,aid) {
+  if (!ensureXLSX()) return;
+  const ctx=practicalAssessmentContext(aid);
+  const wb=await readExcelFile(file);
+  const ws=wb.Sheets['Practical Marks']||wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('Sheet Practical Marks tidak ditemui.');
+  const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+  const headerRow=data.findIndex(r=>String(r[0]||'').trim().toLowerCase()==='participant id');
+  if(headerRow<0) throw new Error('Lajur Participant ID tidak ditemui. Gunakan template yang dimuat turun.');
+  const headers=data[headerRow].map(v=>String(v||'').trim());
+  const idCol=headers.findIndex(h=>h.toLowerCase()==='participant id');
+  const nameCol=headers.findIndex(h=>h.toLowerCase()==='participant name');
+  const remarksCol=headers.findIndex(h=>h.toLowerCase()==='remarks');
+  const criterionCols=ctx.criteria.map(c=>headers.findIndex(h=>h===String(c.name||'').trim()));
+  if(criterionCols.some(i=>i<0)) throw new Error('Nama lajur kriteria tidak sepadan dengan rubrik semasa. Muat turun template baharu.');
+  const allowed=new Map(ctx.participants.map(p=>[String(p.id),p]));
+  const seen=new Set(), parsed=[], errors=[]; let incompleteRows=0;
+  for(let ri=headerRow+1;ri<data.length;ri++){
+    const row=data[ri]||[]; const pid=String(row[idCol]||'').trim();
+    if(!pid) continue;
+    if(!allowed.has(pid)){errors.push(`Baris ${ri+1}: Participant ID ${pid} tidak berdaftar dalam aktiviti ini.`);continue;}
+    if(seen.has(pid)){errors.push(`Baris ${ri+1}: Participant ID ${pid} berulang.`);continue;} seen.add(pid);
+    const scores=[];
+    ctx.criteria.forEach((c,ci)=>{
+      const raw=row[criterionCols[ci]];
+      if(raw===''||raw===null||raw===undefined){scores.push(null);return;}
+      const mark=Number(raw); const valid=(c.levels||[]).some(l=>Number(l.mark)===mark);
+      if(!Number.isFinite(mark)||!valid){errors.push(`Baris ${ri+1}: markah ${c.name} (${raw}) bukan markah tahap rubrik yang sah.`);scores.push(null);return;}
+      scores.push(mark);
+    });
+    if(scores.some(x=>x===null)){incompleteRows++;continue;}
+    let weighted=0,totalWeight=0;
+    ctx.criteria.forEach((c,i)=>{const max=Math.max(...(c.levels||[]).map(l=>Number(l.mark)||0));totalWeight+=Number(c.weight)||0;weighted+=max>0?(scores[i]/max)*(Number(c.weight)||0):0;});
+    const total=totalWeight>0?(weighted/totalWeight)*100:0;
+    parsed.push({pid,scores,total,remarks:remarksCol>=0?String(row[remarksCol]||'').trim():''});
+  }
+  if(errors.length){const preview=errors.slice(0,8).join('\n');throw new Error(`Import dibatalkan kerana ${errors.length} isu:\n${preview}${errors.length>8?'\n… dan isu lain.':''}`);}
+  if(!parsed.length) throw new Error('Tiada baris markah yang boleh diimport.');
+  const shouldSubmit=state.user.role==='facilitator'||(state.user.role!=='admin'&&isFacilitatorOf(ctx.act.moduleId,state.user.id));
+  parsed.forEach(item=>{
+    const payload={scores:item.scores,total:item.total,remarks:item.remarks};
+    if(shouldSubmit){
+      if(!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals=[];
+      let pa=DB.pendingApprovals.find(x=>x.type==='practical'&&x.activityId===aid&&x.participantId===item.pid&&x.status==='pending');
+      if(pa){pa.data=payload;pa.submittedAt=nowISO();}
+      else DB.pendingApprovals.push({id:uid('pa'),type:'practical',moduleId:ctx.act.moduleId,activityId:aid,participantId:item.pid,data:payload,submittedBy:state.user.id,submittedAt:nowISO(),status:'pending',reviewedBy:null,reviewedAt:null,reviewRemarks:''});
+    } else {
+      let rec=DB.practical.find(x=>x.activityId===aid&&x.participantId===item.pid);
+      if(rec){rec.scores=item.scores;rec.total=item.total;rec.remarks=item.remarks;rec.by=state.user.id;rec.at=nowISO();}
+      else DB.practical.push({id:uid('pr'),activityId:aid,participantId:item.pid,scores:item.scores,total:item.total,remarks:item.remarks,by:state.user.id,at:nowISO()});
+      if(Array.isArray(DB.pendingApprovals)) DB.pendingApprovals=DB.pendingApprovals.filter(x=>!(x.type==='practical'&&x.activityId===aid&&x.participantId===item.pid&&x.status==='pending'));
+    }
+    logAudit(shouldSubmit?'Bulk Practical Submitted (Pending Approval)':'Bulk Practical Marks Import','Penilaian',`${aid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
+  });
+  saveDB();
+  toast((shouldSubmit?`${parsed.length} rekod dihantar untuk kelulusan trainer.`:`${parsed.length} rekod markah berjaya diimport.`)+(incompleteRows?` ${incompleteRows} peserta belum lengkap dan tidak diimport.`:''));
+  render();
+}
+
 function openPracticalForm(aid, pid) {
   const act = getActivity(aid); const existing = getPractical(aid, pid);
   const pending = hasPendingApprovalFor('practical', aid, pid);
@@ -6955,6 +7087,10 @@ document.addEventListener('click', async (e) => {
     case 'excel-qbank-upload': pickExcelFile('.xlsx,.xls', (f) => importQuestionBankExcel(f)); break;
     case 'excel-rubric-download': downloadRubricTemplate(); break;
     case 'excel-rubric-upload': pickExcelFile('.xlsx,.xls', (f) => importRubricExcel(f)); break;
+    case 'print-rubric-cohort': printPracticalRubric(tgt.dataset.aid, null); break;
+    case 'print-rubric-one': printPracticalRubric(tgt.dataset.aid, tgt.dataset.pid); break;
+    case 'excel-practical-download': downloadPracticalMarksTemplate(tgt.dataset.aid); break;
+    case 'excel-practical-upload': { const aid=tgt.dataset.aid; pickExcelFile('.xlsx,.xls', (f) => importPracticalMarksExcel(f, aid)); break; }
     case 'excel-timetable-download': downloadTimetableTemplate(tgt.dataset.mid); break;
     case 'excel-timetable-upload': { const mid = tgt.dataset.mid; pickExcelFile('.xlsx,.xls', (f) => importTimetableExcel(f, mid)); break; }
   }
@@ -7096,10 +7232,9 @@ async function pullFromServer(showToast, options = {}) {
         if (hasLocalChanges) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(localChanges));
         else localStorage.removeItem('cftpmy_pending_diff');
       } catch (storageError) { console.warn('Local cache update failed:', storageError); }
-      const sid = localStorage.getItem(SESSION_KEY);
-      if (sid) state.user = DB.users.find(u => u.id === sid) || null;
+      const sessionUserRestored = restoreActiveSessionUser();
       if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
-      if (hasLocalChanges) scheduleServerSave();
+      if (hasLocalChanges || sessionUserRestored) scheduleServerSave();
       if (badge) { badge.textContent = '✓'; badge.style.background = '#e8f5ec'; badge.style.color = '#1e7d4f'; badge.title = 'Google Sheets/Drive refreshed ' + new Date().toLocaleTimeString(); }
       if (showToast) toast('🔄 Data terkini berjaya dimuatkan daripada Google Sheets/Drive', 'ok');
       return { ok: true, changed: true };
