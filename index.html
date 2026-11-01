@@ -404,6 +404,140 @@ h1,h2,h3,h4{letter-spacing:-.018em}h1{font-size:1.16rem}h2{font-size:1.08rem}h3{
 @media(max-width:600px){body{font-size:13px}.topbar{padding:10px 12px}#view{padding:14px 10px 24px}.card{padding:14px;margin-bottom:14px}.card-head{padding-bottom:9px;margin-bottom:13px}.modal{padding:18px}.login-card{padding:26px 20px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
+
+/* MOBILE FULL-WIDTH LAYOUT FIX — appended override */
+html, body {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+#app {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+#view {
+  width: 100%;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media screen and (max-width: 900px) {
+  .shell {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+  .sidebar {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    position: relative !important;
+    top: auto !important;
+    padding: 12px 14px !important;
+  }
+  .sidebar .brand {
+    width: 100%;
+    min-width: 0;
+    padding: 2px 4px 12px !important;
+  }
+  .nav {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex-direction: row !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    margin-top: 10px !important;
+    padding: 0 0 5px;
+  }
+  .nav-item {
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: 85vw;
+    white-space: nowrap;
+  }
+  .sidebar-foot { display: none !important; }
+  .main {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  .topbar {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  #view {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 16px 14px 28px !important;
+  }
+  .card, .stat, .spider-module, .module-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .grid, .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .spider-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .spider-chart-wrap, .spider-data, .overall-spider-chart {
+    width: 100%;
+    min-width: 0;
+  }
+  .spider-svg, .overall-spider-chart svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+@media screen and (max-width: 520px) {
+  #view { padding: 12px 10px 22px !important; }
+  .topbar { padding: 10px !important; }
+  .topbar h1 { font-size: 1rem; }
+  .card { padding: 12px !important; }
+  .grid, .grid-4, .grid2, .status-panel {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .overall-spider-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overall-spider-summary > div { min-width: 0; }
+  .card-head { align-items: flex-start; }
+  .card-head h2 { min-width: 0; overflow-wrap: anywhere; }
+  .toolbar { max-width: 100%; }
+  .toolbar .btn { max-width: 100%; }
+}
+
 </style>
 </head>
 <body>
