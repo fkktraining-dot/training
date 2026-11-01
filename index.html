@@ -1398,7 +1398,7 @@ const I18N = {
     mat_no_materials_admin: 'Belum ada bahan. Klik ➕ untuk muat naik fail.',
     mat_upload_modal: 'Muat Naik Bahan Modul', mat_upload_format: 'Format Diterima',
     mat_upload_format_value: 'Semua jenis fail diterima.',
-    mat_upload_limit: 'Had saiz: 100 MB per fail.', mat_upload_file: 'Fail',
+    mat_upload_limit: 'Had saiz: 200 MB per fail (fail besar mungkin perlukan kaedah muat naik bersegmen).', mat_upload_file: 'Fail',
     mat_upload_display_name: 'Nama Paparan (pilihan)', mat_upload_desc: 'Penerangan (pilihan)',
     mat_upload_placeholder: 'Kosong = guna nama fail asal', mat_upload_btn: '⬆️ Muat Naik',
     mat_upload_success: 'Bahan dimuat naik ke Google Drive.',
@@ -1923,7 +1923,7 @@ const I18N = {
     mat_no_materials_admin: 'No materials yet. Click ➕ to upload files.',
     mat_upload_modal: 'Upload Module Material', mat_upload_format: 'Accepted Formats',
     mat_upload_format_value: 'All file types accepted.',
-    mat_upload_limit: 'Size limit: 100 MB per file.', mat_upload_file: 'File',
+    mat_upload_limit: 'Size limit: 200 MB per file (large files may require chunked upload).', mat_upload_file: 'File',
     mat_upload_display_name: 'Display Name (optional)', mat_upload_desc: 'Description (optional)',
     mat_upload_placeholder: 'Empty = use original filename', mat_upload_btn: '⬆️ Upload',
     mat_upload_success: 'Material uploaded to Google Drive.',
@@ -4630,9 +4630,50 @@ function modulesView() {
 
 function renderMaterialsSection(m, canEdit) {
   const mats = m.materials || [];
-  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type)}</div><div class="mat-body"><div class="mat-name">${tce(mat.name)}</div><div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer')}</div>`}</div>`;
+  const refreshLabel = currentLang === 'en' ? '🔄 Check Google Drive' : '🔄 Semak Google Drive';
+  const emptyText = canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer');
+  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}</div>`;
 }
 
+/** Pull existing materials from Drive into the module record, so old Drive files
+ * are shown even if they were not uploaded through this app or were never saved
+ * in m.materials. */
+async function refreshModuleMaterialsFromDrive(mid, quiet = false) {
+  const m = getModule(mid);
+  if (!m) { if (!quiet) toast(t('msg_not_found'), 'bad'); return false; }
+  try {
+    const res = await driveAPI('listModuleMaterials', { moduleId: m.id, moduleName: m.name });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Google Drive list failed');
+    const existing = Array.isArray(m.materials) ? m.materials : [];
+    const byFileId = new Map(existing.filter(x => x.fileId).map(x => [String(x.fileId), x]));
+    const merged = existing.slice();
+    (Array.isArray(res.files) ? res.files : []).forEach(f => {
+      if (!f || !f.id) return;
+      const found = byFileId.get(String(f.id));
+      if (found) {
+        Object.assign(found, { downloadUrl: f.downloadUrl || found.downloadUrl, viewUrl: f.viewUrl || found.viewUrl, previewUrl: f.previewUrl || found.previewUrl, folderId: f.folderId || found.folderId, folderUrl: f.folderUrl || found.folderUrl, size: f.size || found.size, mime: f.mimeType || found.mime });
+      } else {
+        const mat = {
+          id: 'drive_' + String(f.id), fileId: String(f.id), name: f.name || 'Drive file', originalName: f.name || 'Drive file',
+          type: fileTypeFromName(f.name || ''), mime: f.mimeType || 'application/octet-stream', size: Number(f.size) || 0,
+          downloadUrl: f.downloadUrl || '', viewUrl: f.viewUrl || f.url || '', previewUrl: f.previewUrl || f.viewUrl || f.url || '',
+          folderId: f.folderId || res.folderId || null, folderUrl: f.folderUrl || res.folderUrl || null,
+          description: f.description || '', uploadedBy: null, uploadedAt: f.createdAt || f.updatedAt || null, fromDrive: true
+        };
+        merged.push(mat); byFileId.set(String(f.id), mat);
+      }
+    });
+    m.materials = merged;
+    saveDB();
+    if (!quiet) toast(currentLang === 'en' ? `Google Drive checked: ${res.files ? res.files.length : 0} file(s) found.` : `Google Drive disemak: ${res.files ? res.files.length : 0} fail ditemui.`, 'ok');
+    if (state.view === 'module' && state.params && state.params.moduleId === mid) render();
+    return true;
+  } catch (err) {
+    console.error('refreshModuleMaterialsFromDrive failed:', err);
+    if (!quiet) toast((currentLang === 'en' ? 'Cannot load module files from Google Drive: ' : 'Gagal memuatkan bahan daripada Google Drive: ') + (err.message || 'Unknown error'), 'bad');
+    return false;
+  }
+}
 function renderTimetableSection(m, canEdit) {
   const entries = moduleTimetable(m.id);
   const byDate = {};
@@ -5758,7 +5799,7 @@ function handleSaveActivity(form) {
 /* =========================================================
    MATERIALS
    ========================================================= */
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 function openUploadMaterialModal(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
@@ -7286,7 +7327,7 @@ document.addEventListener('click', async (e) => {
     case 'logout': handleLogoutClick(); break;
     case 'nav': state.view = tgt.dataset.view; state.params = {}; render(); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
-    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); break;
+    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
     case 'print-activity-quiz': printActivityQuiz(id); break;
     case 'manual-quiz-answers': openManualQuizAnswers(tgt.dataset.aid, tgt.dataset.pid); break;
@@ -7394,6 +7435,7 @@ document.addEventListener('click', async (e) => {
     case 'edit-quiz-builder': { if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openQuizEditor(id); break; }
     case 'save-quiz-config': handleSaveQuizConfig(); break;
     case 'upload-material': openUploadMaterialModal(tgt.dataset.mid); break;
+    case 'refresh-module-materials': refreshModuleMaterialsFromDrive(tgt.dataset.mid, false); break;
     case 'view-material': viewMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'download-material': downloadMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'delete-material': deleteMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
