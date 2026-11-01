@@ -3835,6 +3835,9 @@ function navItems() {
   if (r === 'vip') {
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_all'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
       { v:'final', label:t('nav_final'), icon:'🎓' },
@@ -3848,7 +3851,11 @@ function navItems() {
     const pf = upcomingFinalExamsFor(state.user.id, 99).length;
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'programs', label:t('nav_programs'), icon:'🎓' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
+      { v:'attendance', label:currentLang === 'en' ? 'Attendance' : 'Kehadiran', icon:'☑️' },
       { v:'activities', label:t('nav_activities_own') + (pq ? ` (${pq})` : ''), icon:'📋' },
       { v:'practical-evaluation', label:t('nav_practical_evaluation'), icon:'📏' },
       { v:'final', label:t('nav_final') + (pf ? ` (${pf})` : ''), icon:'🎓' },
@@ -3861,6 +3868,9 @@ function navItems() {
     const pend = myPendingSubmissionsCount(state.user.id);
     return [
       { v:'dashboard', label:t('nav_portal'), icon:'🧑‍🏫' },
+      { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_own'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
       { v:'final', label:t('nav_final'), icon:'🎓' },
@@ -3877,6 +3887,9 @@ function navItems() {
     const pq = trainerPendingQuestionsCount(state.user.id);
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_own'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
       { v:'final', label:t('nav_final') + (pq ? ` (${pq})` : ''), icon:'🎓' },
@@ -3894,6 +3907,9 @@ function navItems() {
   const paAll = pendingApprovalCountAll();
   return [
     { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+    { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
     { v:'modules', label:t('nav_modules'), icon:'📦' },
     { v:'activities', label:t('nav_activities'), icon:'📋' },
     { v:'final', label:t('nav_final'), icon:'🎓' },
@@ -3913,7 +3929,7 @@ function navItems() {
 }
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function shell() {
   const u = state.user;
@@ -3971,6 +3987,9 @@ function viewContent() {
     case 'modules': return modulesView();
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
+    case 'enrolled-programs': return enrolledProgramsView();
+    case 'participant-timetable': return participantTimetableView();
+    case 'assessment-performance': return assessmentPerformanceView();
     case 'activities': return state.user.role === 'participant' ? participantActivitiesView() : activitiesView();
     case 'practical-evaluation': return state.user.role === 'participant' ? participantPracticalEvaluationView() : `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
     case 'activity': return activityDetailView();
@@ -4354,7 +4373,6 @@ function participantDashboard() {
     <div class="stat"><div class="label">${t('stat_avg_score')}</div><div class="value">${avgScore ?? '—'}${avgScore !== null ? '%' : ''}</div></div>
     <div class="stat"><div class="label">${t('stat_competent')}</div><div class="value">${kompeten}</div></div>
   </div>
-  ${renderParticipantAssessmentSpider(me.id, myMods)}
   ${renderFinalExamNotificationWidget(me.id)}
   ${pendingQuizzes.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📝 ${t('pending_quiz_title')} (${pendingQuizzes.length})</h2></div><p class="muted" style="font-size:.85rem;margin-bottom:12px">${t('pending_quiz_hint')}</p>${pendingQuizzes.map(a => { const w = quizWindowStatus(a); const retest = hasPendingRetest(a.id, me.id); const attempt = getAttempt(a.id, me.id); const statusBadge = retest ? `<span class="badge info">🔄 ${t('retest_pending_badge')}</span>` : (w.state === 'not-open' ? `<span class="badge draft">🕐 ${t('status_not_open')}</span>` : w.state === 'closed' ? `<span class="badge bad">🔒 ${t('status_closed')}</span>` : `<span class="badge ok">✓ ${t('status_open')}</span>`); const btnLabel = w.state === 'open' ? (retest ? '🔄 ' + t('retest_take') + ' →' : t('quiz_take') + ' →') : t('quiz_view') + ' →'; const bestNote = attempt ? ` · 🏆 ${Math.round(attempt.score/attempt.total*100)}%` : ''; return `<div class="pending-quiz-card" style="${retest ? 'border-color:var(--brand-2);background:linear-gradient(135deg,#e8f5ec,#fff)' : ''}"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(a.title)} ${statusBadge}</div><div class="pq-meta">${tce(moduleName(a.moduleId))} · ${a.quiz.length} ${t('lbl_questions')} · ${fmtDate(a.date)}${a.quizDuration ? ` · ⏱️ ${a.quizDuration} ${t('lbl_minutes')}` : ''}${a.quizOpenAt && w.state === 'not-open' ? ` · ${t('quiz_open_at')}: ${fmtDT(a.quizOpenAt)}` : ''}${a.quizCloseAt ? ` · ${t('quiz_close_at')}: ${fmtDT(a.quizCloseAt)}` : ''}${bestNote}</div></div><button class="btn btn-primary btn-sm" data-act="open-quiz-tab" data-id="${a.id}">${btnLabel}</button></div>`; }).join('')}</div>` : ''}
   ${renderUpcomingTimetableWidget(me.id)}
@@ -4374,7 +4392,7 @@ function upcomingTimetableFor(pid, limit) {
 function renderUpcomingTimetableWidget(pid) {
   const entries = upcomingTimetableFor(pid, 5);
   if (!entries.length) return '';
-  return `<div class="card" style="border-color:#b8e0cf;background:linear-gradient(180deg,#f7fdfa,#fff)"><div class="card-head"><h2>📅 ${t('tt_upcoming')}</h2><span class="badge info">${entries.length}</span></div><div class="timetable-list">${entries.map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time"><div class="tt-date-mini">${fmtDate(e.date)}${isTodayDate(e.date) ? ' · ' + t('tt_today') : ''}</div><div>${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div></div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div><div class="tt-meta">${tce(moduleName(e.moduleId))}${e.instructor ? ' · 👤 ' + tce(e.instructor) : ''}${e.location ? ' · 📍 ' + tce(e.location) : ''}</div>${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div><button class="btn btn-sm" data-act="open-module" data-id="${e.moduleId}">${t('btn_open')}</button></div>`).join('')}</div></div>`;
+  return `<div class="card" style="border-color:#b8e0cf;background:linear-gradient(180deg,#f7fdfa,#fff)"><div class="card-head"><h2>📅 ${t('tt_upcoming')}</h2><span class="badge info">${entries.length}</span></div><div class="timetable-list">${entries.map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time"><div class="tt-date-mini">${fmtDate(e.date)}${isTodayDate(e.date) ? ' · ' + t('tt_today') : ''}</div><div>${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div></div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div><div class="tt-meta">${tce(moduleName(e.moduleId))}${(e.trainerNames && e.trainerNames.length ? e.trainerNames.join(', ') : e.instructor) ? ' · 👤 ' + tce((e.trainerNames && e.trainerNames.length ? e.trainerNames.join(', ') : e.instructor)) : ''}${(e.facilitatorNames && e.facilitatorNames.length ? e.facilitatorNames.join(', ') : e.facilitator) ? ' · 🧑‍🏫 ' + tce((e.facilitatorNames && e.facilitatorNames.length ? e.facilitatorNames.join(', ') : e.facilitator)) : ''}${e.location ? ' · 📍 ' + tce(e.location) : ''}</div>${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div><button class="btn btn-sm" data-act="open-module" data-id="${e.moduleId}">${t('btn_open')}</button></div>`).join('')}</div></div>`;
 }
 function trainerDashboard() {
   const mods = myModules();
@@ -4628,7 +4646,7 @@ function renderTimetableSection(m, canEdit) {
       <div><h2>📅 ${t('tt_title')} (${entries.length})</h2><small class="muted">${t('tt_sub')}</small></div>
       <div class="toolbar">${pdfBtn}${excelBtns}${addBtn}</div>
     </div>
-    ${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.location) ? `<div class="tt-meta">${e.instructor ? '👤 ' + tce(e.instructor) : ''}${e.instructor && e.location ? ' · ' : ''}${e.location ? '📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
+    ${entries.length ? `<div class="timetable-list">${dates.map(date => `<div class="tt-day"><div class="tt-day-head">${fmtDateLong(date)} ${isTodayDate(date) ? `<span class="badge ok">${t('tt_today')}</span>` : ''}</div>${byDate[date].map(e => `<div class="tt-entry ${isTodayDate(e.date) ? 'today' : ''}"><div class="tt-time">${fmtTime12(e.startTime)} — ${fmtTime12(e.endTime)}</div><div class="tt-body"><div class="tt-topic">${tce(e.title)}</div>${(e.instructor || e.facilitator || e.location || (e.trainerNames||[]).length || (e.facilitatorNames||[]).length) ? `<div class="tt-meta">${(e.trainerNames && e.trainerNames.length ? e.trainerNames.join(', ') : e.instructor) ? '👤 ' + tce((e.trainerNames && e.trainerNames.length ? e.trainerNames.join(', ') : e.instructor)) : ''}${(e.facilitatorNames && e.facilitatorNames.length ? e.facilitatorNames.join(', ') : e.facilitator) ? ' · 🧑‍🏫 ' + tce((e.facilitatorNames && e.facilitatorNames.length ? e.facilitatorNames.join(', ') : e.facilitator)) : ''}${e.location ? ' · 📍 ' + tce(e.location) : ''}</div>` : ''}${e.notes ? `<div class="tt-notes">${tce(e.notes)}</div>` : ''}</div>${canEdit ? `<div class="toolbar" style="flex-wrap:nowrap"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${e.id}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${e.id}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`).join('')}</div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('tt_no_entries_admin') : t('tt_no_entries')}</div>`}</div>`;
 }
 
 function vipModuleDetailView(m) {
@@ -4739,6 +4757,32 @@ function moduleDetailView() {
   <div class="card"><div class="card-head"><h2>${t('modules_participant_section')} (${participants.length})</h2>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="enroll-participants-modal" data-id="${m.id}">➕ ${t('btn_enroll')}</button>` : ''}</div>${participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('lbl_email')}</th><th>${t('lbl_date')}</th><th></th></tr></thead><tbody>${participants.map(({ enroll, user }) => `<tr><td><strong>${tce(user.name)}</strong></td><td>${esc(user.email)}</td><td>${fmtDate(enroll.enrolledAt)}</td><td>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="unenroll-module" data-mid="${m.id}" data-pid="${user.id}">${t('btn_unenroll')}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_participants')}</div>`}</div>`;
 }
 
+function participantTimetableView() {
+  const me = state.user;
+  const modules = (me.role === 'participant' ? participantModules(me.id) : myModules()).filter(m => m.published !== false);
+  const mids = new Set(modules.map(m => m.id));
+  const entries = DB.timetables.filter(e => mids.has(e.moduleId)).map(e => ({...e, itemType:'entry', module:getModule(e.moduleId)}));
+  modules.forEach(m => { if (m.startDate || m.endDate) entries.push({id:'module-range-'+m.id,moduleId:m.id,module:m,itemType:'range',date:m.startDate||m.endDate,endDate:m.endDate||m.startDate,startTime:m.startTime||'',endTime:m.endTime||'',title:m.name}); });
+  entries.sort((a,b)=>((a.date||'')+' '+(a.startTime||'')).localeCompare((b.date||'')+' '+(b.startTime||'')));
+  const toMinutes = v => { if(!v) return null; const a=String(v).split(':'); return Number(a[0])*60+Number(a[1]||0); };
+  const slots=[]; for(let mins=8*60; mins<22*60; mins+=60) slots.push({mins,end:mins+60,label:`${String(Math.floor(mins/60)).padStart(2,'0')}:00–${String(Math.floor(mins/60)+1).padStart(2,'0')}:00`});
+  const dates=[...new Set(entries.map(x=>x.date||'undated'))];
+  const renderItem = x => `<button type="button" class="tt-participant-event" data-act="participant-timetable-detail" data-id="${esc(x.id)}" data-kind="${x.itemType}" style="display:block;width:100%;min-width:115px;text-align:left;border:1px solid #9fc8bb;border-radius:7px;background:#edf8f3;padding:7px;margin:2px 0;cursor:pointer;color:var(--text);font-size:12px"><strong>${esc(x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):(currentLang==='en'?'Module period':'Tempoh modul'))}</strong><div style="font-weight:700;margin-top:3px">${tce(x.title||x.module?.name||'')}</div><small>${tce(x.module?.name||moduleName(x.moduleId))}${x.endDate&&x.endDate!==x.date?'<br>'+fmtDate(x.date)+' – '+fmtDate(x.endDate):''}</small></button>`;
+  const renderDayTable = dateKey => {
+    const items=entries.filter(x=>(x.date||'undated')===dateKey);
+    const dayLabel=dateKey==='undated'?(currentLang==='en'?'Date not set':'Tarikh belum ditetapkan'):(()=>{const d=new Date(dateKey+'T12:00:00');const ms=currentLang==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];return ms[d.getDay()]+', '+fmtDate(dateKey);})();
+    return `<div class="card" style="margin-top:14px"><div class="card-head"><h3>📅 ${dayLabel}</h3><span class="badge info">${items.length} ${currentLang==='en'?'sessions':'sesi'}</span></div><div class="table-wrap" style="overflow-x:auto"><table class="participant-day-grid" style="min-width:1850px;border-collapse:separate;border-spacing:0"><thead><tr>${slots.map(s=>`<th style="min-width:130px;text-align:center;white-space:nowrap">${s.label}</th>`).join('')}</tr></thead><tbody><tr>${slots.map(slot=>{const found=items.filter(x=>{const st=toMinutes(x.startTime);return st===null?slot.mins===480:(st>=slot.mins&&st<slot.end);});return `<td style="vertical-align:top;min-width:130px;height:95px;padding:4px">${found.length?found.map(renderItem).join(''):'<span class="muted" style="opacity:.35">—</span>'}</td>`;}).join('')}</tr></tbody></table></div></div>`;
+  };
+  return `<div class="card"><div class="card-head"><div><h2>🗓️ ${currentLang==='en'?'Participant Timetable':'Jadual Waktu Peserta'}</h2><small class="muted">${currentLang==='en'?'Each date is displayed in a separate horizontal timetable. Click a session for details.':'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.'}</small></div></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No enrolled modules found.':'Tiada modul yang didaftarkan.'}</div>`}</div>`;
+}
+function showParticipantTimetableDetail(id, kind) {
+  let x;
+  if (kind==='range') { const mid=String(id||'').replace('module-range-',''); const m=getModule(mid); if(!m)return; x={module:m,title:m.name,date:m.startDate,endDate:m.endDate,startTime:m.startTime,endTime:m.endTime,location:'',notes:m.description,trainerNames:moduleTrainerNames(m)?[moduleTrainerNames(m)]:[],facilitatorNames:moduleFacilitatorNames(m)?[moduleFacilitatorNames(m)]:[]}; }
+  else { x=DB.timetables.find(e=>e.id===id); if(!x)return; x={...x,module:getModule(x.moduleId)}; }
+  const m=x.module || getModule(x.moduleId);
+  openModal(`<h2>📅 ${tce(x.title||m?.name||'Timetable details')}</h2><div class="meta-grid"><div class="meta-item"><div class="k">${currentLang==='en'?'Module':'Modul'}</div><div class="v">${tce(m?.name||'—')}</div></div><div class="meta-item"><div class="k">${currentLang==='en'?'Date / Period':'Tarikh / Tempoh'}</div><div class="v">${x.date?fmtDate(x.date):'—'}${x.endDate&&x.endDate!==x.date?' – '+fmtDate(x.endDate):''}</div></div><div class="meta-item"><div class="k">${currentLang==='en'?'Time':'Masa'}</div><div class="v">${x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):'—'}</div></div><div class="meta-item"><div class="k">${t('tt_location')}</div><div class="v">${tce(x.location||'—')}</div></div><div class="meta-item"><div class="k">${t('lbl_trainer')}</div><div class="v">${tce((x.trainerNames||[]).join(', ')||moduleTrainerNames(m)||'—')}</div></div><div class="meta-item"><div class="k">${t('lbl_facilitator')}</div><div class="v">${tce((x.facilitatorNames||[]).join(', ')||moduleFacilitatorNames(m)||'—')}</div></div></div>${x.notes?`<div class="info-box"><strong>${currentLang==='en'?'Notes / Description':'Catatan / Penerangan'}</strong><p>${tce(x.notes)}</p></div>`:''}<div class="modal-actions"><button class="btn btn-primary" data-act="close-modal">${t('btn_close')||'Tutup'}</button></div>`);
+}
+
 /* =========================================================
    TIMETABLE FORMS
    ========================================================= */
@@ -4749,12 +4793,20 @@ function openTimetableForm(mid, entryId) {
   const isEdit = !!entryId;
   const e = isEdit ? DB.timetables.find(x => x.id === entryId) : null;
   if (isEdit && !e) { toast(t('msg_not_found'), 'bad'); return; }
-  const v = isEdit ? e : { date: todayISO(), startTime: '09:00', endTime: '10:30', title: '', instructor: moduleTrainerNames(m) || '', location: '', notes: '' };
+  const trainers = moduleTrainerIds(m).map(id => DB.users.find(u => u.id === id)).filter(Boolean);
+  const facilitators = moduleFacilitatorIds(m).map(id => DB.users.find(u => u.id === id)).filter(Boolean);
+  const legacyInstructor = String((isEdit ? e.instructor : '') || '');
+  const v = isEdit ? e : { date: todayISO(), startTime: '09:00', endTime: '10:30', title: '', instructor: trainers.map(u=>u.name).join(', '), facilitator: facilitators.map(u=>u.name).join(', '), trainerIds: moduleTrainerIds(m), facilitatorIds: moduleFacilitatorIds(m), location: '', notes: '' };
+  const trainerNames = trainers.map(u=>u.name).filter(Boolean);
+  const facilitatorNames = facilitators.map(u=>u.name).filter(Boolean);
+  if (!trainerNames.length && legacyInstructor && !facilitatorNames.includes(legacyInstructor)) trainerNames.push(legacyInstructor);
+  const trainerDisplay = (v.trainerIds || []).length ? (v.trainerIds || []).map(id=>userName(id)).join(', ') : (v.instructor || trainerNames.join(', '));
+  const facilitatorDisplay = (v.facilitatorIds || []).length ? (v.facilitatorIds || []).map(id=>userName(id)).join(', ') : (v.facilitator || facilitatorNames.join(', '));
   const startVal = normalizeTimeStr(v.startTime) || '09:00';
   const endVal = normalizeTimeStr(v.endTime) || '10:30';
   openModal(`<h2>${isEdit ? t('tt_edit') : t('tt_new')}</h2><p class="muted">${tce(m.name)}</p>
     <form data-form="timetable" data-mid="${mid}" data-tid="${isEdit ? e.id : ''}">
-      <div class="grid2"><div class="field"><label>${t('tt_date')} *</label><input class="input" type="date" name="date" required value="${esc(v.date)}" /></div><div class="field"><label>${t('tt_instructor')}</label><input class="input" name="instructor" value="${esc(v.instructor || '')}" /></div><div class="field"><label>${t('tt_start')} *</label><input class="input" type="time" name="startTime" required value="${esc(startVal)}" /></div><div class="field"><label>${t('tt_end')} *</label><input class="input" type="time" name="endTime" required value="${esc(endVal)}" /></div></div>
+      <div class="grid2"><div class="field"><label>${t('tt_date')} *</label><input class="input" type="date" name="date" required value="${esc(v.date)}" /></div><div class="field"><label>${currentLang==='en'?'Assigned Trainer(s)':'Trainer Ditugaskan'}</label><input class="input" value="${esc(trainerDisplay || '—')}" readonly /><input type="hidden" name="trainerIds" value="${esc((v.trainerIds || moduleTrainerIds(m)).join(','))}" /><input type="hidden" name="trainerNames" value="${esc(trainerDisplay || '')}" /></div><div class="field"><label>${currentLang==='en'?'Assigned Facilitator(s)':'Fasilitator Ditugaskan'}</label><input class="input" value="${esc(facilitatorDisplay || '—')}" readonly /><input type="hidden" name="facilitatorIds" value="${esc((v.facilitatorIds || moduleFacilitatorIds(m)).join(','))}" /><input type="hidden" name="facilitatorNames" value="${esc(facilitatorDisplay || '')}" /><small class="muted">${currentLang==='en'?'Trainer and facilitator details are automatically taken from Module Information.':'Maklumat trainer dan fasilitator diambil secara automatik daripada Maklumat Modul.'}</small></div><div class="field"><label>${t('tt_start')} *</label><input class="input" type="time" name="startTime" required value="${esc(startVal)}" /></div><div class="field"><label>${t('tt_end')} *</label><input class="input" type="time" name="endTime" required value="${esc(endVal)}" /></div></div>
       <div class="field"><label>${t('tt_topic')} *</label><input class="input" name="title" required value="${esc(v.title)}" placeholder="${esc(t('tt_topic_placeholder'))}" /></div>
       <div class="field"><label>${t('tt_location')}</label><input class="input" name="location" value="${esc(v.location || '')}" placeholder="${esc(t('tt_location_placeholder'))}" /></div>
       <div class="field"><label>${t('tt_notes')}</label><textarea class="textarea" name="notes">${esc(v.notes || '')}</textarea></div>
@@ -4773,7 +4825,7 @@ function handleSaveTimetable(form) {
   if (!date) { toast(t('tt_date_required'), 'bad'); return; }
   if (!title) { toast(t('tt_topic_required'), 'bad'); return; }
   if (endTime <= startTime) { toast(t('tt_invalid_time'), 'bad'); return; }
-  const data = { moduleId: mid, date, startTime, endTime, title, instructor: form.instructor.value.trim(), location: form.location.value.trim(), notes: form.notes.value.trim(), updatedAt: nowISO() };
+  const trainerIds = (form.trainerIds?.value || moduleTrainerIds(m).join(',')).split(',').map(x=>x.trim()).filter(Boolean); const facilitatorIds = (form.facilitatorIds?.value || moduleFacilitatorIds(m).join(',')).split(',').map(x=>x.trim()).filter(Boolean); const trainerNames = trainerIds.map(id=>userName(id)).filter(n=>n && n!=='—'); const facilitatorNames = facilitatorIds.map(id=>userName(id)).filter(n=>n && n!=='—'); const data = { moduleId: mid, date, startTime, endTime, title, trainerIds, facilitatorIds, trainerNames, facilitatorNames, instructor: trainerNames.join(', ') || (form.trainerNames?.value || ''), facilitator: facilitatorNames.join(', ') || (form.facilitatorNames?.value || ''), location: form.location.value.trim(), notes: form.notes.value.trim(), updatedAt: nowISO() };
   if (tid) { const e = DB.timetables.find(x => x.id === tid); if (e) Object.assign(e, data); logAudit('Update Timetable', 'Jadual', tid, title); toast(t('tt_updated')); }
   else { const ne = Object.assign({ id: uid('tt'), createdBy: state.user.id, createdAt: nowISO() }, data); DB.timetables.push(ne); logAudit('Create Timetable', 'Jadual', ne.id, title); toast(t('tt_added')); }
   saveDB(); closeModal(); render();
@@ -5208,12 +5260,39 @@ function handleSaveFinalPractical(form) {
 /* =========================================================
    PROGRAMS
    ========================================================= */
+function enrolledProgramsView() {
+  const me = state.user;
+  let enrolled = [];
+  if (me.role === 'participant') enrolled = participantModules(me.id);
+  else if (me.role === 'vip') enrolled = sortModules(DB.modules).filter(m => DB.enrollments.some(e => e.moduleId === m.id && sameCompany((DB.users.find(u=>u.id===e.userId)||{}).org, me.org)));
+  else enrolled = myModules();
+  return `<div class="card"><div class="card-head"><h2>🎓 ${currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan'}</h2><span class="pill">${enrolled.length}</span></div><p class="muted">${currentLang === 'en' ? 'A dedicated view of programmes linked to your account or assigned modules.' : 'Paparan khusus program latihan yang didaftarkan atau ditugaskan kepada akaun anda.'}</p>
+  ${enrolled.length ? `<div class="module-grid">${enrolled.map(m => {
+    const acts = moduleActivitiesList(m.id).filter(a => a.published);
+    const tt = moduleTimetable(m.id).length;
+    return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${currentLang === 'en' ? 'Enrolled/Assigned' : 'Daftar/Tugasan'}</span></div><div class="m-desc">${tce(m.description||'')}</div><div class="m-stats"><div><strong>${acts.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${(m.materials||[]).length}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>${currentLang==='en'?'Timetable':'Jadual'}</span></div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`;
+  }).join('')}</div>` : `<div class="empty">${currentLang === 'en' ? 'No enrolled or assigned programmes found.' : 'Tiada program latihan didaftarkan atau ditugaskan.'}</div>`}</div>`;
+}
+function assessmentPerformanceView() {
+  const role = state.user.role;
+  if (role === 'participant') {
+    return `<div class="card"><div class="card-head"><h2>🕸️ ${currentLang==='en'?'Assessment Performance by Module':'Prestasi Penilaian Mengikut Modul'}</h2></div>${renderParticipantAssessmentSpider(state.user.id, participantModules(state.user.id))}</div>`;
+  }
+  if (role === 'vip') {
+    const parts = allParticipants().filter(p => sameCompany(p.org, state.user.org));
+    return `<div class="card"><div class="card-head"><h2>🕸️ ${currentLang==='en'?'Assessment Performance by Module':'Prestasi Penilaian Mengikut Modul'}</h2><span class="pill">${parts.length}</span></div><p class="muted">${currentLang==='en'?'Company participants only. Select Reports for printable individual reports.':'Peserta syarikat sahaja. Pilih Laporan untuk laporan individu boleh cetak.'}</p>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${currentLang==='en'?'Programmes':'Program'}</th><th></th></tr></thead><tbody>${parts.map(p=>`<tr><td>${tce(p.name)}</td><td>${participantModules(p.id).length}</td><td><button class="btn btn-sm" data-act="spider-review-open" data-pid="${p.id}">${currentLang==='en'?'View Spider Web':'Lihat Spider Web'}</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No company participants.</div>'}</div>`;
+  }
+  const modules = role === 'admin' ? sortModules(DB.modules) : myModules();
+  const participants = role === 'admin' ? allParticipants() : (() => { const ids = new Set(); modules.forEach(m=>enrolledParticipants(m.id).forEach(x=>ids.add(x.user.id))); return allParticipants().filter(p=>ids.has(p.id)); })();
+  const scope = role === 'admin' ? participants : participants;
+  return `<div class="card"><div class="card-head"><h2>🕸️ ${currentLang==='en'?'Assessment Performance by Module':'Prestasi Penilaian Mengikut Modul'}</h2><span class="pill">${participants.length} ${currentLang==='en'?'participants':'peserta'}</span></div><p class="muted">${currentLang==='en'?'Review participant practical assessment performance across modules. Choose a participant to view or print their spider web.':'Semak prestasi penilaian praktikal peserta merentas modul. Pilih peserta untuk melihat atau mencetak spider web.'}</p>
+  ${participants.length ? `<div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:480px">${participants.map(p=>`<option value="${p.id}">${tce(p.name)}${p.org?' — '+tce(p.org):''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang==='en'?'View Spider Web':'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang==='en'?'Print PDF':'Cetak PDF'}</button></div>${renderOverallSpider(modules, scope)}</div>` : `<div class="empty">${currentLang==='en'?'No participants found in your scope.':'Tiada peserta ditemui dalam skop anda.'}</div>`}</div>`;
+}
+
 function programsView() {
   const me = state.user;
   const avail = availableModules(me.id);
-  const enrolled = participantModules(me.id);
-  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>
-  <div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')} (${enrolled.length})</h2></div>${enrolled.length ? `<div class="module-grid">${enrolled.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
+  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
 }
 
 function openModuleForm(mod) {
@@ -5228,7 +5307,10 @@ function openModuleForm(mod) {
       <div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(m.name)}" /></div>
       <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" name="description">${esc(m.description)}</textarea></div>
       <div class="grid2">
-        <div class="field"><label>📅 ${t('module_start_date')}</label><input class="input" type="date" name="startDate" value="${esc(m.startDate || '')}" /><small class="muted" style="display:block;margin-top:4px">${currentLang === 'en' ? 'Modules are sorted by this date' : 'Modul disusun mengikut tarikh ini'}</small></div>
+        <div class="field"><label>📅 ${currentLang==='en'?'Start Date':'Tarikh Mula'}</label><input class="input" type="date" name="startDate" value="${esc(m.startDate || '')}" /></div>
+        <div class="field"><label>📅 ${currentLang==='en'?'End Date':'Tarikh Tamat'}</label><input class="input" type="date" name="endDate" value="${esc(m.endDate || '')}" /></div>
+        <div class="field"><label>🕒 ${currentLang==='en'?'Start Time':'Masa Mula'}</label><input class="input" type="time" name="startTime" value="${esc(m.startTime || '')}" /></div>
+        <div class="field"><label>🕒 ${currentLang==='en'?'End Time':'Masa Tamat'}</label><input class="input" type="time" name="endTime" value="${esc(m.endTime || '')}" /></div>
         <div class="field"><label>${t('lbl_status')}</label><select class="select" name="published"><option value="true" ${m.published ? 'selected' : ''}>${t('lbl_active')}</option><option value="false" ${!m.published ? 'selected' : ''}>${t('lbl_draft')}</option></select></div>
       </div>
       ${multiGroup('trainerIds', '👤 ' + t('lbl_trainer'), allTrainers(), selectedTrainers, true)}
@@ -5271,7 +5353,7 @@ function handleSaveModule(form) {
   const data = {
     name: form.name.value.trim(), description: form.description.value.trim(),
     trainerIds, facilitatorIds, trainerId: trainerIds[0] || null, facilitatorId: facilitatorIds[0] || null,
-    published: form.published.value === 'true', startDate: (form.startDate && form.startDate.value) || null, updatedAt: nowISO()
+    published: form.published.value === 'true', startDate: (form.startDate && form.startDate.value) || null, endDate: (form.endDate && form.endDate.value) || null, startTime: (form.startTime && form.startTime.value) || null, endTime: (form.endTime && form.endTime.value) || null, updatedAt: nowISO()
   };
   if (!data.name) { toast(t('msg_required'), 'bad'); return; }
   if (!trainerIds.length) { toast(currentLang === 'en' ? 'Select at least one trainer.' : 'Pilih sekurang-kurangnya seorang jurulatih.', 'bad'); return; }
@@ -5590,7 +5672,7 @@ function activityDetailView() {
       else if (w.state === 'closed') { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; quizSection = `<div class="card">${retestBanner}<div class="card-head"><h2>📝 ${t('lbl_quiz')}</h2><span class="badge bad">🔒 ${t('status_closed')}</span></div><div class="info-box warn"><h4>🔒 ${t('quiz_closed')}</h4><p style="margin:0">${t('quiz_closed_notice', act.quizCloseAt ? fmtDT(act.quizCloseAt) : '—')}</p></div></div>`; }
       else { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; const title = pendingRetest ? `🔄 ${t('retest_pending_badge')}` : `📝 ${t('quiz_ready')}`; quizSection = `<div class="card" style="border-color:var(--brand-2);background:#f7fdfa">${retestBanner}<div class="card-head"><h2>${title}</h2><div class="toolbar"><span class="badge ok">${act.quiz.length} ${t('lbl_questions')}</span>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : `<span class="badge info">${t('lbl_no_deadline')}</span>`}</div></div><div class="info-box ok"><h4>✅ ${t('quiz_open_notice')}</h4><p style="margin:0">${act.quizDuration ? t('quiz_open_notice_timed', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div><button class="btn btn-primary btn-block" data-act="open-quiz-tab" data-id="${act.id}">${pendingRetest ? '🔄 ' + t('retest_take') : '📝 ' + t('quiz_open_new_tab')} →</button></div>`; }
     } else {
-      quizSection = `<div class="card"><div class="card-head"><h2>${t('quiz_bank_title')}</h2><div class="toolbar"><span class="badge info">${act.quiz.length} ${t('lbl_questions')}</span>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : ''}${act.quizOpenAt ? `<span class="badge draft">🕐 ${fmtDT(act.quizOpenAt)}</span>` : ''}${act.quizCloseAt ? `<span class="badge bad">🔒 ${fmtDT(act.quizCloseAt)}</span>` : ''}${act.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_preview')}</button>` : ''}</div></div>${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p><ul class="list-plain">${q.options.map((o, oi) => `<li>${oi === q.answer ? '✅' : '▫️'} <strong>${'ABCD'[oi]}.</strong> ${tce(o)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+      quizSection = `<div class="card"><div class="card-head"><h2>${t('quiz_bank_title')}</h2><div class="toolbar"><span class="badge info">${act.quiz.length} ${t('lbl_questions')}</span><button class="btn btn-sm" data-act="print-activity-quiz" data-id="${act.id}">🖨️ ${currentLang === 'en' ? 'Print Questions' : 'Cetak Soalan'}</button>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : ''}${act.quizOpenAt ? `<span class="badge draft">🕐 ${fmtDT(act.quizOpenAt)}</span>` : ''}${act.quizCloseAt ? `<span class="badge bad">🔒 ${fmtDT(act.quizCloseAt)}</span>` : ''}${act.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_preview')}</button>` : ''}</div></div>${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p><ul class="list-plain">${q.options.map((o, oi) => `<li>${oi === q.answer ? '✅' : '▫️'} <strong>${'ABCD'[oi]}.</strong> ${tce(o)}</li>`).join('')}</ul></div>`).join('')}</div>`;
     }
   } else if (isParticipant) {
     quizSection = `<div class="card"><div class="empty">${t('act_no_quiz', fmtDate(act.date))}</div></div>`;
@@ -5809,25 +5891,52 @@ function rubricView() {
     <div class="card"><div class="card-head"><h2>🎯 ${t('rb_assign_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('rb_assign_hint')}</p>${practicalActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th><th style="width:280px">${t('lbl_rubric')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${practicalActs.map(a => { const rb = getRubric(a); return `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${isReviewer ? `<select class="select" style="min-width:240px" data-change="activity-rubric" data-aid="${a.id}"><option value="">— ${t('act_rubric_none')} —</option>${approvedRubrics.map(r => `<option value="${r.id}" ${a.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select>` : `<span class="badge ${rb ? (rb.approvalStatus === 'approved' ? 'ok' : 'warn') : 'warn'}">${rb ? tce(rb.name) + (rb.approvalStatus !== 'approved' ? ' ⏳' : '') : t('act_rubric_none')}</span>`}</td><td>${rb ? (isReviewer || rb.createdBy === state.user.id ? `<button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('rb_edit')}</button>` : `<span class="badge draft">🔒</span>`) : (isReviewer ? `<button class="btn btn-sm btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_new_rubric')}</button>` : `<span class="badge draft">—</span>`)}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('rb_no_practical')}</div>`}</div>
 </div>`;
 }
-function attendanceView() {
-  if (!['admin','trainer','facilitator'].includes(state.user.role)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  // Attendance is recorded at module level, not separately for each activity.
-  const modules = sortModules(DB.modules.filter(m => state.user.role === 'admin' || canTrainerAccessModule(m.id)));
-  if (!modules.length) return `<div class="card"><div class="card-head"><h2>☑️ ${t('title_attendance')}</h2></div><div class="empty">${t('msg_no_activity')}</div></div>`;
-  const selectedId = state.params.attendanceModule && modules.some(m => m.id === state.params.attendanceModule) ? state.params.attendanceModule : modules[0].id;
-  const mod = getModule(selectedId);
-  const participants = mod ? enrolledParticipants(mod.id) : [];
-  const moduleActs = mod ? sortActs(DB.activities.filter(a => a.moduleId === mod.id)) : [];
-  return `<div class="card">
-    <div class="card-head"><div><h2>☑️ ${t('title_attendance')}</h2><p class="muted" style="margin:5px 0 0">${currentLang === 'ms' ? 'Kehadiran direkod mengikut modul. Tandakan Present sekali sahaja bagi setiap peserta; status akan dikemas kini untuk semua aktiviti dan paparan kehadiran yang berkaitan dengan modul ini.' : 'Attendance is recorded by module. Tick Present once per participant; the status will be synchronised across all activities and attendance views linked to this module.'}</p></div></div>
-    <div class="field" style="max-width:720px;margin-bottom:16px"><label>${t('lbl_module')}</label><select class="select" data-change="attendance-module">${modules.map(m => `<option value="${m.id}" ${m.id === selectedId ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select></div>
-    ${mod ? `<div class="info-box" style="margin-bottom:14px"><strong>📦 ${tce(mod.name)}</strong><div class="muted" style="font-size:.84rem;margin-top:4px">${moduleActs.length} ${currentLang === 'ms' ? 'aktiviti berkaitan' : 'related activities'}${moduleActs.length ? ': ' + moduleActs.map(a => tce(a.title)).join(' · ') : ''}</div></div>` : ''}
-    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_org')}</th><th style="text-align:center">${currentLang === 'ms' ? 'Hadir' : 'Present'}</th><th>Status</th></tr></thead><tbody>${participants.map(({user}) => {
-      const rec = DB.attendance.find(x => x.moduleId === selectedId && x.participantId === user.id) || moduleActs.map(a => DB.attendance.find(x => x.activityId === a.id && x.participantId === user.id)).find(Boolean);
-      const present = !!rec && ['Hadir','Present'].includes(rec.status);
-      return `<tr><td><strong>${tce(user.name)}</strong></td><td>${tce(user.org || '—')}</td><td style="text-align:center"><label style="display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer"><input type="checkbox" style="width:20px;height:20px;accent-color:var(--brand)" data-change="attendance-present" data-mid="${selectedId}" data-pid="${user.id}" ${present ? 'checked' : ''} aria-label="${currentLang === 'ms' ? 'Tandakan hadir' : 'Mark present'}: ${esc(user.name)}"></label></td><td>${present ? `<span class="badge ok">✓ ${t('grad_attendance_mark')}</span>` : `<span class="badge draft">—</span>`}</td></tr>`;
-    }).join('')}</tbody></table></div>` : `<div class="empty">${t('grad_no_participants')}</div>`}
+function attendanceDatesForModule(mid) {
+  if (!mid) return [];
+  return [...new Set(moduleTimetable(mid).map(x => x.date).filter(Boolean))].sort();
+}
+function attendanceDateInput(mid, selectedDate) {
+  const dates = attendanceDatesForModule(mid);
+  const chosen = dates.includes(selectedDate) ? selectedDate : (dates[0] || '');
+  if (!dates.length) return `<div class="info-box warn" style="margin-bottom:14px">${currentLang==='ms'?'Tiada tarikh dijadualkan untuk modul ini. Sila lengkapkan tarikh dalam tab Timetable terlebih dahulu.':'No scheduled dates found for this module. Please add dates in the Timetable tab first.'}</div>`;
+  return `<div class="field" style="max-width:420px;margin-bottom:16px"><label>${currentLang==='ms'?'Tarikh latihan (daripada Timetable)':'Training date (from Timetable)'}</label><select class="input" data-change="attendance-date">${dates.map(d=>`<option value="${esc(d)}" ${d===chosen?'selected':''}>${esc(fmtDate(d))}</option>`).join('')}</select></div>`;
+}
+function participantAttendanceView() {
+  const pid = state.user.id;
+  const modules = participantModules(pid).filter(m => m.published !== false);
+  const selectedModule = state.params.attendanceModule || (modules[0] && modules[0].id) || '';
+  const availableDates = attendanceDatesForModule(selectedModule);
+  const selectedDate = availableDates.includes(state.params.attendanceDate) ? state.params.attendanceDate : (availableDates[0] || '');
+  const rec = (DB.attendance||[]).find(x => x.participantId === pid && x.moduleId === selectedModule && x.date === selectedDate && x.attendanceType === 'module-date');
+  const checked = !!(rec && (rec.selfChecked || ['Hadir','Present','Pending Verification'].includes(rec.status)));
+  const verified = !!(rec && rec.verifiedAt && ['Hadir','Present'].includes(rec.status));
+  const day = selectedDate ? new Date(selectedDate+'T12:00:00').toLocaleDateString(currentLang==='en'?'en-MY':'ms-MY',{weekday:'long'}) : '';
+  return `<div class="card"><div class="card-head"><div><h2>☑️ ${currentLang==='en'?'My Attendance':'Kehadiran Saya'}</h2><p class="muted">${currentLang==='en'?'Check in separately for each enrolled module and training date. A trainer or facilitator will verify your attendance.':'Tandakan kehadiran secara berasingan bagi setiap modul dan tarikh latihan. Kehadiran akan disahkan oleh trainer atau fasilitator.'}</p></div></div>
+  ${modules.length ? `<div class="field" style="max-width:520px;margin-bottom:14px"><label>${currentLang==='en'?'Training module':'Modul latihan'}</label><select class="input" data-change="attendance-module"><option value="">— ${currentLang==='en'?'Select module':'Pilih modul'} —</option>${modules.map(m=>`<option value="${m.id}" ${m.id===selectedModule?'selected':''}>${tce(m.title||m.name||moduleName(m.id))}</option>`).join('')}</select></div>` : ''}
+  ${attendanceDateInput(selectedModule, selectedDate)}
+  ${selectedDate ? `<div class="info-box" style="margin-bottom:14px"><strong>${esc(day)}, ${esc(fmtDate(selectedDate))}</strong></div>` : ''}
+  ${selectedModule && selectedDate ? `<label style="display:inline-flex;align-items:center;gap:8px;margin:8px 0 14px"><input type="checkbox" style="width:20px;height:20px" data-change="attendance-self" data-mid="${selectedModule}" data-date="${esc(selectedDate)}" ${checked?'checked':''} ${verified?'disabled':''}> ${currentLang==='en'?'I am present for this module today':'Saya hadir untuk modul ini pada hari ini'}</label><div>${verified?`<span class="badge ok">✓ ${currentLang==='en'?'Verified':'Disahkan'}</span>`:checked?`<span class="badge warn">${currentLang==='en'?'Pending verification':'Menunggu pengesahan'}</span>`:`<span class="badge draft">${currentLang==='en'?'Not checked in':'Belum ditandakan'}</span>`}</div>` : `<div class="empty">${currentLang==='en'?'Please select a module.':'Sila pilih modul.'}</div>`}
   </div>`;
+}
+function attendanceView() {
+  if (state.user.role === 'participant') return participantAttendanceView();
+  if (!['admin','trainer','facilitator'].includes(state.user.role)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  const modules = sortModules(DB.modules.filter(m => state.user.role === 'admin' || canTrainerAccessModule(m.id)));
+  const selectedModule = state.params.attendanceModule || (modules[0] && modules[0].id) || '';
+  const availableDates = attendanceDatesForModule(selectedModule);
+  const selectedDate = availableDates.includes(state.params.attendanceDate) ? state.params.attendanceDate : (availableDates[0] || '');
+  const day = selectedDate ? new Date(selectedDate+'T12:00:00').toLocaleDateString(currentLang==='en'?'en-MY':'ms-MY',{weekday:'long'}) : '';
+  const participants = selectedModule ? enrolledParticipants(selectedModule).map(x=>x.user).sort((a,b)=>(a.name||'').localeCompare(b.name||'')) : [];
+  return `<div class="card"><div class="card-head"><div><h2>☑️ ${t('title_attendance')}</h2><p class="muted">${currentLang==='ms'?'Kehadiran direkod mengikut modul dan tarikh. Tiada pecahan mengikut masa atau sesi.':'Attendance is recorded by module and date, without time slots or sessions.'}</p></div></div>
+  <div class="field" style="max-width:520px;margin-bottom:14px"><label>${currentLang==='ms'?'Modul latihan':'Training module'}</label><select class="input" data-change="attendance-module"><option value="">— ${currentLang==='ms'?'Pilih modul':'Select module'} —</option>${modules.map(m=>`<option value="${m.id}" ${m.id===selectedModule?'selected':''}>${tce(m.title||m.name||moduleName(m.id))}</option>`).join('')}</select></div>
+  ${attendanceDateInput(selectedModule, selectedDate)}
+  ${selectedModule && selectedDate ? `<div class="info-box" style="margin-bottom:14px"><strong>📚 ${tce(moduleName(selectedModule))}</strong><br><strong>📅 ${esc(day)}, ${esc(fmtDate(selectedDate))}</strong></div>` : ''}
+  ${selectedModule && selectedDate ? (participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_org')}</th><th style="text-align:center">${currentLang==='ms'?'Tindakan':'Action'}</th><th>Status</th></tr></thead><tbody>${participants.map(user=>{
+    const rec=DB.attendance.find(x=>x.participantId===user.id && x.moduleId===selectedModule && x.date===selectedDate && x.attendanceType==='module-date');
+    const present=!!(rec && ['Hadir','Present'].includes(rec.status) && rec.verifiedAt);
+    const pending=!!(rec && (rec.selfChecked || rec.status==='Pending Verification') && !rec.verifiedAt);
+    return `<tr><td><strong>${tce(user.name)}</strong></td><td>${tce(user.org||'—')}</td><td style="text-align:center">${pending?`<button class="btn btn-sm btn-primary" data-act="verify-attendance" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}">✓ ${currentLang==='ms'?'Sahkan':'Verify'}</button> <button class="btn btn-sm" data-act="reject-attendance" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}">✕ ${currentLang==='ms'?'Tolak':'Reject'}</button>`:`<label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" data-change="attendance-present" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}" ${present?'checked':''}> ${currentLang==='ms'?'Hadir':'Present'}</label>`}</td><td>${present?`<span class="badge ok">✓ ${currentLang==='ms'?'Disahkan':'Verified'}</span>`:pending?`<span class="badge warn">${currentLang==='ms'?'Menunggu pengesahan':'Pending verification'}</span>`:`<span class="badge draft">—</span>`}</td></tr>`;
+  }).join('')}</tbody></table></div>`:`<div class="empty">${t('grad_no_participants')}</div>`) : `<div class="empty">${currentLang==='ms'?'Sila pilih modul untuk melihat peserta.':'Select a module to view participants.'}</div>`}</div>`;
 }
 
 function participantAssessmentView() {
@@ -6053,6 +6162,26 @@ function openRetestModal(aid, pid) {
 /* =========================================================
    GRADING
    ========================================================= */
+function openManualQuizAnswers(aid, pid) {
+  const act = getActivity(aid), person = DB.users.find(u=>u.id===pid && u.role==='participant');
+  if (!act || !person || !Array.isArray(act.quiz) || !act.quiz.length) { toast(currentLang==='en'?'Quiz or participant not found.':'Kuiz atau peserta tidak ditemui.','bad'); return; }
+  if (!['admin','trainer','facilitator'].includes(state.user.role) || (state.user.role!=='admin' && !canTrainerAccessActivity(aid))) { toast(t('msg_no_access'),'bad'); return; }
+  const latest = getLatestAttempt(aid,pid);
+  const savedAnswers = latest && latest.manualEntry ? latest.answers : [];
+  openModal(`<h2>📝 ${currentLang==='en'?'Enter Printed Quiz Answers':'Masukkan Jawapan Kuiz Bercetak'}</h2><p><b>${tce(person.name)}</b> · ${tce(act.title)}</p><div class="info-box" style="margin:10px 0"><p>${currentLang==='en'?'Enter the answers selected by the participant on the printed paper. The system will calculate the score using the saved answer key.':'Masukkan jawapan yang dipilih peserta pada kertas bercetak. Sistem akan mengira markah berdasarkan skema jawapan yang disimpan.'}</p></div><form data-form="manual-quiz-answers" data-aid="${esc(aid)}" data-pid="${esc(pid)}"><div style="max-height:55vh;overflow:auto">${act.quiz.map((q,i)=>`<div class="q" style="padding:12px;border-bottom:1px solid var(--line)"><p><b>${i+1}. ${tce(q.q)}</b></p><div class="field"><label>${currentLang==='en'?'Participant answer':'Jawapan peserta'}</label><select class="select" name="q${i}"><option value="-1">— ${currentLang==='en'?'Not answered':'Tidak dijawab'} —</option>${(q.options||[]).map((o,j)=>`<option value="${j}" ${Number(savedAnswers[i])===j?'selected':''}>${'ABCD'[j]}. ${tce(o)}</option>`).join('')}</select></div></div>`).join('')}</div><div class="field" style="margin-top:12px"><label>${currentLang==='en'?'Notes (optional)':'Catatan (pilihan)'}</label><textarea class="textarea" name="manualNotes" placeholder="${currentLang==='en'?'e.g. Entered from printed answer sheet':'cth. Dimasukkan daripada kertas jawapan bercetak'}">${esc(latest && latest.manualEntry ? latest.manualNotes || '' : '')}</textarea></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">💾 ${currentLang==='en'?'Save Answers & Score':'Simpan Jawapan & Markah'}</button></div></form>`, 'modal-lg');
+}
+async function handleManualQuizAnswers(form) {
+  const aid=form.dataset.aid, pid=form.dataset.pid, act=getActivity(aid), person=DB.users.find(u=>u.id===pid && u.role==='participant');
+  if (!act || !person || !['admin','trainer','facilitator'].includes(state.user.role) || (state.user.role!=='admin' && !canTrainerAccessActivity(aid))) { toast(t('msg_no_access'),'bad'); return; }
+  const answers=act.quiz.map((q,i)=>{const el=form.querySelector(`[name="q${i}"]`);return el?Number(el.value):-1;});
+  const score=act.quiz.reduce((n,q,i)=>n+(answers[i]===Number(q.answer)?1:0),0);
+  const attempt={id:uid('at'),activityId:aid,participantId:pid,answers,score,total:act.quiz.length,at:nowISO(),auto:false,manualEntry:true,manualNotes:(form.manualNotes?.value||'').trim(),enteredBy:state.user.id,enteredByName:state.user.name,source:'printed-question-paper'};
+  DB.attempts.push(attempt);
+  DB.audit.push({id:uid('au'),at:nowISO(),actorId:state.user.id,actorName:state.user.name,action:'Enter Printed Quiz Answers',entity:'Penilaian',entityId:`${aid}:${pid}`,details:`${person.name} — ${score}/${act.quiz.length}`});
+  saveDB(); closeModal(); render();
+  await saveCritical(currentLang==='en'?`Printed answers saved: ${score}/${act.quiz.length}.`:`Jawapan bercetak disimpan: ${score}/${act.quiz.length}.`,'ok');
+}
+
 function gradingView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
@@ -6092,7 +6221,7 @@ function gradingView() {
       const overall = isPractical ? (s.practical ? Number(s.practical.total) : null) : s.quizPct;
       const actions = isPractical
         ? `<button class="btn btn-sm ${s.practical ? 'btn-primary' : ''}" data-act="practical-form" data-aid="${act.id}" data-pid="${p.id}" ${!rubric.length ? 'disabled title="' + esc(t('act_rubric_none')) + '"' : ''}>${s.practical ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button>`
-        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
+        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm" data-act="manual-quiz-answers" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter answers from printed quiz':'Masukkan jawapan daripada kuiz bercetak'}">📝 ${currentLang==='en'?'Enter Answers':'Masuk Jawapan'}</button><button class="btn btn-sm ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
       return `<tr>
         <td><strong>${tce(p.name)}</strong></td><td>${attCell}</td><td>${assessmentCell}</td>
         <td><strong>${overall !== null && overall !== undefined ? Number(overall).toFixed(1).replace(/\.0$/, '') + '%' : '—'}</strong></td>
@@ -6801,6 +6930,14 @@ function printSystemBookPDF() {
   printHTML(html);
 }
 
+function printActivityQuiz(aid) {
+  const act = getActivity(aid);
+  if (!act || !Array.isArray(act.quiz) || !act.quiz.length) { toast(currentLang==='en'?'No saved questions to print.':'Tiada soalan disimpan untuk dicetak.','warn'); return; }
+  const mod = getModule(act.moduleId);
+  const body = `<div style="font-family:Arial,sans-serif;color:#17251f"><h1 style="color:#0b6b53">${tce(act.title)}</h1><p><strong>${tce(mod?.name||'')}</strong> · ${fmtDate(act.date||'')} · ${act.quiz.length} ${currentLang==='en'?'questions':'soalan'}</p><p>${currentLang==='en'?'Participant name:':'Nama peserta:'} ____________________ &nbsp; ${currentLang==='en'?'Date:':'Tarikh:'} ______________</p><hr>${act.quiz.map((q,i)=>`<div style="margin:0 0 18px;page-break-inside:avoid"><p><strong>${i+1}. ${tce(q.q)}</strong></p>${(q.options||[]).map((o,j)=>`<p style="margin:5px 0">${'ABCD'[j]}. ${tce(o)}</p>`).join('')}</div>`).join('')}<p style="margin-top:28px;font-size:11px;color:#657b74">${currentLang==='en'?'Printed from the local training system. Works offline when this page and saved data are available.':'Dicetak daripada sistem latihan setempat. Boleh digunakan offline apabila halaman dan data tersimpan tersedia.'}</p></div>`;
+  printHTML(`<html><head><meta charset="utf-8"><title>${esc(act.title)}</title><style>@page{size:A4;margin:18mm}body{font-size:12pt;line-height:1.5}h1{font-size:20pt}hr{border:0;border-top:2px solid #dce9e3}</style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+}
+
 function printHTML(html) {
   const frame = $('#printFrame');
   const doc = frame.contentWindow.document;
@@ -7068,6 +7205,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'enroll-bulk') handleBulkEnroll(form);
   else if (k === 'upload-material') handleUploadMaterial(form);
   else if (k === 'timetable') handleSaveTimetable(form);
+  else if (k === 'manual-quiz-answers') handleManualQuizAnswers(form);
   else if (k === 'upload-certificate') handleUploadCertificate(form);
   else if (k === 'final-exam') handleSaveFinalExam(form);
   else if (k === 'inline-fe-question') handleSaveFeInlineQuestion(form);
@@ -7084,6 +7222,16 @@ document.addEventListener('click', async (e) => {
   if (!tgt) return;
   const act = tgt.dataset.act, id = tgt.dataset.id;
   switch (act) {
+    case 'verify-attendance':
+    case 'reject-attendance': {
+      if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'),'bad'); break; }
+      const pid=tgt.dataset.pid, date=tgt.dataset.date, mid=tgt.dataset.mid;
+      const rec=DB.attendance.find(x=>x.participantId===pid && x.moduleId===mid && x.date===date && x.attendanceType==='module-date');
+      if (!rec) { toast(currentLang==='ms'?'Rekod kehadiran tidak ditemui.':'Attendance record not found.','bad'); break; }
+      if (act==='verify-attendance') { rec.status='Hadir'; rec.verifiedAt=nowISO(); rec.verifiedBy=state.user.id; rec.by=state.user.id; rec.at=nowISO(); }
+      else { DB.attendance=DB.attendance.filter(x=>x!==rec); }
+      saveDB(); logAudit(act==='verify-attendance'?'Verify Attendance':'Reject Attendance','Kehadiran',`${date}:${pid}`,`${userName(pid)} — ${date}`); render(); break;
+    }
     case 'manual-sync': manualSyncNow(); break;
     case 'print-all-modules': printAllModulesPDF(); break;
     case 'print-system-book': printSystemBookPDF(); break;
@@ -7139,6 +7287,9 @@ document.addEventListener('click', async (e) => {
     case 'nav': state.view = tgt.dataset.view; state.params = {}; render(); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); break;
+    case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
+    case 'print-activity-quiz': printActivityQuiz(id); break;
+    case 'manual-quiz-answers': openManualQuizAnswers(tgt.dataset.aid, tgt.dataset.pid); break;
     case 'open-quiz-tab': openQuizTab(id); break;
     case 'open-final-tab': openFinalTab(id); break;
     case 'vip-final-scores': openVipFinalScoresModal(id); break;
@@ -7341,26 +7492,30 @@ document.addEventListener('change', (e) => {
   if (e.target.matches && e.target.matches('input[data-pick-toggle]')) { updatePickerCount(); return; }
   if (e.target.matches && e.target.matches('input[data-fe-pick-toggle]')) { updateFePickerCount(); return; }
   if (e.target.name === 'saveToBank') { const f = document.getElementById('inlineBankFields'); if (f) f.style.display = e.target.checked ? 'grid' : 'none'; return; }
-  if (tgt && tgt.dataset.change === 'attendance-module') { state.params.attendanceModule = tgt.value; render(); return; }
-  if (tgt && tgt.dataset.change === 'attendance-present') {
-    const mid = tgt.dataset.mid, pid = tgt.dataset.pid;
-    const moduleActs = DB.activities.filter(a => a.moduleId === mid);
-    const stamp = nowISO();
+  if (tgt && tgt.dataset.change === 'attendance-module') { state.params.attendanceModule = tgt.value; state.params.attendanceDate = ''; render(); return; }
+  if (tgt && tgt.dataset.change === 'attendance-date') { state.params.attendanceDate = tgt.value; render(); return; }
+  if (tgt && tgt.dataset.change === 'attendance-self') {
+    if (state.user.role !== 'participant') return;
+    const date=tgt.dataset.date, pid=state.user.id, mid=tgt.dataset.mid;
+    let rec=DB.attendance.find(x=>x.participantId===pid && x.moduleId===mid && x.date===date && x.attendanceType==='module-date');
+    if (rec && rec.verifiedAt) { toast(currentLang==='ms'?'Kehadiran telah disahkan dan tidak boleh diubah.':'Attendance is verified and cannot be changed.','bad'); render(); return; }
     if (tgt.checked) {
-      // Canonical module-level record keeps attendance consistent even if more activities are added later.
-      let moduleRec = DB.attendance.find(x => x.moduleId === mid && x.participantId === pid);
-      if (moduleRec) { moduleRec.status = 'Hadir'; moduleRec.by = state.user.id; moduleRec.at = stamp; }
-      else DB.attendance.push({ id: uid('att'), moduleId: mid, participantId: pid, status: 'Hadir', by: state.user.id, at: stamp });
-      // Keep activity-level records synchronised for existing reports and assessment screens.
-      moduleActs.forEach(a => {
-        let rec = DB.attendance.find(x => x.activityId === a.id && x.participantId === pid);
-        if (rec) { rec.status = 'Hadir'; rec.by = state.user.id; rec.at = stamp; }
-        else DB.attendance.push({ id: uid('att'), activityId: a.id, moduleId: mid, participantId: pid, status: 'Hadir', by: state.user.id, at: stamp });
-      });
-      logAudit('Attendance', 'Kehadiran Modul', `${mid}:${pid}`, `${userName(pid)}: Hadir — ${moduleName(mid)}`);
+      if (!rec) { rec={id:uid('att'),participantId:pid,moduleId:mid,date,attendanceType:'module-date'}; DB.attendance.push(rec); }
+      rec.selfChecked=true; rec.status='Pending Verification'; rec.selfCheckedAt=nowISO(); rec.selfCheckedBy=pid; rec.verifiedAt=null; rec.verifiedBy=null;
+      logAudit('Self Check-in','Kehadiran',`${date}:${pid}`,`${userName(pid)} menandakan hadir`);
+    } else if (rec) { DB.attendance=DB.attendance.filter(x=>x!==rec); logAudit('Cancel Self Check-in','Kehadiran',`${date}:${pid}`,`${userName(pid)} membatalkan tanda hadir`); }
+    saveDB(); render(); return;
+  }
+  if (tgt && tgt.dataset.change === 'attendance-present') {
+    const pid=tgt.dataset.pid, date=tgt.dataset.date, mid=tgt.dataset.mid, stamp=nowISO();
+    let rec=DB.attendance.find(x=>x.participantId===pid && x.moduleId===mid && x.date===date && x.attendanceType==='module-date');
+    if (tgt.checked) {
+      if (!rec) { rec={id:uid('att'),participantId:pid,moduleId:mid,date,attendanceType:'module-date'}; DB.attendance.push(rec); }
+      rec.status='Hadir'; rec.by=state.user.id; rec.at=stamp; rec.verifiedAt=stamp; rec.verifiedBy=state.user.id;
+      logAudit('Attendance','Kehadiran Harian',`${date}:${pid}`,`${userName(pid)}: Hadir — ${date}`);
     } else {
-      DB.attendance = DB.attendance.filter(x => !(x.participantId === pid && (x.moduleId === mid || moduleActs.some(a => x.activityId === a.id))));
-      logAudit('Unmark Attendance', 'Kehadiran Modul', `${mid}:${pid}`, `${userName(pid)}: belum ditandakan hadir — ${moduleName(mid)}`);
+      DB.attendance=DB.attendance.filter(x=>!(x.participantId===pid && x.moduleId===mid && x.date===date && x.attendanceType==='module-date'));
+      logAudit('Unmark Attendance','Kehadiran Harian',`${date}:${pid}`,`${userName(pid)}: tidak hadir — ${date}`);
     }
     saveDB(); render(); return;
   }
