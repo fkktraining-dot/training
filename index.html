@@ -581,7 +581,7 @@ async function driveAPI(action, data) {
 const MERGEABLE_COLLECTIONS = [
   'users','modules','activities','enrollments','attempts','attendance','practical',
   'audit','questionBank','rubrics','timetables','certificates','finalExams',
-  'feAttempts','fePractical','retests','retestRequests','pendingApprovals'
+  'feAttempts','fePractical','retests','retestRequests','pendingApprovals','companies'
 ];
 
 function cloneDB(db) { return JSON.parse(JSON.stringify(db)); }
@@ -2507,6 +2507,7 @@ const state = {
 function emptyDB() {
   return {
     users: [],
+    companies: [],
     modules: [],
     activities: [],
     enrollments: [],
@@ -2805,6 +2806,7 @@ async function serverPullInBackground() {
 
 function migrateDB() {
   if (!Array.isArray(DB.users)) DB.users = [];
+  if (!Array.isArray(DB.companies)) DB.companies = [];
   if (!Array.isArray(DB.modules)) DB.modules = [];
   if (!Array.isArray(DB.activities)) DB.activities = [];
   if (!Array.isArray(DB.enrollments)) DB.enrollments = [];
@@ -3902,6 +3904,7 @@ function navItems() {
     { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
     { v:'bank', label:t('nav_bank'), icon:'🗂️' },
     { v:'users', label:t('nav_users') + (pendingUsers ? ` (${pendingUsers})` : ''), icon:'👥' },
+    { v:'companies', label:'🏢 Syarikat & Peserta', icon:'🏢' },
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
@@ -3910,7 +3913,7 @@ function navItems() {
 }
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function shell() {
   const u = state.user;
@@ -3979,6 +3982,7 @@ function viewContent() {
     case 'rubrik': return rubricView();
     case 'bank': return questionBankView();
     case 'users': return usersView();
+    case 'companies': return companiesView();
     case 'sijil': return sijilView();
     case 'audit': return auditView();
     case 'reports': return reportsView();
@@ -4109,7 +4113,7 @@ function vipDashboard() {
   const allParts = allParticipants();
   const allActs = sortActs(DB.activities.filter(a => a.published));
   const allFinals = (DB.finalExams || []).filter(fe => fe.published);
-  const companyParts = allParts.filter(p => p.org === me.org);
+  const companyParts = allParts.filter(p => sameCompany(p.org, me.org));
   const allScores = [];
   allParts.forEach(p => {
     accessibleActivities(p.id).forEach(a => {
@@ -6361,17 +6365,95 @@ function auditView() {
   const entries = DB.audit.slice().sort((a,b) => new Date(b.at) - new Date(a.at));
   return `<div class="card"><div class="card-head"><h2>${t('aud_title')}</h2><span class="muted">${entries.length}</span></div><div class="table-wrap"><table><thead><tr><th>${t('aud_time')}</th><th>${t('aud_user')}</th><th>${t('aud_action')}</th><th>${t('aud_details')}</th></tr></thead><tbody>${entries.map(e => `<tr><td style="white-space:nowrap">${fmtDateTime(e.at)}</td><td>${tce(e.actorName)}</td><td><span class="badge info">${esc(e.action)}</span></td><td><small>${tce(e.details)}</small></td></tr>`).join('')}</tbody></table></div></div>`;
 }
+function normalizeCompanyName(value) {
+  return String(value || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase();
+}
+function sameCompany(a, b) {
+  return !!normalizeCompanyName(a) && normalizeCompanyName(a) === normalizeCompanyName(b);
+}
+function companyList() {
+  if (!Array.isArray(DB.companies)) DB.companies = [];
+  const names = DB.companies.map(c => typeof c === 'string' ? c : c && c.name).filter(Boolean);
+  // Legacy migration: preserve company names already used by VIP and participant accounts.
+  DB.users.forEach(u => { if (['vip','participant'].includes(u.role) && String(u.org || '').trim()) names.push(String(u.org).trim()); });
+  return [...new Map(names.map(name => [normalizeCompanyName(name), String(name).trim()])).values()]
+    .filter(Boolean).sort((a,b) => a.localeCompare(b));
+}
+function companiesView() {
+  if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  // Import legacy organisation names into the registry so existing accounts remain manageable.
+  if (!Array.isArray(DB.companies)) DB.companies = [];
+  let migratedCompanies = false;
+  DB.users.filter(u => ['vip','participant'].includes(u.role) && String(u.org || '').trim()).forEach(u => {
+    const name = String(u.org).trim().replace(/\\s+/g,' ');
+    if (!DB.companies.some(c => sameCompany(typeof c === 'string' ? c : c && c.name, name))) {
+      DB.companies.push({id:uid('co'), name, createdAt:nowISO(), createdBy:state.user.id, migrated:true});
+      migratedCompanies = true;
+    }
+  });
+  if (migratedCompanies) saveDB();
+  const companies = companyList();
+  const participants = DB.users.filter(u => u.role === 'participant').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const vips = DB.users.filter(u => u.role === 'vip').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const options = (selected) => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
+  return `<div class="card">
+    <div class="card-head"><h2>🏢 Daftar Syarikat</h2><span class="pill">${companies.length} syarikat</span></div>
+    <p class="muted">Daftarkan nama syarikat sekali sahaja. Gunakan nama yang sama untuk akaun VIP dan peserta supaya VIP hanya melihat peserta syarikatnya.</p>
+    <form data-form="company" class="toolbar"><input class="input" style="max-width:420px" name="companyName" required maxlength="120" placeholder="Nama syarikat baharu" /><button class="btn btn-primary" type="submit">➕ Daftar Syarikat</button></form>
+    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>VIP</th><th>Peserta</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{const countP=participants.filter(p=>sameCompany(p.org,name)).length;const countV=vips.filter(v=>sameCompany(v.org,name)).length;const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;return `<tr><td><strong>${tce(name)}</strong></td><td>${countV}</td><td>${countP}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`}).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
+  </div>
+  <div class="card"><div class="card-head"><h2>👥 Tetapkan Syarikat Peserta</h2><span class="pill">${participants.length} peserta</span></div>
+    <p class="muted">Pilih syarikat bagi setiap peserta. Perubahan ini menentukan senarai Spider Web yang akan dipaparkan kepada VIP.</p>
+    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>Nama Peserta</th><th>Username</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${participants.map(p=>`<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.username||'—')}</td><td>${p.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(p.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(p.id)}">${options(p.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(p.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun peserta.</div>`}
+  </div>
+  <div class="card"><div class="card-head"><h2>🔐 Tetapkan Syarikat Akaun VIP</h2><span class="pill">${vips.length} akaun VIP</span></div>
+    <p class="muted">Pastikan setiap akaun VIP dipautkan kepada syarikat yang betul. VIP akan melihat peserta yang ditetapkan kepada syarikat yang sama.</p>
+    ${vips.length ? `<div class="table-wrap"><table><thead><tr><th>Nama VIP</th><th>Username</th><th>Syarikat semasa</th><th>Syarikat baharu</th><th></th></tr></thead><tbody>${vips.map(v=>`<tr><td><strong>${tce(v.name)}</strong></td><td>${esc(v.username||'—')}</td><td>${tce(v.org||'—')}</td><td><select class="select" id="company-for-${esc(v.id)}">${options(v.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(v.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun VIP.</div>`}
+  </div>`;
+}
+function handleSaveCompany(form) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
+  const name = String(form.companyName.value || '').trim().replace(/\\s+/g,' ');
+  if (!name) return;
+  if (!Array.isArray(DB.companies)) DB.companies = [];
+  if (companyList().some(x => sameCompany(x,name))) { toast('Nama syarikat sudah wujud.','warn'); return; }
+  DB.companies.push({id:uid('co'), name, createdAt:nowISO(), createdBy:state.user.id});
+  saveDB(); logAudit('Daftar Syarikat','Syarikat','',name); toast('Syarikat berjaya didaftarkan.'); render();
+}
+function assignCompanyToUser(id) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
+  const user = DB.users.find(u=>u.id===id && ['participant','vip'].includes(u.role));
+  const select = document.getElementById('company-for-' + id);
+  if (!user || !select) return;
+  const selected = String(select.value||'').trim();
+  if (selected && !companyList().some(name=>sameCompany(name,selected))) { toast('Syarikat tidak sah.','bad'); return; }
+  const old = user.org || '';
+  user.org = selected;
+  saveDB(); logAudit('Tetapkan Syarikat', user.role === 'vip' ? 'Akaun VIP' : 'Peserta', id, `${old || 'Tiada'} → ${selected || 'Tiada'}`);
+  toast('Syarikat berjaya dikemas kini.'); render();
+}
+function deleteCompany(id) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
+  const company = (DB.companies||[]).find(c=>c && typeof c!=='string' && c.id===id);
+  if (!company) return;
+  if (DB.users.some(u=>['vip','participant'].includes(u.role)&&sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh akaun VIP atau peserta.','warn'); return; }
+  if (!confirm(`Padam syarikat "${company.name}"?`)) return;
+  DB.companies = DB.companies.filter(c=>!(c && typeof c!=='string' && c.id===id));
+  saveDB(); logAudit('Padam Syarikat','Syarikat',id,company.name); toast('Syarikat dipadam.'); render();
+}
+
 function reportsView() {
   const role = state.user.role;
   const isVip = role === 'vip';
   const isParticipant = role === 'participant';
   if (isVip) {
     const me = state.user;
-    const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && u.org === me.org).sort((a,b) => (a.name||'').localeCompare(b.name||''));
-    const allParts = allParticipants().filter(p => p.org === me.org).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && sameCompany(u.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    const allParts = allParticipants().filter(p => sameCompany(p.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0"><div class="card-head"><h2>📄 ${t('rep_title')}</h2><span class="pill">${tce(me.org || '—')}</span></div><p class="muted" style="margin:0">${t('vip_all_data_hint')}</p></div>
-    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button><button class="btn" data-act="report-program">${t('rep_program_btn')} — ALL</button></div></div>
-    <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button><button class="btn" data-act="spider-print-selected">🕸️ ${currentLang === 'en' ? 'Print Spider Web PDF' : 'Cetak Spider Web PDF'}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>`;
+    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button></div></div>
+    <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>
+    <div class="card spider-review-card"><div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Company Participants — Spider Web Assessment' : 'Spider Web Penilaian Peserta Syarikat'}</h2><span class="pill">${allParts.length} ${currentLang === 'en' ? 'participants' : 'peserta'}</span></div><p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'View each participant’s practical assessment spider web, including all modules they have taken within your company.' : 'Lihat spider web penilaian praktikal setiap peserta, termasuk semua modul yang telah diikuti oleh peserta dalam syarikat anda.'}</p>${allParts.length ? `<div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:420px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang === 'en' ? 'View Spider Web' : 'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>` : `<div class="empty">${currentLang === 'en' ? 'No participants found for your company.' : 'Tiada peserta ditemui untuk syarikat anda.'}</div>`}</div>`;
   }
   const parts = isParticipant ? [] : allParticipants();
   let allowedModules = [];
@@ -6978,6 +7060,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'module') handleSaveModule(form);
   else if (k === 'activity') handleSaveActivity(form);
   else if (k === 'user') handleSaveUser(form);
+  else if (k === 'company') handleSaveCompany(form);
   else if (k === 'practical') handleSavePractical(form);
   else if (k === 'bank-question') handleSaveBankQuestion(form);
   else if (k === 'inline-question') handleSaveInlineQuestion(form);
@@ -7100,6 +7183,8 @@ document.addEventListener('click', async (e) => {
     case 'close-modal': closeModal(); break;
     case 'close-modal2': closeModal2(); break;
     case 'new-user': openUserForm(null); break;
+    case 'assign-company': assignCompanyToUser(id); break;
+    case 'delete-company': deleteCompany(id); break;
     case 'edit-user': openUserForm(DB.users.find(u => u.id === id)); break;
     case 'delete-user': deleteUser(id); break;
     case 'approve-user': approveUser(id); break;
@@ -7107,9 +7192,9 @@ document.addEventListener('click', async (e) => {
     case 'vip-view-progress': openVipParticipantProgress(id); break;
     case 'spider-print-self': { const pid = state.user.id; printHTML(spiderReportHTML(pid, participantModules(pid))); break; }
     case 'spider-print-overall': { const role = state.user.role; if (!['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); break; } const mods = role === 'admin' ? sortModules(DB.modules) : myModules(); const ids = new Set(); mods.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id))); const ps = allParticipants().filter(p => ids.has(p.id)); printHTML(overallSpiderReportHTML(mods, ps)); break; }
-    case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } const p = DB.users.find(u => u.id === pid); const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(p?.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
-    case 'spider-print-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
-    case 'spider-print-review': { const pid = tgt.dataset.pid; const permitted = state.user.role === 'admin' ? sortModules(DB.modules) : myModules(); if (!participantModules(pid).some(m => permitted.some(x => x.id === m.id))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
+    case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(person.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
+    case 'spider-print-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
+    case 'spider-print-review': { const pid = tgt.dataset.pid; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
     case 'report-individual': { const pid = tgt.dataset.pid; printHTML(individualReportHTML(pid)); break; }
     case 'report-individual-selected': { const sel = $('#reportParticipant'); if (!sel) break; printHTML(individualReportHTML(sel.value)); break; }
     case 'report-program': { const org = state.user.role === 'vip' ? state.user.org : null; printHTML(programReportHTML(org)); break; }
