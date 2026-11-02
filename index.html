@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -537,6 +537,26 @@ html, body {
   .toolbar { max-width: 100%; }
   .toolbar .btn { max-width: 100%; }
 }
+
+
+/* ADMIN WORKSPACE — keep the navigation vertical, larger and easy to scan */
+.admin-shell{display:flex;flex-direction:row;align-items:stretch;min-height:100vh;width:100%;max-width:100%;}
+.admin-shell>.sidebar{width:292px;min-width:292px;height:100vh;min-height:100vh;position:sticky;top:0;align-self:flex-start;flex:0 0 292px;padding:18px 14px 14px;display:flex;flex-direction:column;gap:12px;box-shadow:2px 0 14px rgba(16,36,30,.08);overflow-y:auto;overflow-x:hidden;}
+.admin-shell .sidebar .brand{width:100%;padding:2px 6px 14px;min-height:0;}
+.admin-shell .nav{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:4px;margin:0;padding:2px 0;overflow:visible;}
+.admin-shell .nav-item{width:100%;min-width:0;min-height:38px;padding:8px 11px;display:flex;align-items:center;justify-content:flex-start;gap:9px;font-size:.86rem;line-height:1.25;white-space:normal;overflow-wrap:anywhere;border:1px solid rgba(255,255,255,.09);flex:0 0 auto;}
+.admin-shell .nav-item span{min-width:0;overflow-wrap:anywhere;}
+.admin-shell .nav-item:hover{transform:translateX(2px);}
+.admin-shell .sidebar-foot{width:100%;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:10px;padding:12px 4px 0;margin:auto 0 0;}
+.admin-shell .sidebar-foot .userchip{width:100%;min-width:0;margin:0;}
+.admin-shell .sidebar-foot>button{width:100%!important;flex:0 0 auto;padding:9px 12px!important;}
+.admin-shell>.main{flex:1 1 auto;width:calc(100% - 292px);min-width:0;min-height:0;}
+.admin-shell #view{width:100%;max-width:none;padding:24px clamp(16px,2vw,32px) 42px;}
+.admin-shell .topbar{padding-left:clamp(16px,2vw,32px);padding-right:clamp(16px,2vw,32px);}
+.admin-shell .table-wrap{max-width:100%;}
+@media(max-height:760px) and (min-width:901px){.admin-shell>.sidebar{padding-top:10px;padding-bottom:8px;gap:7px}.admin-shell .sidebar .brand{padding-bottom:8px}.admin-shell .nav{gap:4px}.admin-shell .nav-item{min-height:36px;padding:7px 10px;font-size:.82rem}.admin-shell .sidebar-foot{gap:6px;padding-top:7px}}
+@media(max-width:900px){.admin-shell{flex-direction:column}.admin-shell>.sidebar{width:100%;min-width:0;height:auto;min-height:0;position:relative;top:auto;align-self:stretch;flex:0 0 auto;padding:12px;overflow:visible}.admin-shell .nav{display:flex;flex-direction:column;gap:6px;overflow:visible}.admin-shell .nav-item{min-height:44px;white-space:normal}.admin-shell .sidebar-foot{display:flex!important;flex-direction:column}.admin-shell>.main{width:100%}.admin-shell #view{padding:18px 14px 28px}}
+@media(max-width:560px){.admin-shell>.sidebar{padding:10px}.admin-shell .nav{gap:5px}.admin-shell .nav-item{padding:10px 11px;font-size:.84rem;min-height:42px}.admin-shell .sidebar-foot{flex-wrap:nowrap}.admin-shell .sidebar-foot .userchip{flex-basis:auto}.admin-shell .sidebar-foot>button{width:100%!important}.admin-shell #view{padding:14px 10px 24px}.admin-shell .topbar{align-items:flex-start;gap:8px}.admin-shell .topbar .tb-right{flex-wrap:wrap;justify-content:flex-end}}
 
 </style>
 </head>
@@ -1108,27 +1128,26 @@ async function translateAllRubricContent() {
    ========================================================= */
 const SYSTEM_TRANSLATION_CACHE = new Map();
 const SYSTEM_TRANSLATION_ORIGINALS = new WeakMap();
+const SYSTEM_TRANSLATION_ATTR_ORIGINALS = new WeakMap();
 let systemTranslationRun = 0;
 let systemTranslationObserver = null;
-const SYSTEM_TRANSLATE_SKIP_TAGS = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','PATH','TEXTAREA']);
+const SYSTEM_TRANSLATE_SKIP_TAGS = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','PATH']);
 function systemTranslationKey(text, target) { return target + '\u0000' + String(text || '').trim(); }
 function systemTranslationShouldSkipNode(node) {
   if (!node || !node.parentElement) return true;
   const el = node.parentElement;
-  if (SYSTEM_TRANSLATE_SKIP_TAGS.has(el.tagName)) return true;
+  if (SYSTEM_TRANSLATE_SKIP_TAGS.has(el.tagName) || el.closest('textarea')) return true;
   if (el.closest('[data-no-translate],.notranslate,[contenteditable="true"]')) return true;
   const value = String(node.nodeValue || '').trim();
   if (!value || value.length < 2 || /^[\d\W_]+$/.test(value)) return true;
-  // Keep compact language switches, identifiers, file extensions and codes unchanged.
   if (/^(BM|EN|MS|PDF|CSV|XLSX|CFTP|FTIR|UV-?VIS)$/i.test(value)) return true;
   return false;
 }
 async function systemTranslateText(text, target) {
   const value = String(text || '').trim();
-  if (!value || target === 'ms' && !value) return value;
+  if (!value) return value;
   const key = systemTranslationKey(value, target);
   if (SYSTEM_TRANSLATION_CACHE.has(key)) return SYSTEM_TRANSLATION_CACHE.get(key);
-  // Existing curated translations take priority when switching to English.
   if (target === 'en' && CONTENT_I18N[value] !== undefined) {
     const known = CONTENT_I18N[value]; SYSTEM_TRANSLATION_CACHE.set(key, known); return known;
   }
@@ -1146,6 +1165,12 @@ async function systemTranslateText(text, target) {
     return value;
   }
 }
+function getSystemAttributeOriginal(item, attr, liveValue) {
+  let attrs = SYSTEM_TRANSLATION_ATTR_ORIGINALS.get(item);
+  if (!attrs) { attrs = new Map(); SYSTEM_TRANSLATION_ATTR_ORIGINALS.set(item, attrs); }
+  if (!attrs.has(attr)) attrs.set(attr, liveValue);
+  return attrs.get(attr);
+}
 async function translateSystemElement(el, target, runId) {
   if (!el || !el.isConnected || runId !== systemTranslationRun) return;
   const textNodes = [];
@@ -1157,30 +1182,32 @@ async function translateSystemElement(el, target, runId) {
   const attrTargets = [];
   const elements = [el, ...el.querySelectorAll('*')];
   for (const item of elements) {
-    if (SYSTEM_TRANSLATE_SKIP_TAGS.has(item.tagName) || item.closest('[data-no-translate],.notranslate')) continue;
+    if (SYSTEM_TRANSLATE_SKIP_TAGS.has(item.tagName) || item.closest('[data-no-translate],.notranslate,[contenteditable="true"]')) continue;
     for (const attr of attrNames) {
-      const value = item.getAttribute && item.getAttribute(attr);
-      if (value && value.trim().length > 1 && !/^[\d\W_]+$/.test(value.trim())) attrTargets.push({item, attr, value});
+      const liveValue = item.getAttribute && item.getAttribute(attr);
+      if (liveValue && liveValue.trim().length > 1 && !/^[\d\W_]+$/.test(liveValue.trim())) {
+        attrTargets.push({item, attr, source:getSystemAttributeOriginal(item, attr, liveValue)});
+      }
     }
+    // Translate only button-like input values, never user-entered text or data.
     if (item.tagName === 'INPUT' && ['button','submit','reset'].includes((item.type || '').toLowerCase())) {
-      const value = item.value;
-      if (value && value.trim().length > 1) attrTargets.push({item, attr:'value', value});
+      const liveValue = item.value;
+      if (liveValue && liveValue.trim().length > 1) attrTargets.push({item, attr:'value', source:getSystemAttributeOriginal(item, 'value', liveValue)});
     }
   }
-  // Translate a limited number concurrently to keep the UI responsive.
   const tasks = [];
   for (const node of textNodes) {
     if (!SYSTEM_TRANSLATION_ORIGINALS.has(node)) SYSTEM_TRANSLATION_ORIGINALS.set(node, node.nodeValue);
     const source = SYSTEM_TRANSLATION_ORIGINALS.get(node);
     tasks.push(async () => {
       const translated = await systemTranslateText(source, target);
-      if (runId === systemTranslationRun && node.isConnected) node.nodeValue = translated;
+      if (runId === systemTranslationRun && node.isConnected && node.nodeValue !== translated) node.nodeValue = translated;
     });
   }
   for (const item of attrTargets) {
     tasks.push(async () => {
-      const translated = await systemTranslateText(item.value, target);
-      if (runId === systemTranslationRun && item.item.isConnected) item.item.setAttribute(item.attr, translated);
+      const translated = await systemTranslateText(item.source, target);
+      if (runId === systemTranslationRun && item.item.isConnected && item.item.getAttribute(item.attr) !== translated) item.item.setAttribute(item.attr, translated);
     });
   }
   let cursor = 0;
@@ -1190,23 +1217,32 @@ async function translateSystemElement(el, target, runId) {
 async function translateWholeSystem(target) {
   const runId = ++systemTranslationRun;
   if (systemTranslationObserver) systemTranslationObserver.disconnect();
-  // Re-render first so the base strings come from the selected language dictionary.
   await translateSystemElement(document.body, target, runId);
   if (runId !== systemTranslationRun) return;
+  let pending = new Set();
+  let scheduled = false;
+  const queueElement = node => {
+    const candidate = node && node.nodeType === Node.ELEMENT_NODE ? node : node && node.parentElement;
+    if (!candidate || candidate === document.body || !candidate.isConnected) return;
+    pending.add(candidate);
+    if (scheduled) return;
+    scheduled = true;
+    Promise.resolve().then(async () => {
+      scheduled = false;
+      const batch = [...pending]; pending = new Set();
+      for (const item of batch) await translateSystemElement(item, target, runId);
+    });
+  };
   systemTranslationObserver = new MutationObserver(records => {
     if (runId !== systemTranslationRun) return;
-    const added = [];
-    for (const record of records) for (const node of record.addedNodes) {
-      if (node.nodeType === Node.ELEMENT_NODE && node !== document.body) added.push(node);
-      else if (node.nodeType === Node.TEXT_NODE && !systemTranslationShouldSkipNode(node)) {
-        const parent = node.parentElement;
-        if (parent) added.push(parent);
+    for (const record of records) {
+      if (record.type === 'characterData') queueElement(record.target);
+      for (const node of record.addedNodes || []) {
+        if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) queueElement(node);
       }
     }
-    // Debounce naturally by translating only newly inserted subtrees.
-    for (const node of [...new Set(added)]) translateSystemElement(node, target, runId);
   });
-  systemTranslationObserver.observe(document.body, {childList:true, subtree:true});
+  systemTranslationObserver.observe(document.body, {childList:true, subtree:true, characterData:true});
 }
 
 function rubricText(obj, field) {
@@ -2284,7 +2320,7 @@ const I18N = {
   }
 };
 
-let currentLang = localStorage.getItem('cftp_lang') || 'ms';
+let currentLang = localStorage.getItem('cftp_lang') || 'en';
 const t = (key, ...args) => {
   let s = (I18N[currentLang] && I18N[currentLang][key]) || I18N.ms[key] || key;
   if (args.length) args.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -3920,7 +3956,7 @@ function navItems() {
     { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
     { v:'bank', label:t('nav_bank'), icon:'🗂️' },
     { v:'users', label:t('nav_users') + (pendingUsers ? ` (${pendingUsers})` : ''), icon:'👥' },
-    { v:'companies', label:'Syarikat & Peserta', icon:'🏢' },
+    { v:'companies', label:currentLang === 'en' ? 'Companies & Participants' : 'Syarikat & Peserta', icon:'🏢' },
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
@@ -3929,12 +3965,12 @@ function navItems() {
 }
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function shell() {
   const u = state.user;
   const showManualSync = ['admin','trainer','facilitator'].includes(u.role);
-  return `<div class="shell">
+  return `<div class="shell ${u.role === 'admin' ? 'admin-shell' : ''}">
     <aside class="sidebar">
       <div class="brand"><div class="logo">CF</div><div><strong>${t('app_brand')}</strong><span>${t('app_brand_sub')}</span></div></div>
       <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span></button>`).join('')}</nav>
@@ -4169,6 +4205,7 @@ function vipDashboard() {
       <button class="btn" data-act="nav" data-view="grading">✅ ${t('nav_grading')}</button>
       <button class="btn" data-act="nav" data-view="final">🎓 ${t('nav_final')}</button>
       <button class="btn" data-act="nav" data-view="reports">📄 ${t('nav_reports')}</button>
+      <button class="btn btn-primary" data-act="vip-export-participants">📥 ${currentLang === 'en' ? 'Export Participant Data (Excel)' : 'Eksport Data Peserta (Excel)'}</button>
     </div>
   </div>
   <div class="card">
@@ -4188,6 +4225,103 @@ function vipDashboard() {
       <td><button class="btn btn-sm btn-primary" data-act="vip-view-progress" data-id="${r.p.id}">📊 ${t('vip_view_progress')}</button></td>
     </tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('vip_no_participants')}</div>`}
   </div>`;
+}
+
+function exportVipCompanyParticipantsExcel() {
+  if (!state.user || state.user.role !== 'vip') {
+    toast(t('msg_no_access'), 'bad');
+    return;
+  }
+  if (!ensureXLSX()) return;
+
+  const org = String(state.user.org || '').trim();
+  if (!org) {
+    toast(currentLang === 'en'
+      ? 'Your VIP account has no company assigned. Please contact the administrator.'
+      : 'Akaun VIP anda belum ditetapkan kepada syarikat. Sila hubungi pentadbir.', 'bad');
+    return;
+  }
+
+  // Enforce company scope at export time, not only in the UI.
+  const participants = allParticipants()
+    .filter(p => sameCompany(p.org, org))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (!participants.length) {
+    toast(currentLang === 'en'
+      ? 'No approved participants were found for your company.'
+      : 'Tiada peserta yang diluluskan ditemui untuk syarikat anda.', 'warn');
+    return;
+  }
+
+  const en = currentLang === 'en';
+  const summaryHeader = en
+    ? ['Participant ID', 'Participant Name', 'Email', 'Company', 'Modules Enrolled', 'Published Activities', 'Activities Assessed', 'Average Score (%)', 'Performance Status']
+    : ['ID Peserta', 'Nama Peserta', 'E-mel', 'Syarikat', 'Modul Didaftar', 'Aktiviti Diterbitkan', 'Aktiviti Dinilai', 'Purata Markah (%)', 'Status Prestasi'];
+  const detailHeader = en
+    ? ['Participant ID', 'Participant Name', 'Email', 'Company', 'Module', 'Activity', 'Activity Date', 'Quiz Score', 'Quiz Total', 'Quiz (%)', 'Practical (%)', 'Overall (%)', 'Attendance', 'Assessment Status']
+    : ['ID Peserta', 'Nama Peserta', 'E-mel', 'Syarikat', 'Modul', 'Aktiviti', 'Tarikh Aktiviti', 'Markah Kuiz', 'Jumlah Kuiz', 'Kuiz (%)', 'Amali (%)', 'Keseluruhan (%)', 'Kehadiran', 'Status Penilaian'];
+
+  const summaryRows = [summaryHeader];
+  const detailRows = [detailHeader];
+
+  participants.forEach(p => {
+    const modules = participantModules(p.id);
+    const activities = accessibleActivities(p.id);
+    const scores = activities.map(a => ({ a, s: scoreFor(a, p.id) }));
+    const assessed = scores.filter(x => x.s.hasData);
+    const average = assessed.length
+      ? Math.round(avg(assessed.map(x => x.s.overall)))
+      : '';
+
+    let status = '';
+    if (average === '') status = en ? 'Not assessed' : 'Belum dinilai';
+    else if (average >= 80) status = en ? 'Excellent' : 'Cemerlang';
+    else if (average >= 70) status = en ? 'Competent' : 'Kompeten';
+    else status = en ? 'Needs improvement' : 'Perlu penambahbaikan';
+
+    summaryRows.push([
+      p.id || '', p.name || '', p.email || '', p.org || '',
+      modules.length, activities.length, assessed.length, average, status
+    ]);
+
+    scores.forEach(({ a, s }) => {
+      const attempt = s.attempt;
+      const practical = s.pracPct !== null ? s.pracPct : '';
+      const attendance = s.attendance
+        ? (s.attendance.status || '')
+        : '';
+      detailRows.push([
+        p.id || '', p.name || '', p.email || '', p.org || '',
+        moduleName(a.moduleId), a.title || '', a.date || '',
+        attempt ? attempt.score : '', attempt ? attempt.total : '',
+        s.quizPct !== null ? s.quizPct : '', practical,
+        s.overall !== null ? s.overall : '', attendance,
+        s.hasData ? (en ? 'Assessed' : 'Dinilai') : (en ? 'Not assessed' : 'Belum dinilai')
+      ]);
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+  const detailWs = XLSX.utils.aoa_to_sheet(detailRows);
+  summaryWs['!cols'] = [
+    {wch:22},{wch:28},{wch:32},{wch:24},{wch:18},{wch:20},{wch:20},{wch:18},{wch:22}
+  ];
+  detailWs['!cols'] = [
+    {wch:22},{wch:28},{wch:32},{wch:24},{wch:28},{wch:32},{wch:16},
+    {wch:14},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18},{wch:20}
+  ];
+  if (summaryRows.length > 1) summaryWs['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:summaryRows.length-1,c:summaryHeader.length-1}}) };
+  if (detailRows.length > 1) detailWs['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:detailRows.length-1,c:detailHeader.length-1}}) };
+  XLSX.utils.book_append_sheet(wb, summaryWs, en ? 'Participant Summary' : 'Ringkasan Peserta');
+  XLSX.utils.book_append_sheet(wb, detailWs, en ? 'Activity Details' : 'Butiran Aktiviti');
+
+  const safeOrg = org.replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'Company';
+  XLSX.writeFile(wb, `VIP_Participant_Data_${safeOrg}.xlsx`);
+  toast(en
+    ? `Exported ${participants.length} company participants to Excel.`
+    : `${participants.length} peserta syarikat berjaya dieksport ke Excel.`, 'ok');
 }
 
 function openVipParticipantProgress(pid) {
@@ -4800,7 +4934,9 @@ function moduleDetailView() {
 
 function participantTimetableView() {
   const me = state.user;
-  const modules = (me.role === 'participant' ? participantModules(me.id) : myModules()).filter(m => m.published !== false);
+  // VIP is a company-level view: show timetable entries for every programme/module.
+  // Participants still see only their own enrolled modules; trainers/facilitators see assigned modules.
+  const modules = (me.role === 'vip' ? sortModules(DB.modules) : (me.role === 'participant' ? participantModules(me.id) : myModules())).filter(m => m.published !== false);
   const mids = new Set(modules.map(m => m.id));
   const entries = DB.timetables.filter(e => mids.has(e.moduleId)).map(e => ({...e, itemType:'entry', module:getModule(e.moduleId)}));
   modules.forEach(m => { if (m.startDate || m.endDate) entries.push({id:'module-range-'+m.id,moduleId:m.id,module:m,itemType:'range',date:m.startDate||m.endDate,endDate:m.endDate||m.startDate,startTime:m.startTime||'',endTime:m.endTime||'',title:m.name}); });
@@ -4814,7 +4950,13 @@ function participantTimetableView() {
     const dayLabel=dateKey==='undated'?(currentLang==='en'?'Date not set':'Tarikh belum ditetapkan'):(()=>{const d=new Date(dateKey+'T12:00:00');const ms=currentLang==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];return ms[d.getDay()]+', '+fmtDate(dateKey);})();
     return `<div class="card" style="margin-top:14px"><div class="card-head"><h3>📅 ${dayLabel}</h3><span class="badge info">${items.length} ${currentLang==='en'?'sessions':'sesi'}</span></div><div class="table-wrap" style="overflow-x:auto"><table class="participant-day-grid" style="min-width:1850px;border-collapse:separate;border-spacing:0"><thead><tr>${slots.map(s=>`<th style="min-width:130px;text-align:center;white-space:nowrap">${s.label}</th>`).join('')}</tr></thead><tbody><tr>${slots.map(slot=>{const found=items.filter(x=>{const st=toMinutes(x.startTime);return st===null?slot.mins===480:(st>=slot.mins&&st<slot.end);});return `<td style="vertical-align:top;min-width:130px;height:95px;padding:4px">${found.length?found.map(renderItem).join(''):'<span class="muted" style="opacity:.35">—</span>'}</td>`;}).join('')}</tr></tbody></table></div></div>`;
   };
-  return `<div class="card"><div class="card-head"><div><h2>🗓️ ${currentLang==='en'?'Participant Timetable':'Jadual Waktu Peserta'}</h2><small class="muted">${currentLang==='en'?'Each date is displayed in a separate horizontal timetable. Click a session for details.':'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.'}</small></div></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No enrolled modules found.':'Tiada modul yang didaftarkan.'}</div>`}</div>`;
+  const title = me.role === 'vip'
+    ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
+    : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
+  const subtitle = me.role === 'vip'
+    ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
+    : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
+  return `<div class="card"><div class="card-head"><div><h2>🗓️ ${title}</h2><small class="muted">${subtitle}</small></div><span class="pill">${entries.length} ${currentLang==='en'?'sessions':'sesi'}</span></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No modules found.':'Tiada modul ditemui.'}</div>`}</div>`;
 }
 function showParticipantTimetableDetail(id, kind) {
   let x;
@@ -5760,7 +5902,7 @@ function openActivityForm(act, presetModuleId) {
           <div class="field"><label>${t('schedule_close_at')}</label><input class="input" type="datetime-local" name="quizCloseAt" value="${esc(toLocalInput(a.quizOpenAt ? a.quizCloseAt : a.quizCloseAt))}" /><small class="muted">${t('schedule_close_hint')}</small></div>
           <div class="field"><label>${t('qb_duration')}</label><input class="input" type="number" min="0" step="1" name="quizDuration" value="${a.quizDuration != null ? a.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted">${t('qb_duration_hint')}</small></div>
         </div>
-        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div id="activityQuizBuilderSection"></div></div>
+        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div class="toolbar" style="margin:10px 0"><button type="button" class="btn btn-sm" data-act="quiz-template-download">⬇️ Download Question Template (Excel)</button><button type="button" class="btn btn-sm" data-act="quiz-template-upload">⬆️ Upload Question Template</button></div><div class="info-box" style="margin-bottom:10px"><p style="margin:0;font-size:.8rem">Quiz only. Complete Question, Options A–D, and Correct Answer (A/B/C/D or 1/2/3/4). Uploading adds questions to the current quiz.</p></div><div id="activityQuizBuilderSection"></div></div>
         </div>
         <div id="practicalScheduleFields" style="display:${isPractical ? 'block' : 'none'};margin-top:10px"><strong>${t('schedule_practical_title')}</strong><div class="grid2" style="margin-top:8px">
           <div class="field"><label>${t('schedule_open_at')}</label><input class="input" type="datetime-local" name="practicalOpenAt" value="${esc(toLocalInput(a.practicalOpenAt))}" /><small class="muted">${t('schedule_open_hint')}</small></div>
@@ -5775,6 +5917,62 @@ function openActivityForm(act, presetModuleId) {
     </form>`);
   renderQuizBuilder();
 }
+function downloadActivityQuizTemplate() {
+  if (!ensureXLSX()) return;
+  const headers = ['Question','Option A','Option B','Option C','Option D','Correct Answer','Category','Difficulty'];
+  const sample = ['What is the function of a pump?','Move fluid','Measure temperature','Filter gas','Store pressure','A','Fluid Mechanics','Easy'];
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['QUIZ QUESTION TEMPLATE'],
+    ['Instructions: Enter one question per row. Correct Answer must be A/B/C/D or 1/2/3/4. Delete the sample row before uploading if not needed.'],
+    [], headers, sample
+  ]);
+  ws['!cols'] = [{wch:42},{wch:28},{wch:28},{wch:28},{wch:28},{wch:18},{wch:22},{wch:16}];
+  ws['!autofilter'] = {ref:'A4:H5'};
+  const guide = XLSX.utils.aoa_to_sheet([
+    ['Field','Required','Instructions'],
+    ['Question','Yes','Full question text. One question per row.'],
+    ['Option A–D','At least 2','Provide at least two answer choices.'],
+    ['Correct Answer','Yes','Use A, B, C, D or 1, 2, 3, 4.'],
+    ['Category','No','Optional category/topic.'],
+    ['Difficulty','No','Optional: Easy, Medium, or Hard.'],
+    ['Upload','—','Save as .xlsx or .xls, then use Upload Question Template in the activity form.']
+  ]);
+  guide['!cols']=[{wch:22},{wch:14},{wch:88}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Quiz Questions');
+  XLSX.utils.book_append_sheet(wb, guide, 'Instructions');
+  XLSX.writeFile(wb, 'Quiz_Question_Template.xlsx');
+}
+
+async function importActivityQuizTemplate(file) {
+  if (!ensureXLSX()) return;
+  const wb = await readExcelFile(file);
+  const sheetName = wb.SheetNames.find(n => /quiz|question|soalan/i.test(n)) || wb.SheetNames[0];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, defval:''});
+  if (!rows.length) { toast('⚠️ The Excel file is empty.', 'bad'); return; }
+  let headerRow = -1;
+  for (let r=0; r<Math.min(rows.length, 12); r++) {
+    if (getColIndex(rows[r], 'Question','Soalan') !== -1 && getColIndex(rows[r], 'Correct Answer','Answer','Jawapan','Jawapan Betul') !== -1) { headerRow=r; break; }
+  }
+  if (headerRow < 0) { toast('⚠️ Invalid headers. Use the Quiz_Question_Template.xlsx template.', 'bad'); return; }
+  const headers=rows[headerRow];
+  const iq=getColIndex(headers,'Question','Soalan'), ia=getColIndex(headers,'Option A','Pilihan A','A'), ib=getColIndex(headers,'Option B','Pilihan B','B'), ic=getColIndex(headers,'Option C','Pilihan C','C'), id=getColIndex(headers,'Option D','Pilihan D','D'), ians=getColIndex(headers,'Correct Answer','Answer','Jawapan','Jawapan Betul'), icat=getColIndex(headers,'Category','Kategori'), idiff=getColIndex(headers,'Difficulty','Tahap','Level');
+  const imported=[]; const errors=[];
+  for(let r=headerRow+1;r<rows.length;r++) {
+    const row=rows[r]; const q=String(row[iq]||'').trim(); if(!q) continue;
+    const options=[ia,ib,ic,id].map(i=>i<0?'':String(row[i]||'').trim());
+    const raw=String(row[ians]||'').trim().toUpperCase();
+    let answer=/^[A-D]$/.test(raw)?raw.charCodeAt(0)-65:/^[1-4]$/.test(raw)?Number(raw)-1:-1;
+    if(options.filter(Boolean).length<2 || answer<0 || !options[answer]) { errors.push(r+1); continue; }
+    imported.push({q,options,answer,category:icat<0?'':String(row[icat]||'').trim(),difficulty:idiff<0?'Easy':(String(row[idiff]||'Easy').trim()||'Easy')});
+  }
+  if(!imported.length) { toast('⚠️ No valid questions were found.'+(errors.length?' Invalid rows: '+errors.join(', '):''), 'bad'); return; }
+  if(!confirm(`Found ${imported.length} valid questions. Add them to the current quiz?${errors.length?'\n\nRows skipped because answers/options were invalid: '+errors.join(', '):''}`)) return;
+  state.tempQuiz = (state.tempQuiz || []).concat(imported);
+  renderQuizBuilder();
+  toast(`✅ Imported ${imported.length} questions${errors.length?`; skipped ${errors.length} rows`:''}.`);
+}
+
 function handleSaveActivity(form) {
   const id = form.dataset.id;
   const mod = getModule(form.moduleId.value);
@@ -6621,7 +6819,7 @@ function reportsView() {
     const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && sameCompany(u.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     const allParts = allParticipants().filter(p => sameCompany(p.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0"><div class="card-head"><h2>📄 ${t('rep_title')}</h2><span class="pill">${tce(me.org || '—')}</span></div><p class="muted" style="margin:0">${t('vip_all_data_hint')}</p></div>
-    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button></div></div>
+    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button><button class="btn" data-act="vip-export-participants">📥 ${currentLang === 'en' ? 'Export Participant Data (Excel)' : 'Eksport Data Peserta (Excel)'}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>
     <div class="card spider-review-card"><div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Company Participants — Spider Web Assessment' : 'Spider Web Penilaian Peserta Syarikat'}</h2><span class="pill">${allParts.length} ${currentLang === 'en' ? 'participants' : 'peserta'}</span></div><p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'View each participant’s practical assessment spider web, including all modules they have taken within your company.' : 'Lihat spider web penilaian praktikal setiap peserta, termasuk semua modul yang telah diikuti oleh peserta dalam syarikat anda.'}</p>${allParts.length ? `<div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:420px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang === 'en' ? 'View Spider Web' : 'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>` : `<div class="empty">${currentLang === 'en' ? 'No participants found for your company.' : 'Tiada peserta ditemui untuk syarikat anda.'}</div>`}</div>`;
   }
@@ -7340,6 +7538,8 @@ document.addEventListener('click', async (e) => {
     case 'delete-module': deleteModule(id); break;
     case 'toggle-publish-module': togglePublishModule(id); break;
     case 'new-activity': openActivityForm(null, tgt.dataset.module); break;
+    case 'quiz-template-download': downloadActivityQuizTemplate(); break;
+    case 'quiz-template-upload': { if (document.getElementById('activityMethod')?.value === 'Practical Test') { toast(currentLang === 'en' ? 'This template is for Quiz activities only.' : 'Templat ini untuk aktiviti Kuiz sahaja.', 'warn'); break; } pickExcelFile('.xlsx,.xls', importActivityQuizTemplate); break; }
     case 'edit-activity': openActivityForm(getActivity(id)); break;
     case 'delete-activity': deleteActivity(id); break;
     case 'toggle-publish': {
@@ -7382,6 +7582,27 @@ document.addEventListener('click', async (e) => {
     case 'approve-user': approveUser(id); break;
     case 'reject-user': rejectUser(id); break;
     case 'vip-view-progress': openVipParticipantProgress(id); break;
+    case 'vip-export-participants': exportVipCompanyParticipantsExcel(); break;
+    case 'spider-review-open': {
+      const pid = tgt.dataset.pid;
+      const role = state.user.role;
+      const person = DB.users.find(u => u.id === pid && u.role === 'participant');
+      if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      if (!['admin','trainer','facilitator','vip'].includes(role)) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      const permitted = role === 'admin' ? sortModules(DB.modules)
+        : role === 'vip' ? participantModules(pid) : myModules();
+      if (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id))) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id));
+      const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`;
+      openModal(`<h2>🕸️ ${tce(person.name || '')} — ${currentLang === 'en' ? 'Assessment Spider Web' : 'Spider Web Penilaian'}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg');
+      break;
+    }
     case 'spider-print-self': { const pid = state.user.id; printHTML(spiderReportHTML(pid, participantModules(pid))); break; }
     case 'spider-print-overall': { const role = state.user.role; if (!['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); break; } const mods = role === 'admin' ? sortModules(DB.modules) : myModules(); const ids = new Set(); mods.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id))); const ps = allParticipants().filter(p => ids.has(p.id)); printHTML(overallSpiderReportHTML(mods, ps)); break; }
     case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(person.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
