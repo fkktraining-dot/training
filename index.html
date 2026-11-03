@@ -63,7 +63,7 @@ small,.muted{color:var(--muted)}
 .login-input:focus{outline:none;border-color:#12a37f;box-shadow:0 0 0 3px rgba(18,163,127,0.1)}
 .login-input::placeholder{color:#94a39d}
 .password-wrapper{position:relative}
-.password-wrapper .login-input{padding-right:48px}
+.password-wrapper .login-input{padding-right:48px}.password-wrapper .input{padding-right:48px}
 .pwd-toggle{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a39d;padding:0;display:flex;align-items:center;justify-content:center}
 .pwd-toggle:hover{color:#0b6b53}
 .login-btn{width:100%;padding:16px;background:#0b6b53;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.2s,transform 0.1s;margin-top:10px}
@@ -2770,6 +2770,10 @@ async function forceSaveNow() {
 }
 
 async function syncAllNow() {
+  if (isSystemInfoVideoSessionActive()) {
+    notifySystemInfoVideoSyncPaused();
+    return;
+  }
   const btn = document.getElementById('syncAllNowBtn');
   const badge = document.getElementById('syncBadge');
   const en = currentLang === 'en';
@@ -2815,6 +2819,10 @@ async function syncAllNow() {
 }
 
 async function manualSyncNow() {
+  if (isSystemInfoVideoSessionActive()) {
+    notifySystemInfoVideoSyncPaused();
+    return;
+  }
   const btn = document.getElementById('syncNowBtn');
   const b = document.getElementById('syncBadge');
   if (btn) { btn.disabled = true; btn.textContent = '⟳'; }
@@ -4292,6 +4300,7 @@ let systemInformationCache = [];
 let systemInformationLastLoadedAt = 0;
 let systemInformationLoading = false;
 let systemInfoSelectedFiles = [];
+let systemInfoPendingUploads = [];
 let postLoginDrivePreloadPromise = null;
 let postLoginDrivePreloadAt = 0;
 const POST_LOGIN_DRIVE_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -4356,6 +4365,9 @@ function systemInfoFilesForGuide(item) {
 }
 let systemInformationLoadPromise = null;
 async function loadSystemInformation(quiet, force = false) {
+  if (isSystemInfoVideoSessionActive()) {
+    return systemInformationCache || [];
+  }
   if (systemInformationLoadPromise) return systemInformationLoadPromise;
   // Reuse a recent successful response unless the user explicitly refreshes
   // or enters the guide page after the cache has expired.
@@ -4436,6 +4448,7 @@ function systemInformationView() {
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
   const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB.','Admins can add, edit and delete guides. Maximum size is 100 MB per file. Files are sent directly to Google Drive.')}</p></div>` : ''}</div>`;
+  const pendingCards = systemInfoPendingUploads.length ? `<div class="grid2" style="margin-bottom:14px">${systemInfoPendingUploads.map(job => `<div class="card" id="sysupload-card-${esc(job.id)}" style="min-width:0;border:1px dashed var(--primary,#0b7658)"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">⏳ ${tce(job.title)}</h3><small class="muted" id="sysupload-status-${esc(job.id)}">${systemInfoText('Sedang diproses','Processing in background')} · ${tce(job.status || systemInfoText('Menyediakan muat naik...','Preparing upload...'))}</small></div><span class="pill" id="sysupload-pct-${esc(job.id)}">${Math.round(job.progress || 0)}%</span></div>${job.description ? `<p>${tce(job.description)}</p>` : ''}<div class="progress"><span id="sysupload-bar-${esc(job.id)}" style="width:${Math.max(0,Math.min(100,job.progress||0))}%"></span></div><small class="muted">${tce(job.filename || '')}</small></div>`).join('')}</div>` : '';
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
     return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
@@ -4443,7 +4456,7 @@ function systemInformationView() {
   if (state.view === 'system-information' && !systemInformationLoadPromise && (!systemInformationLastLoadedAt || Date.now() - systemInformationLastLoadedAt > 2 * 60 * 1000)) {
     setTimeout(() => { if (state.user && state.view === 'system-information') loadSystemInformation(true, false); }, 0);
   }
-  return header + cards;
+  return header + pendingCards + cards;
 }
 function openSystemInformationModal(id) {
   if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
@@ -4456,24 +4469,24 @@ function openSystemInformationModal(id) {
     <form data-form="system-information-save" data-id="${old ? esc(old.id) : ''}">
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
-      ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Fail sedia ada akan dikekalkan apabila anda menambah fail baharu.','Existing files will be retained when you add new files.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Tambah fail','Add files')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Anda boleh pilih beberapa fail serentak. Video, PDF, Word, PowerPoint, Excel, gambar dan fail umum disokong. Maksimum 100 MB bagi setiap fail. Fail dihantar terus ke Google Drive.','Select multiple files at once. Video, PDF, Word, PowerPoint, Excel, images and common files are supported. Maximum 100 MB per file. Files are uploaded directly to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 100 MB bagi setiap fail.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 100 MB per file.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
   const input = document.getElementById('systemInfoFilesInput');
   if (input) input.addEventListener('change', () => {
-    const chosen = Array.from(input.files || []);
+    const chosen = Array.from(input.files || []).slice(0, 1);
     const info = document.getElementById('systemInfoFileInfo');
     systemInfoSelectedFiles = [];
-    for (const f of chosen) {
-      if (f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
-        toast(systemInfoText('Fail "'+f.name+'" melebihi had 100 MB.','File "'+f.name+'" exceeds the 100 MB limit.'),'bad');
-        input.value = ''; chosen.length = 0; break;
-      }
+    const f = chosen[0];
+    if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
+      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 100 MB.','File \"'+f.name+'\" exceeds the 100 MB limit.'),'bad');
+      input.value = '';
+    } else if (f) {
       systemInfoSelectedFiles.push(f);
     }
-    if (info) info.innerHTML = systemInfoSelectedFiles.map((f,i) => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
+    if (info) info.innerHTML = systemInfoSelectedFiles.map(f => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
   });
 }
 /**
@@ -4534,60 +4547,49 @@ async function handleSaveSystemInformation(form) {
   const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
   const id=form.dataset.id || '';
   const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
-  const selected = Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice() : [];
+  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice(0, 1) : []);
   if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
-  if (!id && !selected.length) { toast(systemInfoText('Sila pilih sekurang-kurangnya satu fail.','Please select at least one file.'),'bad'); return; }
+  if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
+  if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
   if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
-  const btn=form.querySelector('button[type="submit"]'); if(btn) btn.disabled=true;
-  const prog=document.getElementById('systemInfoUploadProgress');
-  const list=document.getElementById('systemInfoUploadProgressList');
-  const overallBar=document.getElementById('systemInfoOverallProgressBar');
-  const overallStatus=document.getElementById('systemInfoOverallProgressStatus');
+
+  // Close the form immediately; upload and metadata save continue in background.
+  const jobId = uid('sysupload');
+  const job = { id:jobId, title, description, filename:selected[0] ? selected[0].name : systemInfoText('Mengemaskini panduan sedia ada','Updating existing guide'), progress:0, status:systemInfoText('Mula memuat naik...','Starting upload...') };
+  systemInfoPendingUploads = [...systemInfoPendingUploads, job];
+  systemInfoSelectedFiles = [];
+  closeModal();
+  window._systemInfoInitialLoad=false;
+  render();
+  toast(systemInfoText('Muat naik diteruskan di latar belakang. Anda boleh tambah panduan lain sekarang.','Upload is continuing in the background. You can add another guide now.'));
+
+  const setJobProgress = (progress, status) => {
+    const current = systemInfoPendingUploads.find(x => x.id === jobId);
+    if (!current) return;
+    current.progress = Math.max(0,Math.min(100,Number(progress)||0));
+    if (status) current.status = status;
+    const pctEl = document.getElementById('sysupload-pct-' + jobId);
+    const barEl = document.getElementById('sysupload-bar-' + jobId);
+    const statusEl = document.getElementById('sysupload-status-' + jobId);
+    if (pctEl) pctEl.textContent = Math.round(current.progress) + '%';
+    if (barEl) barEl.style.width = current.progress + '%';
+    if (statusEl) statusEl.textContent = systemInfoText('Sedang diproses','Processing in background') + ' · ' + current.status;
+  };
   try {
-    const files = systemInfoFilesForGuide(old || {}).map(f => ({
+    const files = (selected.length ? [] : systemInfoFilesForGuide(old || {})).map(f => ({
       fileId:f.fileId || f.id, id:f.id || f.fileId, filename:f.filename || f.name,
       mimeType:f.mimeType || '', size:Number(f.size)||0, viewUrl:f.viewUrl || f.webViewLink || '',
       previewUrl:f.previewUrl || '', downloadUrl:f.downloadUrl || f.webContentLink || ''
     }));
     if (selected.length) {
-      if(prog) prog.style.display='block';
-      if(list) list.innerHTML = selected.map((f,i) => `<div style="border:1px solid var(--line);border-radius:8px;padding:8px"><div style="display:flex;justify-content:space-between;gap:8px"><span style="overflow-wrap:anywhere">${systemInfoFileIcon(f)} ${tce(f.name)}</span><strong id="systemInfoFilePct${i}">0%</strong></div><div class="progress" style="margin-top:6px"><span id="systemInfoFileBar${i}" style="width:0%"></span></div><small id="systemInfoFileStatus${i}" class="muted">${systemInfoText('Menunggu...','Waiting...')}</small></div>`).join('');
-      const progressByFile = selected.map(() => 0);
-      const uploadedByIndex = new Array(selected.length);
-      const totalBytes = selected.reduce((sum,f) => sum + Math.max(1, Number(f.size)||0), 0);
-      const updateOverall = () => {
-        const completedBytes = selected.reduce((sum,f,i) => sum + Math.max(1, Number(f.size)||0) * (progressByFile[i]/100), 0);
-        const value = Math.min(99, Math.round((completedBytes/totalBytes)*100));
-        if(overallBar)overallBar.style.width=value+'%';
-        if(overallStatus)overallStatus.textContent=value+'% · '+systemInfoText('Memuat naik fail...','Uploading files...');
-      };
-      let nextIndex = 0;
-      const worker = async () => {
-        while (true) {
-          const i = nextIndex++;
-          if (i >= selected.length) return;
-          const file = selected[i];
-          const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
-            progressByFile[i] = p;
-            const bar=document.getElementById('systemInfoFileBar'+i), pct=document.getElementById('systemInfoFilePct'+i), st=document.getElementById('systemInfoFileStatus'+i);
-            if(bar)bar.style.width=p+'%';
-            if(pct)pct.textContent=p+'%';
-            if(st)st.textContent=stage || (p===100?systemInfoText('Muat naik selesai','Upload complete'):p+'%');
-            updateOverall();
-          });
-          uploadedByIndex[i] = uploaded;
-          progressByFile[i] = 100;
-          updateOverall();
-        }
-      };
-      await Promise.all(Array.from({length:Math.min(SYSTEM_INFO_UPLOAD_CONCURRENCY,selected.length)}, () => worker()));
-      uploadedByIndex.forEach(f => { if(f) files.push(f); });
+      const file = selected[0];
+      const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
+        setJobProgress(Math.min(95,Math.round(p*0.95)), stage || (p+'%'));
+      });
+      files.push(uploaded);
     }
-    const payload={id:id || undefined,title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
-    // Backward compatibility: older Apps Script deployments require fileId even
-    // when the new files[] array is supplied. Send the first file as the legacy
-    // primary attachment as well; newer backends can store the complete array.
+    const payload={id:id || uid('sgi'),title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
     if (files.length) {
       const primary = files[0];
       payload.fileId = primary.fileId || primary.id;
@@ -4598,14 +4600,32 @@ async function handleSaveSystemInformation(form) {
       payload.previewUrl = primary.previewUrl || '';
       payload.downloadUrl = primary.downloadUrl || '';
     }
+    setJobProgress(97,systemInfoText('Menyimpan rekod panduan...','Saving guide record...'));
     const saved=await driveAPI('saveSystemInformation',{payload},SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
     if(!saved || !saved.ok) throw new Error(saved && saved.error || 'Metadata save failed');
-    if(overallBar && selected.length) overallBar.style.width='100%';
-    if(overallStatus && selected.length) overallStatus.textContent=systemInfoText('100% — Semua fail dimuat naik dan rekod disimpan.','100% — All files uploaded and the guide was saved.');
-    systemInfoSelectedFiles=[]; closeModal(); window._systemInfoInitialLoad=false;
-    await loadSystemInformation(true, true); toast(systemInfoText('Panduan berjaya disimpan. Anda boleh tambah panduan lain.','Guide saved successfully. You can add another guide.')); render();
+    const returnedItem = saved.item || saved.guide || saved.record || (saved.data && (saved.data.item || saved.data.guide)) || {};
+    const savedGuide = {
+      ...payload,
+      ...returnedItem,
+      id: returnedItem.id || saved.id || payload.id,
+      files: Array.isArray(returnedItem.files) && returnedItem.files.length ? returnedItem.files : files,
+      updatedAt: returnedItem.updatedAt || nowISO(),
+      uploadedByName: returnedItem.uploadedByName || payload.uploadedByName
+    };
+    const existingIndex = (systemInformationCache || []).findIndex(x => String(x.id) === String(savedGuide.id));
+    if (existingIndex >= 0) systemInformationCache[existingIndex] = savedGuide;
+    else systemInformationCache = [savedGuide, ...(systemInformationCache || [])];
+    systemInformationLastLoadedAt = Date.now();
+    systemInfoPendingUploads = systemInfoPendingUploads.filter(x => x.id !== jobId);
+    render();
+    if (!isSystemInfoVideoSessionActive()) await loadSystemInformation(true, true);
+    toast(systemInfoText('Panduan berjaya disimpan. Anda boleh tambah panduan lain.','Guide saved successfully. You can add another guide.'));
+    if (state.view === 'system-information') render();
   } catch(err) {
-    console.error(err); toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad'); if(btn)btn.disabled=false;
+    console.error(err);
+    systemInfoPendingUploads = systemInfoPendingUploads.filter(x => x.id !== jobId);
+    if (state.view === 'system-information') render();
+    toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad');
   }
 }
 async function deleteSystemInformation(id) {
@@ -4664,14 +4684,63 @@ function handleSaveProfile(form) {
   u.name = name; u.username = username; u.email = email; u.ic = ic; u.org = org; u.phone = phone;
   saveDB(); logAudit('Update Profile', 'Pengguna', u.id, name); toast('✅ ' + t('profile_updated')); render();
 }
-function handleChangePassword(form) {
-  const u = state.user; if (!u) return;
-  const cur = form.currentPassword.value, np = form.newPassword.value, cp = form.confirmPassword.value;
-  if (cur !== u.password) { toast(t('current_password_wrong'), 'bad'); return; }
+async function handleChangePassword(form) {
+  const activeUser = state.user;
+  if (!activeUser || !Array.isArray(DB?.users)) return;
+
+  // Update the canonical DB.users record. Background synchronization may
+  // replace DB and leave state.user pointing to a detached, outdated object.
+  const userId = String(activeUser.id);
+  const userRecord = DB.users.find(x => String(x.id) === userId);
+  if (!userRecord) {
+    toast(currentLang === 'en' ? 'Unable to locate your account record. Please refresh and try again.' : 'Rekod akaun tidak ditemui. Sila muat semula sistem dan cuba lagi.', 'bad');
+    return;
+  }
+
+  const cur = String(form.currentPassword.value || '');
+  const np = String(form.newPassword.value || '');
+  const cp = String(form.confirmPassword.value || '');
+  if (cur.trim() !== String(userRecord.password ?? '').trim()) { toast(t('current_password_wrong'), 'bad'); return; }
   if (!assessPassword(np).allMet) { toast(t('pwd_format_invalid'), 'bad'); return; }
   if (np !== cp) { toast(t('password_mismatch'), 'bad'); return; }
-  u.password = np; saveDB(); logAudit('Change Password', 'Pengguna', u.id, u.name);
-  toast('✅ ' + t('password_changed')); form.reset();
+  if (np === String(userRecord.password ?? '')) {
+    toast(currentLang === 'en' ? 'The new password must be different from your current password.' : 'Kata laluan baharu mestilah berbeza daripada kata laluan semasa.', 'bad');
+    return;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.textContent : '';
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? '⏳ Saving password…' : '⏳ Menyimpan kata laluan…'; }
+
+  const oldPassword = userRecord.password;
+  try {
+    userRecord.password = np;
+    userRecord.passwordChangedAt = nowISO();
+    userRecord.mustChangePassword = false;
+    state.user = userRecord;
+    saveDB();
+
+    const saved = await forceSaveNow();
+    if (!saved || !saved.ok) throw new Error(saved && saved.error ? saved.error : 'Server save failed');
+
+    const latestUser = DB.users.find(x => String(x.id) === userId);
+    if (latestUser) state.user = latestUser;
+    form.reset();
+    toast('✅ ' + t('password_changed'), 'ok');
+    if (state.view === 'profile') render();
+  } catch (err) {
+    console.error('[change password] save failed:', err);
+    const latestUser = DB.users.find(x => String(x.id) === userId);
+    if (latestUser) {
+      latestUser.password = oldPassword;
+      delete latestUser.passwordChangedAt;
+      state.user = latestUser;
+      saveDB();
+    }
+    toast((currentLang === 'en' ? 'Password could not be saved to the server: ' : 'Kata laluan tidak dapat disimpan ke server: ') + (err.message || ''), 'bad');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+  }
 }
 
 async function handleLogin(form) {
@@ -7393,7 +7462,7 @@ function openUserForm(user) {
   openModal(`<h2>${isEdit ? t('usr_edit') : t('usr_new')}</h2>
     <form data-form="user" data-id="${isEdit ? u.id : ''}">
       <div class="grid2"><div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(u.name)}" /></div><div class="field"><label>${t('username')} *</label><input class="input" name="username" required pattern="[A-Za-z0-9_]{3,}" value="${esc(u.username||'')}" /></div></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${isEdit ? 'Reset Password (optional)' : t('lbl_password') + ' *'}</label><input class="input" type="password" name="password" ${isEdit ? '' : 'required'} minlength="8" autocomplete="new-password" placeholder="${isEdit ? 'Leave blank to keep current password' : 'Set initial password'}" /><small>${isEdit ? 'For security, the existing password is not displayed. Enter a new password only if you need to reset it.' : 'Use at least 8 characters.'}</small></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${isEdit ? 'Reset Password (optional)' : t('lbl_password') + ' *'}</label><div class="password-wrapper"><input class="input" type="password" name="password" ${isEdit ? '' : 'required'} minlength="8" autocomplete="new-password" placeholder="${isEdit ? 'Leave blank to keep current password' : 'Set initial password'}" /><button type="button" class="pwd-toggle" data-act="toggle-pwd" aria-label="Show password" title="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>${isEdit ? 'For security, the existing password is not displayed. Enter a new password only if you need to reset it.' : 'Use at least 8 characters.'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_role')}</label><select class="select" name="role">${['participant','trainer','facilitator','vip','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select></div><div class="field"><label>${t('usr_status')}</label><select class="select" name="status"><option value="approved" ${u.status === 'approved' ? 'selected' : ''}>${t('usr_status_approved')}</option><option value="pending" ${u.status === 'pending' ? 'selected' : ''}>${t('usr_status_pending')}</option><option value="rejected" ${u.status === 'rejected' ? 'selected' : ''}>${t('usr_status_rejected')}</option></select></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div><div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" list="userCompanyOptions" maxlength="500" autocomplete="off" value="${esc(u.org || '')}" placeholder="${currentLang === 'en' ? 'Select a company or type a new company name' : 'Pilih syarikat atau taip nama syarikat baharu'}" /><datalist id="userCompanyOptions">${companyList().map(company => `<option value="${esc(company)}"></option>`).join('')}</datalist><small>${currentLang === 'en' ? 'Choose from the registered company list or enter a new company name (up to 500 characters).' : 'Pilih daripada senarai syarikat berdaftar atau masukkan nama syarikat baharu (sehingga 500 aksara).'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('phone')}</label><input class="input" name="phone" value="${esc(u.phone || '')}" /></div><div></div></div>
@@ -8259,8 +8328,8 @@ document.addEventListener('click', async (e) => {
       if (wrapper) {
         const input = wrapper.querySelector('input');
         const icon = tgt.querySelector('svg');
-        if (input.type === 'password') { input.type = 'text'; if (icon) icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'; }
-        else { input.type = 'password'; if (icon) icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'; }
+        if (input.type === 'password') { input.type = 'text'; tgt.setAttribute('aria-label','Hide password'); tgt.setAttribute('title','Hide password'); if (icon) icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'; }
+        else { input.type = 'password'; tgt.setAttribute('aria-label','Show password'); tgt.setAttribute('title','Show password'); if (icon) icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'; }
       }
       break;
     }
@@ -8598,6 +8667,27 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
+// System Usage Guides playback protection.
+// Google Drive preview runs in a cross-origin iframe, so the parent page cannot
+// reliably inspect its internal play/pause/ended state. While a guide video
+// player is open on this tab, defer background and manual refresh/sync operations.
+// This prevents the guide list or its iframe from being replaced during playback.
+function isSystemInfoVideoSessionActive() {
+  return !!(
+    state && state.view === 'system-information' &&
+    document.querySelector('#view iframe[data-system-info-player]')
+  );
+}
+function notifySystemInfoVideoSyncPaused() {
+  const en = currentLang === 'en';
+  toast(
+    en
+      ? 'Refresh/sync is paused while a System Usage Guides video is open. Leave this tab after the video to resume syncing.'
+      : 'Refresh/sync dijeda sementara video System Usage Guides dibuka. Keluar dari tab ini selepas video untuk sambung sync.',
+    'warn'
+  );
+}
+
 let pullInFlightPromise = null;
 async function pullFromServer(showToast, options = {}) {
   if (pullInFlightPromise) return pullInFlightPromise;
@@ -8607,6 +8697,9 @@ async function pullFromServer(showToast, options = {}) {
 }
 
 async function pullFromServerInternal(showToast, options = {}) {
+  if (isSystemInfoVideoSessionActive()) {
+    return { ok: false, skipped: 'system-information-video-open' };
+  }
   if (!state.user && !options.allowLoggedOut) return { ok: false, skipped: 'not-logged-in' };
   if (document.hidden && !options.force) return { ok: false, skipped: 'hidden' };
   if (document.querySelector('.modal-backdrop') && !options.force) return { ok: false, skipped: 'modal-open' };
