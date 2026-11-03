@@ -6438,11 +6438,27 @@ function handleSaveUser(form) {
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
   if (role === 'vip' && !org) { toast(t('usr_org_required'), 'bad'); return; }
-  const dupU = DB.users.find(u => u.id !== id && String(u.username||'').toLowerCase() === username.toLowerCase());
-  if (dupU) { toast(t('username_taken'), 'bad'); return; }
-  const dupE = DB.users.find(u => u.id !== id && String(u.email||'').toLowerCase() === email);
-  if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-  if (id) { const u = DB.users.find(x => x.id === id); if (!u) return; Object.assign(u, { name, username, email, role, ic, org, phone, status }); if (passwordInput) { u.password = passwordInput; u.passwordResetAt = nowISO(); u.mustChangePassword = true; } saveDB(); logAudit(passwordInput ? 'Update User + Reset Password' : 'Update User', 'Pengguna', id, name); toast(passwordInput ? 'User updated and password reset. Tell the user to change it after signing in.' : t('msg_updated')); }
+  // Resolve the record being edited first. Form dataset values are strings,
+  // while older database records may contain IDs stored in another type.
+  const currentUser = id ? DB.users.find(x => String(x.id) === String(id)) : null;
+  if (id && !currentUser) { toast('User record could not be found. Please refresh and try again.', 'bad'); return; }
+  // During editing, keeping the account's existing username/email must always be allowed.
+  // Exclude the edited record by ID (not object reference), because records can be
+  // reconstructed during database load/synchronisation. Only run the duplicate
+  // check when the value is new or has actually been changed.
+  const currentUsername = String(currentUser?.username || '').trim().toLowerCase();
+  const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
+  const usernameChanged = !currentUser || username.toLowerCase() !== currentUsername;
+  const emailChanged = !currentUser || email !== currentEmail;
+  if (usernameChanged) {
+    const dupU = DB.users.find(u => String(u.id) !== String(id || '') && String(u.username||'').trim().toLowerCase() === username.toLowerCase());
+    if (dupU) { toast(t('username_taken'), 'bad'); return; }
+  }
+  if (emailChanged) {
+    const dupE = DB.users.find(u => String(u.id) !== String(id || '') && String(u.email||'').trim().toLowerCase() === email);
+    if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
+  }
+  if (id) { const u = currentUser; Object.assign(u, { name, username, email, role, ic, org, phone, status }); if (passwordInput) { u.password = passwordInput; u.passwordResetAt = nowISO(); u.mustChangePassword = true; } saveDB(); logAudit(passwordInput ? 'Update User + Reset Password' : 'Update User', 'Pengguna', id, name); toast(passwordInput ? 'User updated and password reset. Tell the user to change it after signing in.' : t('msg_updated')); }
   else { const nu = { id: uid('u'), name, username, email, password: passwordInput, role, ic, org, phone, status: status || 'approved', createdAt: nowISO(), mustChangePassword: true }; DB.users.push(nu); saveDB(); logAudit('Create User', 'Pengguna', nu.id, name); toast(t('msg_created')); }
   closeModal(); render();
 }
