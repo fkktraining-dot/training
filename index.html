@@ -4281,15 +4281,13 @@ function viewContent() {
 
 /* =========================================================
    SYSTEM INFORMATION — ADMIN MANAGED GUIDES & MULTIPLE FILES
-   Files are stored in Google Drive / CFTP Malaysia / Learning Material.
-   NOTE: The backend API must support payload.files[] and item.files[].
+   Files are stored in Google Drive through the System Information backend action.
+   NOTE: Apps Script must support uploadSystemInformationFile and payload.files[].
    ========================================================= */
 const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
-const SYSTEM_INFO_CHUNK_BYTES = 4 * 1024 * 1024;
-// Upload at most two files simultaneously: faster on normal connections while
-// avoiding excessive parallel requests to Google Apps Script.
-const SYSTEM_INFO_UPLOAD_CONCURRENCY = 2;
-const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 90000;
+// Direct Base64 uploads are memory-intensive; send files one at a time for stability.
+const SYSTEM_INFO_UPLOAD_CONCURRENCY = 1;
+const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
 let systemInformationCache = [];
 let systemInformationLastLoadedAt = 0;
 let systemInformationLoading = false;
@@ -4437,7 +4435,7 @@ function systemInformationView() {
   systemInfoEagerVideoClaimed = false;
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
-  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB.','Admins can add, edit and delete guides. Maximum size is 100 MB per file.')}</p></div>` : ''}</div>`;
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB.','Admins can add, edit and delete guides. Maximum size is 100 MB per file. Files are sent directly to Google Drive.')}</p></div>` : ''}</div>`;
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
     return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
@@ -4459,7 +4457,7 @@ function openSystemInformationModal(id) {
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
       ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Fail sedia ada akan dikekalkan apabila anda menambah fail baharu.','Existing files will be retained when you add new files.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Tambah fail','Add files')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Anda boleh pilih beberapa fail serentak. Video, PDF, Word, PowerPoint, Excel, gambar dan fail umum disokong. Maksimum 100 MB bagi setiap fail.','Select multiple files at once. Video, PDF, Word, PowerPoint, Excel, images and common files are supported. Maximum 100 MB per file.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div class="field"><label>${systemInfoText('Tambah fail','Add files')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Anda boleh pilih beberapa fail serentak. Video, PDF, Word, PowerPoint, Excel, gambar dan fail umum disokong. Maksimum 100 MB bagi setiap fail. Fail dihantar terus ke Google Drive.','Select multiple files at once. Video, PDF, Word, PowerPoint, Excel, images and common files are supported. Maximum 100 MB per file. Files are uploaded directly to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
@@ -4478,47 +4476,59 @@ function openSystemInformationModal(id) {
     if (info) info.innerHTML = systemInfoSelectedFiles.map((f,i) => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
   });
 }
-function readFileChunkAsBase64(file, start, end) {
-  return new Promise((resolve,reject) => { const r=new FileReader(); r.onload=()=>resolve(String(r.result).split(',')[1]); r.onerror=()=>reject(r.error || new Error('File read failed')); r.readAsDataURL(file.slice(start,end)); });
-}
+/**
+ * Direct (single-request) upload for System Information.
+ *
+ * IMPORTANT: The Google Apps Script deployment must expose the action
+ * `uploadSystemInformationFile` and return { ok:true, file:{...} }.
+ * This deliberately does NOT call the chunk upload actions.
+ */
 async function uploadSystemInfoFile(file, title, description, onProgress) {
   const report = (percent, stage) => { if (onProgress) onProgress(percent, stage); };
-  report(0, systemInfoText('Menyambung ke Google Drive...','Connecting to Google Drive...'));
-  const begin = await driveAPI('beginSystemInformationUpload', {
-    payload:{ filename:file.name, mimeType:file.type || 'application/octet-stream', size:file.size, title, description }
-  }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
-  if (!begin || !begin.ok || !begin.uploadId) throw new Error(begin && begin.error || 'Unable to start upload');
-  const total = Math.max(1, Math.ceil(file.size / SYSTEM_INFO_CHUNK_BYTES));
-  try {
-    for (let i=0;i<total;i++) {
-      const start=i*SYSTEM_INFO_CHUNK_BYTES, end=Math.min(file.size,start+SYSTEM_INFO_CHUNK_BYTES);
-      report(Math.round((i/total)*95), systemInfoText('Menghantar bahagian '+(i+1)+'/'+total+'...','Sending chunk '+(i+1)+'/'+total+'...'));
-      const base64=await readFileChunkAsBase64(file,start,end);
-      const res=await driveAPI('uploadSystemInformationChunk',{uploadId:begin.uploadId,index:i,base64},SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
-      if (!res || !res.ok) throw new Error(res && res.error || ('Upload chunk '+(i+1)+' failed'));
-      report(Math.round(((i+1)/total)*95), systemInfoText('Data dihantar: bahagian '+(i+1)+'/'+total,'Data sent: chunk '+(i+1)+'/'+total));
+  report(0, systemInfoText('Menyediakan fail...','Preparing file...'));
+  // Same Base64 approach used by Upload Material. FileReader progress covers
+  // preparation only; browser fetch does not expose reliable request progress.
+  const base64 = await fileToBase64(file, pct => {
+    report(Math.min(45, Math.round(pct * 0.9)), systemInfoText('Membaca fail...','Reading file...'));
+  });
+  report(50, systemInfoText('Menghantar fail ke Google Drive...','Sending file to Google Drive...'));
+  const res = await driveAPI('uploadSystemInformationFile', {
+    payload: {
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      base64,
+      title,
+      description,
+      uploadedBy: state.user && state.user.id,
+      uploadedByName: state.user && state.user.name
     }
-    report(97, systemInfoText('Memuktamadkan fail di Google Drive...','Finalizing file in Google Drive...'));
-    const done=await driveAPI('completeSystemInformationUpload',{uploadId:begin.uploadId},SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
-    if (!done || !done.ok || !done.item) throw new Error(done && done.error || 'Unable to complete file upload');
-    const uploaded = done.item;
-    const result = {
-      fileId: uploaded.fileId || uploaded.id,
-      id: uploaded.id || uploaded.fileId,
-      filename: uploaded.filename || uploaded.name || file.name,
-      mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
-      size: Number(uploaded.size) || file.size,
-      viewUrl: uploaded.viewUrl || uploaded.webViewLink || '',
-      previewUrl: uploaded.previewUrl || '',
-      downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ''
-    };
-    report(100, systemInfoText('Fail berjaya dimuat naik','File uploaded successfully'));
-    return result;
-  } catch (err) {
-    try { await driveAPI('cancelSystemInformationUpload',{uploadId:begin.uploadId},SYSTEM_INFO_UPLOAD_TIMEOUT_MS); } catch (_) {}
-    throw err;
+  }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+  if (!res || !res.ok) {
+    const msg = res && res.error ? res.error : 'Direct upload failed';
+    if (/action|unsupported|unknown|not found/i.test(msg)) {
+      throw new Error('Backend Google Apps Script belum menyokong uploadSystemInformationFile. Apps Script perlu dikemas kini dahulu.');
+    }
+    throw new Error(msg);
   }
+  report(95, systemInfoText('Mengesahkan fail di Google Drive...','Verifying file in Google Drive...'));
+  const uploaded = res.file || res.item || res;
+  const fileId = uploaded.fileId || uploaded.id;
+  if (!fileId) throw new Error('Upload berjaya dipanggil tetapi Google Drive tidak memulangkan fileId.');
+  const result = {
+    fileId,
+    id: uploaded.id || uploaded.fileId,
+    filename: uploaded.filename || uploaded.name || file.name,
+    mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
+    size: Number(uploaded.size) || file.size,
+    viewUrl: uploaded.viewUrl || uploaded.webViewLink || '',
+    previewUrl: uploaded.previewUrl || (file.type && file.type.startsWith('video/') ? 'https://drive.google.com/file/d/' + fileId + '/preview' : ''),
+    downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ''
+  };
+  report(100, systemInfoText('Fail berjaya dimuat naik','File uploaded successfully'));
+  return result;
 }
+
 async function handleSaveSystemInformation(form) {
   if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
   const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
