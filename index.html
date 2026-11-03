@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -82,6 +82,8 @@ small,.muted{color:var(--muted)}
 .sidebar .brand strong{display:block;font-size:.9rem;color:#fff}
 .sidebar .brand span{display:block;font-size:.66rem;color:#9ec6b8;line-height:1.25}
 .nav{display:flex;flex-direction:column;gap:3px;margin-top:14px;flex:1;overflow-y:auto}
+.tab-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;margin-left:auto;border-radius:999px;background:#d92d20;color:#fff;font-size:.68rem;font-weight:900;line-height:1;box-shadow:0 0 0 2px rgba(255,255,255,.12)}
+.nav-item.has-unread{color:#ff7770!important;font-weight:800}
 .nav-item{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border-radius:9px;background:transparent;border:0;color:#c6e2d8;font:inherit;font-size:.86rem;font-weight:600;cursor:pointer;text-align:left;width:100%}
 .nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
 .nav-item.active{background:var(--brand-2);color:#04281f}
@@ -537,6 +539,26 @@ html, body {
   .toolbar { max-width: 100%; }
   .toolbar .btn { max-width: 100%; }
 }
+
+
+/* ADMIN WORKSPACE — keep the navigation vertical, larger and easy to scan */
+.admin-shell{display:flex;flex-direction:row;align-items:stretch;min-height:100vh;width:100%;max-width:100%;}
+.admin-shell>.sidebar{width:292px;min-width:292px;height:100vh;min-height:100vh;position:sticky;top:0;align-self:flex-start;flex:0 0 292px;padding:18px 14px 14px;display:flex;flex-direction:column;gap:12px;box-shadow:2px 0 14px rgba(16,36,30,.08);overflow-y:auto;overflow-x:hidden;}
+.admin-shell .sidebar .brand{width:100%;padding:2px 6px 14px;min-height:0;}
+.admin-shell .nav{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:4px;margin:0;padding:2px 0;overflow:visible;}
+.admin-shell .nav-item{width:100%;min-width:0;min-height:38px;padding:8px 11px;display:flex;align-items:center;justify-content:flex-start;gap:9px;font-size:.86rem;line-height:1.25;white-space:normal;overflow-wrap:anywhere;border:1px solid rgba(255,255,255,.09);flex:0 0 auto;}
+.admin-shell .nav-item span{min-width:0;overflow-wrap:anywhere;}
+.admin-shell .nav-item:hover{transform:translateX(2px);}
+.admin-shell .sidebar-foot{width:100%;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:10px;padding:12px 4px 0;margin:auto 0 0;}
+.admin-shell .sidebar-foot .userchip{width:100%;min-width:0;margin:0;}
+.admin-shell .sidebar-foot>button{width:100%!important;flex:0 0 auto;padding:9px 12px!important;}
+.admin-shell>.main{flex:1 1 auto;width:calc(100% - 292px);min-width:0;min-height:0;}
+.admin-shell #view{width:100%;max-width:none;padding:24px clamp(16px,2vw,32px) 42px;}
+.admin-shell .topbar{padding-left:clamp(16px,2vw,32px);padding-right:clamp(16px,2vw,32px);}
+.admin-shell .table-wrap{max-width:100%;}
+@media(max-height:760px) and (min-width:901px){.admin-shell>.sidebar{padding-top:10px;padding-bottom:8px;gap:7px}.admin-shell .sidebar .brand{padding-bottom:8px}.admin-shell .nav{gap:4px}.admin-shell .nav-item{min-height:36px;padding:7px 10px;font-size:.82rem}.admin-shell .sidebar-foot{gap:6px;padding-top:7px}}
+@media(max-width:900px){.admin-shell{flex-direction:column}.admin-shell>.sidebar{width:100%;min-width:0;height:auto;min-height:0;position:relative;top:auto;align-self:stretch;flex:0 0 auto;padding:12px;overflow:visible}.admin-shell .nav{display:flex;flex-direction:column;gap:6px;overflow:visible}.admin-shell .nav-item{min-height:44px;white-space:normal}.admin-shell .sidebar-foot{display:flex!important;flex-direction:column}.admin-shell>.main{width:100%}.admin-shell #view{padding:18px 14px 28px}}
+@media(max-width:560px){.admin-shell>.sidebar{padding:10px}.admin-shell .nav{gap:5px}.admin-shell .nav-item{padding:10px 11px;font-size:.84rem;min-height:42px}.admin-shell .sidebar-foot{flex-wrap:nowrap}.admin-shell .sidebar-foot .userchip{flex-basis:auto}.admin-shell .sidebar-foot>button{width:100%!important}.admin-shell #view{padding:14px 10px 24px}.admin-shell .topbar{align-items:flex-start;gap:8px}.admin-shell .topbar .tb-right{flex-wrap:wrap;justify-content:flex-end}}
 
 </style>
 </head>
@@ -1108,27 +1130,26 @@ async function translateAllRubricContent() {
    ========================================================= */
 const SYSTEM_TRANSLATION_CACHE = new Map();
 const SYSTEM_TRANSLATION_ORIGINALS = new WeakMap();
+const SYSTEM_TRANSLATION_ATTR_ORIGINALS = new WeakMap();
 let systemTranslationRun = 0;
 let systemTranslationObserver = null;
-const SYSTEM_TRANSLATE_SKIP_TAGS = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','PATH','TEXTAREA']);
+const SYSTEM_TRANSLATE_SKIP_TAGS = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','PATH']);
 function systemTranslationKey(text, target) { return target + '\u0000' + String(text || '').trim(); }
 function systemTranslationShouldSkipNode(node) {
   if (!node || !node.parentElement) return true;
   const el = node.parentElement;
-  if (SYSTEM_TRANSLATE_SKIP_TAGS.has(el.tagName)) return true;
+  if (SYSTEM_TRANSLATE_SKIP_TAGS.has(el.tagName) || el.closest('textarea')) return true;
   if (el.closest('[data-no-translate],.notranslate,[contenteditable="true"]')) return true;
   const value = String(node.nodeValue || '').trim();
   if (!value || value.length < 2 || /^[\d\W_]+$/.test(value)) return true;
-  // Keep compact language switches, identifiers, file extensions and codes unchanged.
   if (/^(BM|EN|MS|PDF|CSV|XLSX|CFTP|FTIR|UV-?VIS)$/i.test(value)) return true;
   return false;
 }
 async function systemTranslateText(text, target) {
   const value = String(text || '').trim();
-  if (!value || target === 'ms' && !value) return value;
+  if (!value) return value;
   const key = systemTranslationKey(value, target);
   if (SYSTEM_TRANSLATION_CACHE.has(key)) return SYSTEM_TRANSLATION_CACHE.get(key);
-  // Existing curated translations take priority when switching to English.
   if (target === 'en' && CONTENT_I18N[value] !== undefined) {
     const known = CONTENT_I18N[value]; SYSTEM_TRANSLATION_CACHE.set(key, known); return known;
   }
@@ -1146,6 +1167,12 @@ async function systemTranslateText(text, target) {
     return value;
   }
 }
+function getSystemAttributeOriginal(item, attr, liveValue) {
+  let attrs = SYSTEM_TRANSLATION_ATTR_ORIGINALS.get(item);
+  if (!attrs) { attrs = new Map(); SYSTEM_TRANSLATION_ATTR_ORIGINALS.set(item, attrs); }
+  if (!attrs.has(attr)) attrs.set(attr, liveValue);
+  return attrs.get(attr);
+}
 async function translateSystemElement(el, target, runId) {
   if (!el || !el.isConnected || runId !== systemTranslationRun) return;
   const textNodes = [];
@@ -1157,30 +1184,32 @@ async function translateSystemElement(el, target, runId) {
   const attrTargets = [];
   const elements = [el, ...el.querySelectorAll('*')];
   for (const item of elements) {
-    if (SYSTEM_TRANSLATE_SKIP_TAGS.has(item.tagName) || item.closest('[data-no-translate],.notranslate')) continue;
+    if (SYSTEM_TRANSLATE_SKIP_TAGS.has(item.tagName) || item.closest('[data-no-translate],.notranslate,[contenteditable="true"]')) continue;
     for (const attr of attrNames) {
-      const value = item.getAttribute && item.getAttribute(attr);
-      if (value && value.trim().length > 1 && !/^[\d\W_]+$/.test(value.trim())) attrTargets.push({item, attr, value});
+      const liveValue = item.getAttribute && item.getAttribute(attr);
+      if (liveValue && liveValue.trim().length > 1 && !/^[\d\W_]+$/.test(liveValue.trim())) {
+        attrTargets.push({item, attr, source:getSystemAttributeOriginal(item, attr, liveValue)});
+      }
     }
+    // Translate only button-like input values, never user-entered text or data.
     if (item.tagName === 'INPUT' && ['button','submit','reset'].includes((item.type || '').toLowerCase())) {
-      const value = item.value;
-      if (value && value.trim().length > 1) attrTargets.push({item, attr:'value', value});
+      const liveValue = item.value;
+      if (liveValue && liveValue.trim().length > 1) attrTargets.push({item, attr:'value', source:getSystemAttributeOriginal(item, 'value', liveValue)});
     }
   }
-  // Translate a limited number concurrently to keep the UI responsive.
   const tasks = [];
   for (const node of textNodes) {
     if (!SYSTEM_TRANSLATION_ORIGINALS.has(node)) SYSTEM_TRANSLATION_ORIGINALS.set(node, node.nodeValue);
     const source = SYSTEM_TRANSLATION_ORIGINALS.get(node);
     tasks.push(async () => {
       const translated = await systemTranslateText(source, target);
-      if (runId === systemTranslationRun && node.isConnected) node.nodeValue = translated;
+      if (runId === systemTranslationRun && node.isConnected && node.nodeValue !== translated) node.nodeValue = translated;
     });
   }
   for (const item of attrTargets) {
     tasks.push(async () => {
-      const translated = await systemTranslateText(item.value, target);
-      if (runId === systemTranslationRun && item.item.isConnected) item.item.setAttribute(item.attr, translated);
+      const translated = await systemTranslateText(item.source, target);
+      if (runId === systemTranslationRun && item.item.isConnected && item.item.getAttribute(item.attr) !== translated) item.item.setAttribute(item.attr, translated);
     });
   }
   let cursor = 0;
@@ -1190,23 +1219,32 @@ async function translateSystemElement(el, target, runId) {
 async function translateWholeSystem(target) {
   const runId = ++systemTranslationRun;
   if (systemTranslationObserver) systemTranslationObserver.disconnect();
-  // Re-render first so the base strings come from the selected language dictionary.
   await translateSystemElement(document.body, target, runId);
   if (runId !== systemTranslationRun) return;
+  let pending = new Set();
+  let scheduled = false;
+  const queueElement = node => {
+    const candidate = node && node.nodeType === Node.ELEMENT_NODE ? node : node && node.parentElement;
+    if (!candidate || candidate === document.body || !candidate.isConnected) return;
+    pending.add(candidate);
+    if (scheduled) return;
+    scheduled = true;
+    Promise.resolve().then(async () => {
+      scheduled = false;
+      const batch = [...pending]; pending = new Set();
+      for (const item of batch) await translateSystemElement(item, target, runId);
+    });
+  };
   systemTranslationObserver = new MutationObserver(records => {
     if (runId !== systemTranslationRun) return;
-    const added = [];
-    for (const record of records) for (const node of record.addedNodes) {
-      if (node.nodeType === Node.ELEMENT_NODE && node !== document.body) added.push(node);
-      else if (node.nodeType === Node.TEXT_NODE && !systemTranslationShouldSkipNode(node)) {
-        const parent = node.parentElement;
-        if (parent) added.push(parent);
+    for (const record of records) {
+      if (record.type === 'characterData') queueElement(record.target);
+      for (const node of record.addedNodes || []) {
+        if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) queueElement(node);
       }
     }
-    // Debounce naturally by translating only newly inserted subtrees.
-    for (const node of [...new Set(added)]) translateSystemElement(node, target, runId);
   });
-  systemTranslationObserver.observe(document.body, {childList:true, subtree:true});
+  systemTranslationObserver.observe(document.body, {childList:true, subtree:true, characterData:true});
 }
 
 function rubricText(obj, field) {
@@ -1398,7 +1436,7 @@ const I18N = {
     mat_no_materials_admin: 'Belum ada bahan. Klik ➕ untuk muat naik fail.',
     mat_upload_modal: 'Muat Naik Bahan Modul', mat_upload_format: 'Format Diterima',
     mat_upload_format_value: 'Semua jenis fail diterima.',
-    mat_upload_limit: 'Had saiz: 100 MB per fail.', mat_upload_file: 'Fail',
+    mat_upload_limit: 'Had saiz: 200 MB per fail (fail besar mungkin perlukan kaedah muat naik bersegmen).', mat_upload_file: 'Fail',
     mat_upload_display_name: 'Nama Paparan (pilihan)', mat_upload_desc: 'Penerangan (pilihan)',
     mat_upload_placeholder: 'Kosong = guna nama fail asal', mat_upload_btn: '⬆️ Muat Naik',
     mat_upload_success: 'Bahan dimuat naik ke Google Drive.',
@@ -1923,7 +1961,7 @@ const I18N = {
     mat_no_materials_admin: 'No materials yet. Click ➕ to upload files.',
     mat_upload_modal: 'Upload Module Material', mat_upload_format: 'Accepted Formats',
     mat_upload_format_value: 'All file types accepted.',
-    mat_upload_limit: 'Size limit: 100 MB per file.', mat_upload_file: 'File',
+    mat_upload_limit: 'Size limit: 200 MB per file (large files may require chunked upload).', mat_upload_file: 'File',
     mat_upload_display_name: 'Display Name (optional)', mat_upload_desc: 'Description (optional)',
     mat_upload_placeholder: 'Empty = use original filename', mat_upload_btn: '⬆️ Upload',
     mat_upload_success: 'Material uploaded to Google Drive.',
@@ -2284,7 +2322,7 @@ const I18N = {
   }
 };
 
-let currentLang = localStorage.getItem('cftp_lang') || 'ms';
+let currentLang = localStorage.getItem('cftp_lang') || 'en';
 const t = (key, ...args) => {
   let s = (I18N[currentLang] && I18N[currentLang][key]) || I18N.ms[key] || key;
   if (args.length) args.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -2697,6 +2735,51 @@ async function forceSaveNow() {
   if (isDiffEmpty(diff)) { pendingSaveSince = 0; updateBeforeUnload(); return { ok: true, skipped: true }; }
   savePending = false;
   return await robustServerSave();
+}
+
+async function syncAllNow() {
+  const btn = document.getElementById('syncAllNowBtn');
+  const badge = document.getElementById('syncBadge');
+  const en = currentLang === 'en';
+  if (btn) { btn.disabled = true; btn.textContent = en ? '⟳ Checking…' : '⟳ Menyemak…'; }
+  if (badge) { badge.textContent = '⟳'; badge.style.background = '#fdf3e0'; badge.style.color = '#b7791f'; badge.title = en ? 'Checking Sheets and Drive…' : 'Menyemak Sheets dan Drive…'; }
+  try {
+    // First upload pending local edits, so the following refresh does not overwrite them.
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (saveInFlight) {
+      let waited = 0;
+      while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; }
+      if (saveInFlight) throw new Error(en ? 'A previous save is still running.' : 'Proses simpan terdahulu masih berjalan.');
+    }
+    const saved = await forceSaveNow();
+    if (!saved || !saved.ok) throw new Error(saved && saved.error ? saved.error : (en ? 'Upload to server failed.' : 'Muat naik ke server gagal.'));
+
+    // Pull the latest shared records from the connected Google Sheets/Drive backend.
+    const pulled = await pullFromServer(false, { force: true, maxAttempts: 3 });
+    if (!pulled || !pulled.ok) throw new Error(pulled && pulled.error ? pulled.error : (en ? 'Could not refresh Google Sheets.' : 'Tidak dapat menyegarkan Google Sheets.'));
+
+    // Check Drive materials for each module available in the current database.
+    let checked = 0, failed = 0;
+    const moduleList = (Array.isArray(DB.modules) ? DB.modules : []).filter(m => m && m.id);
+    for (const mod of moduleList) {
+      const ok = await refreshModuleMaterialsFromDrive(mod.id, true);
+      if (ok) checked++; else failed++;
+    }
+
+    // Persist any newly discovered Drive file metadata back to the shared backend.
+    const uploaded = await forceSaveNow();
+    if (!uploaded || !uploaded.ok) throw new Error(uploaded && uploaded.error ? uploaded.error : (en ? 'Drive metadata could not be uploaded.' : 'Metadata Drive gagal dimuat naik.'));
+
+    if (badge) { badge.textContent = failed ? '⚠' : '✓'; badge.style.background = failed ? '#fff4e5' : '#e8f5ec'; badge.style.color = failed ? '#b7791f' : '#1e7d4f'; badge.title = (en ? 'Last check: ' : 'Semakan terakhir: ') + new Date().toLocaleTimeString(); }
+    toast(en ? `Sync complete: Google Sheets refreshed, ${checked} module(s) checked in Drive${failed ? `, ${failed} module check(s) failed` : ''}, and pending changes uploaded.` : `Sync selesai: Google Sheets dikemas kini, ${checked} modul disemak di Drive${failed ? `, ${failed} semakan modul gagal` : ''}, dan perubahan dimuat naik.`, failed ? 'warn' : 'ok');
+  } catch (err) {
+    console.error('syncAllNow failed:', err);
+    if (badge) { badge.textContent = '⚠'; badge.style.background = '#fdecea'; badge.style.color = '#c0392b'; badge.title = (en ? 'Sync failed: ' : 'Sync gagal: ') + (err.message || ''); }
+    toast((en ? '⚠️ Sync incomplete: ' : '⚠️ Sync tidak lengkap: ') + (err.message || (en ? 'Unknown error' : 'Ralat tidak diketahui')), 'bad');
+  } finally {
+    const nowEn = currentLang === 'en';
+    if (btn) { btn.disabled = false; btn.textContent = nowEn ? '☁️ Check & Sync' : '☁️ Semak & Sync'; }
+  }
 }
 
 async function manualSyncNow() {
@@ -3807,7 +3890,14 @@ function registerForm() {
     <div class="login-field"><label>${t('lbl_name')} *</label><input class="login-input" name="name" required placeholder="${t('full_name')}" value="${esc(draft.name || '')}" /></div>
     <div class="login-field"><label>${t('username')} *</label><input class="login-input" name="username" required pattern="[A-Za-z0-9_]{3,}" placeholder="cth: ahmad_87" value="${esc(draft.username || '')}" /></div>
     <div class="login-field"><label>${t('lbl_email')} *</label><input class="login-input" type="email" name="email" required placeholder="nama@email.com" value="${esc(draft.email || '')}" /></div>
-    <div class="login-field"><label>${t('lbl_org')}</label><input class="login-input" name="org" placeholder="${t('lbl_org')}" value="${esc(draft.org || '')}" /></div>
+    <div class="login-field">
+      <label>${t('lbl_org')} *</label>
+      <select class="login-input" name="org" required>
+        <option value="">${currentLang === 'en' ? 'Select your registered company' : 'Pilih syarikat yang telah didaftarkan'}</option>
+        ${companyList().map(company => `<option value="${esc(company)}" ${sameCompany(company,draft.org)?'selected':''}>${esc(company)}</option>`).join('')}
+      </select>
+      <small class="muted">${currentLang === 'en' ? 'Select the company registered in Companies & Participants. If your company is not listed, contact the administrator.' : 'Pilih nama syarikat daripada senarai Companies & Participants. Jika tiada dalam senarai, sila hubungi pentadbir.'}</small>
+    </div>
     <div class="login-field">
       <label>${t('password')} *</label>
       <div class="password-wrapper">
@@ -3835,8 +3925,8 @@ function navItems() {
   if (r === 'vip') {
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
-      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_all'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
@@ -3851,8 +3941,9 @@ function navItems() {
     const pf = upcomingFinalExamsFor(state.user.id, 99).length;
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
-      { v:'programs', label:t('nav_programs'), icon:'🎓' },
+      ...(availableModules(state.user.id).length ? [{ v:'programs', label:t('nav_programs'), icon:'🎓' }] : []),
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'attendance', label:currentLang === 'en' ? 'Attendance' : 'Kehadiran', icon:'☑️' },
@@ -3868,6 +3959,7 @@ function navItems() {
     const pend = myPendingSubmissionsCount(state.user.id);
     return [
       { v:'dashboard', label:t('nav_portal'), icon:'🧑‍🏫' },
+      { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -3887,6 +3979,7 @@ function navItems() {
     const pq = trainerPendingQuestionsCount(state.user.id);
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -3907,6 +4000,7 @@ function navItems() {
   const paAll = pendingApprovalCountAll();
   return [
     { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
+      { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
     { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -3920,24 +4014,111 @@ function navItems() {
     { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
     { v:'bank', label:t('nav_bank'), icon:'🗂️' },
     { v:'users', label:t('nav_users') + (pendingUsers ? ` (${pendingUsers})` : ''), icon:'👥' },
-    { v:'companies', label:'Syarikat & Peserta', icon:'🏢' },
+    { v:'companies', label:currentLang === 'en' ? 'Companies & Participants' : 'Syarikat & Peserta', icon:'🏢' },
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
     { v:'profile', label:t('nav_profile'), icon:'👤' }
   ];
 }
+function tabNotificationCount(view) {
+  const role = state.user?.role;
+  const uid = String(state.user?.id || '');
+  const mods = role === 'admin' || role === 'vip' ? DB.modules : (role === 'participant' ? participantModules(uid) : myModules());
+  const mids = new Set((mods || []).map(m => String(m.id)));
+  const scoped = arr => (arr || []).filter(x => !x.moduleId || mids.has(String(x.moduleId)));
+  switch (view) {
+    case 'programs': return role === 'participant' ? availableModules(uid).length : 0;
+    case 'enrolled-programs': return role === 'participant' ? participantModules(uid).length : role === 'vip' ? 0 : (mods || []).length;
+    case 'materials-library': return (mods || []).reduce((n,m)=>n+(m.materials||[]).length,0);
+    case 'activities': return role === 'participant' ? pendingQuizzesFor(uid).length : scoped(DB.activities).length;
+    case 'grading': return role === 'facilitator' ? myPendingSubmissionsCount(uid) : scoped(DB.pendingApprovals).length;
+    case 'approvals': return role === 'admin' ? pendingApprovalCountAll() : pendingApprovalCountFor(uid);
+    case 'attendance': return scoped(DB.attendance).length;
+    case 'final': return role === 'participant' ? upcomingFinalExamsFor(uid,99).length : scoped(DB.finalExams).length;
+    case 'bank': return scoped(DB.questionBank).length;
+    case 'users': return (DB.users||[]).filter(u=>u.status==='pending').length;
+    case 'participant-timetable': return scoped(DB.timetables).length;
+    case 'assessment-performance': return scoped(DB.attempts).length + scoped(DB.practical).length;
+    case 'rubrik': return scoped(DB.rubrics).length;
+    case 'participant-assessment': return scoped(DB.attempts).length + scoped(DB.practical).length;
+    case 'sijil': return scoped(DB.certificates).length;
+    default: return 0;
+  }
+}
+function tabUnreadCount(view) {
+  try {
+    const key = `cftp_tab_seen_${state.user?.id}_${view}`;
+    const seen = Number(localStorage.getItem(key) || 0);
+    return Math.max(0, tabNotificationCount(view) - seen);
+  } catch (_) { return 0; }
+}
+function markTabRead(view) {
+  try { localStorage.setItem(`cftp_tab_seen_${state.user?.id}_${view}`, String(tabNotificationCount(view))); } catch (_) {}
+}
+function playTabNotificationSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx(), osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination); osc.type='sine'; osc.frequency.value=880;
+    gain.gain.setValueAtTime(.0001,ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.025); gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.22);
+    osc.start(); osc.stop(ctx.currentTime+.23); osc.onended=()=>ctx.close();
+  } catch (_) {}
+}
+function navNotificationMarkup(view) {
+  const n = tabUnreadCount(view);
+  return n ? `<span class="tab-unread-badge" title="${currentLang==='en'?'Unread updates':'Maklumat belum dibaca'}">${n>99?'99+':n}</span>` : '';
+}
+
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
+function availableModulesForFilter() {
+  if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
+  const role = state.user.role;
+  let mods;
+  if (role === 'admin' || role === 'vip') mods = sortModules(DB.modules);
+  else if (role === 'participant') {
+    const ids = new Set((DB.enrollments || []).filter(e => String(e.participantId || e.userId || e.studentId) === String(state.user.id)).map(e => String(e.moduleId)));
+    mods = sortModules(DB.modules.filter(m => ids.has(String(m.id)) && (role !== 'participant' || m.published)));
+  } else mods = myModules();
+  return mods || [];
+}
+function applyGlobalModuleFilter(sourceDB, selectedId) {
+  if (!selectedId || selectedId === 'all') return sourceDB;
+  const module = (sourceDB.modules || []).find(m => String(m.id) === String(selectedId));
+  if (!module) return sourceDB;
+  const moduleName = String(module.name || '');
+  const activities = (sourceDB.activities || []).filter(a => String(a.moduleId || '') === String(selectedId) || String(a.module || '') === moduleName);
+  const activityIds = new Set(activities.map(a => String(a.id)));
+  const filtered = { ...sourceDB };
+  filtered.modules = (sourceDB.modules || []).filter(m => String(m.id) === String(selectedId));
+  filtered.activities = activities;
+  filtered.enrollments = (sourceDB.enrollments || []).filter(e => String(e.moduleId || '') === String(selectedId));
+  filtered.attempts = (sourceDB.attempts || []).filter(a => activityIds.has(String(a.activityId || a.aid || '')) || String(a.moduleId || '') === String(selectedId));
+  filtered.attendance = (sourceDB.attendance || []).filter(a => String(a.moduleId || '') === String(selectedId) || activityIds.has(String(a.activityId || a.aid || '')));
+  filtered.practical = (sourceDB.practical || []).filter(a => activityIds.has(String(a.activityId || a.aid || '')) || String(a.moduleId || '') === String(selectedId));
+  filtered.questionBank = (sourceDB.questionBank || []).filter(q => !q.moduleId || String(q.moduleId) === String(selectedId));
+  filtered.rubrics = (sourceDB.rubrics || []).filter(r => !r.moduleId || String(r.moduleId) === String(selectedId) || activityIds.has(String(r.activityId || '')));
+  filtered.timetables = (sourceDB.timetables || []).filter(t => String(t.moduleId || '') === String(selectedId));
+  filtered.finalExams = (sourceDB.finalExams || []).filter(f => String(f.moduleId || '') === String(selectedId) || (f.moduleConfigs || []).some(c => String(c.moduleId || '') === String(selectedId)) || (f.moduleIds || []).some(id => String(id) === String(selectedId)));
+  const finalIds = new Set(filtered.finalExams.map(f => String(f.id)));
+  filtered.feAttempts = (sourceDB.feAttempts || []).filter(a => finalIds.has(String(a.finalExamId || a.examId || '')) || String(a.moduleId || '') === String(selectedId));
+  filtered.fePractical = (sourceDB.fePractical || []).filter(a => finalIds.has(String(a.finalExamId || a.examId || '')) || String(a.moduleId || '') === String(selectedId));
+  filtered.retests = (sourceDB.retests || []).filter(a => activityIds.has(String(a.activityId || a.aid || '')) || String(a.moduleId || '') === String(selectedId));
+  filtered.pendingApprovals = (sourceDB.pendingApprovals || []).filter(a => activityIds.has(String(a.activityId || a.aid || '')) || String(a.moduleId || '') === String(selectedId));
+  return filtered;
+}
+
 function shell() {
   const u = state.user;
   const showManualSync = ['admin','trainer','facilitator'].includes(u.role);
-  return `<div class="shell">
+  return `<div class="shell ${u.role === 'admin' ? 'admin-shell' : ''}">
     <aside class="sidebar">
       <div class="brand"><div class="logo">CF</div><div><strong>${t('app_brand')}</strong><span>${t('app_brand_sub')}</span></div></div>
-      <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span></button>`).join('')}</nav>
+      <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span>${navNotificationMarkup(n.v)}</button>`).join('')}</nav>
       <div class="sidebar-foot">
         <div class="userchip" data-act="nav" data-view="profile" title="${esc(t('nav_profile'))}"><div class="avatar">${esc(initials(u.name))}</div><div style="flex:1;min-width:0"><strong>${tce(u.name)}</strong><span>${roleLabel(u.role)}${u.role === 'vip' && u.org ? ' · ' + tce(u.org) : ''}</span></div></div>
         <button class="btn" data-act="logout" style="width:100%;background:transparent;border-color:transparent;color:#9ec6b8;padding:.34rem .6rem;font-size:.78rem">${t('logout')}</button>
@@ -3947,7 +4128,9 @@ function shell() {
       <header class="topbar">
         <h1>${esc(titleFor(state.view))}</h1>
         <div class="tb-right">
-          ${u.role === 'admin' ? `<button class="btn btn-sm btn-primary" data-act="print-system-book" title="${currentLang === 'en' ? 'Print all system information as a book' : 'Cetak semua maklumat sistem sebagai buku'}">📚 ${currentLang === 'en' ? 'Print All' : 'Cetak Semua'}</button>` : ''}
+          <label class="module-filter-top" style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted,#667085)">📦 <span>${currentLang === 'en' ? 'Module' : 'Modul'}</span><select class="select" style="max-width:190px;min-width:120px;padding:.38rem .5rem" aria-label="${currentLang === 'en' ? 'Filter all tabs by module' : 'Tapis semua tab mengikut modul'}" onchange="window.globalModuleFilter=this.value;render()"><option value="all">${currentLang === 'en' ? 'All modules' : 'Semua modul'}</option>${availableModulesForFilter().map(m=>`<option value="${esc(m.id)}" ${String(window.globalModuleFilter||'all')===String(m.id)?'selected':''}>${tce(m.name)}</option>`).join('')}</select></label>
+          <button class="btn btn-sm btn-primary" id="syncAllNowBtn" data-act="sync-all-now" title="${currentLang === 'en' ? 'Check Google Drive and Google Sheets, then upload pending changes' : 'Semak Google Drive dan Google Sheets, kemudian muat naik perubahan'}">☁️ ${currentLang === 'en' ? 'Check & Sync' : 'Semak & Sync'}</button>
+          ${u.role === 'admin' ? `<button class="btn btn-sm" data-act="print-system-book" title="${currentLang === 'en' ? 'Print all system information as a book' : 'Cetak semua maklumat sistem sebagai buku'}">📚 ${currentLang === 'en' ? 'Print All' : 'Cetak Semua'}</button>` : ''}
           ${showManualSync ? `<button class="btn btn-sm" id="syncNowBtn" data-act="manual-sync" title="${esc(t('sync_manual_title'))}" aria-label="${esc(t('sync_manual_title'))}">☁️</button>` : ''}
           ${langToggleHtml()}
           <span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span>
@@ -3971,7 +4154,21 @@ function shell() {
     </div>
   </div>`;
 }
+let _tabNotificationSnapshot = null;
+function scanTabNotifications() {
+  if (!state.user || !DB) return;
+  const views = ['dashboard','materials-library','assessment-performance','programs','enrolled-programs','participant-timetable','modules','activities','final','grading','participant-assessment','attendance','approvals','rubrik','bank','users','companies','sijil','audit','reports'];
+  const snap = Object.fromEntries(views.map(v=>[v,tabNotificationCount(v)]));
+  if (!_tabNotificationSnapshot) {
+    try { views.forEach(v=>{ const key=`cftp_tab_seen_${state.user.id}_${v}`; if (localStorage.getItem(key) === null) localStorage.setItem(key, String(snap[v])); }); } catch (_) {}
+  } else {
+    const increased = views.some(v=>snap[v] > (_tabNotificationSnapshot[v]||0));
+    if (increased) playTabNotificationSound();
+  }
+  _tabNotificationSnapshot = snap;
+}
 function render() {
+  scanTabNotifications();
   stopQuizTimer();
   if (checkStandaloneFinal()) return;
   if (checkStandaloneQuiz()) return;
@@ -3982,9 +4179,13 @@ function render() {
   pushAppHistoryIfChanged();
 }
 function viewContent() {
+  const originalDB = DB;
+  DB = applyGlobalModuleFilter(originalDB, window.globalModuleFilter || 'all');
+  try {
   switch (state.view) {
     case 'dashboard': return dashboardView();
     case 'modules': return modulesView();
+    case 'materials-library': return materialsLibraryView();
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
     case 'enrolled-programs': return enrolledProgramsView();
@@ -4007,6 +4208,9 @@ function viewContent() {
     case 'reports': return reportsView();
     case 'profile': return profileView();
     default: return `<div class="card"><p>${t('msg_not_found')}</p></div>`;
+  }
+  } finally {
+    DB = originalDB;
   }
 }
 
@@ -4101,13 +4305,16 @@ function handleRegister(form) {
   const name = form.name.value.trim(), username = form.username.value.trim(), email = form.email.value.trim().toLowerCase();
   const org = form.org ? form.org.value.trim() : '';
   const pass = form.password.value, cp = form.confirmPassword.value;
-  if (!name || !username || !email || !pass) { toast(t('msg_required'), 'bad'); return; }
+  if (!name || !username || !email || !pass || !org) { toast(t('msg_required'), 'bad'); return; }
+  const registeredCompanies = companyList();
+  const matchedCompany = registeredCompanies.find(company => sameCompany(company, org));
+  if (!matchedCompany) { toast(currentLang === 'en' ? 'Please select a company from the registered company list.' : 'Sila pilih syarikat daripada senarai syarikat yang telah didaftarkan.', 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
   if (!assessPassword(pass).allMet) { toast(t('pwd_format_invalid'), 'bad'); return; }
   if (pass !== cp) { toast(t('password_mismatch'), 'bad'); return; }
   if (DB.users.find(x => String(x.username||'').toLowerCase() === username.toLowerCase())) { toast(t('username_taken'), 'bad'); return; }
   if (DB.users.find(x => String(x.email||'').toLowerCase() === email)) { toast(t('msg_email_taken'), 'bad'); return; }
-  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org, ic: '', phone: '', status: 'pending', createdAt: nowISO() };
+  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org: matchedCompany, ic: '', phone: '', status: 'pending', createdAt: nowISO() };
   DB.users.push(nu); saveDB();
   state.loginMode = 'login';
   try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
@@ -4169,6 +4376,7 @@ function vipDashboard() {
       <button class="btn" data-act="nav" data-view="grading">✅ ${t('nav_grading')}</button>
       <button class="btn" data-act="nav" data-view="final">🎓 ${t('nav_final')}</button>
       <button class="btn" data-act="nav" data-view="reports">📄 ${t('nav_reports')}</button>
+      <button class="btn btn-primary" data-act="vip-export-participants">📥 ${currentLang === 'en' ? 'Export Participant Data (Excel)' : 'Eksport Data Peserta (Excel)'}</button>
     </div>
   </div>
   <div class="card">
@@ -4188,6 +4396,103 @@ function vipDashboard() {
       <td><button class="btn btn-sm btn-primary" data-act="vip-view-progress" data-id="${r.p.id}">📊 ${t('vip_view_progress')}</button></td>
     </tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('vip_no_participants')}</div>`}
   </div>`;
+}
+
+function exportVipCompanyParticipantsExcel() {
+  if (!state.user || state.user.role !== 'vip') {
+    toast(t('msg_no_access'), 'bad');
+    return;
+  }
+  if (!ensureXLSX()) return;
+
+  const org = String(state.user.org || '').trim();
+  if (!org) {
+    toast(currentLang === 'en'
+      ? 'Your VIP account has no company assigned. Please contact the administrator.'
+      : 'Akaun VIP anda belum ditetapkan kepada syarikat. Sila hubungi pentadbir.', 'bad');
+    return;
+  }
+
+  // Enforce company scope at export time, not only in the UI.
+  const participants = allParticipants()
+    .filter(p => sameCompany(p.org, org))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  if (!participants.length) {
+    toast(currentLang === 'en'
+      ? 'No approved participants were found for your company.'
+      : 'Tiada peserta yang diluluskan ditemui untuk syarikat anda.', 'warn');
+    return;
+  }
+
+  const en = currentLang === 'en';
+  const summaryHeader = en
+    ? ['Participant ID', 'Participant Name', 'Email', 'Company', 'Modules Enrolled', 'Published Activities', 'Activities Assessed', 'Average Score (%)', 'Performance Status']
+    : ['ID Peserta', 'Nama Peserta', 'E-mel', 'Syarikat', 'Modul Didaftar', 'Aktiviti Diterbitkan', 'Aktiviti Dinilai', 'Purata Markah (%)', 'Status Prestasi'];
+  const detailHeader = en
+    ? ['Participant ID', 'Participant Name', 'Email', 'Company', 'Module', 'Activity', 'Activity Date', 'Quiz Score', 'Quiz Total', 'Quiz (%)', 'Practical (%)', 'Overall (%)', 'Attendance', 'Assessment Status']
+    : ['ID Peserta', 'Nama Peserta', 'E-mel', 'Syarikat', 'Modul', 'Aktiviti', 'Tarikh Aktiviti', 'Markah Kuiz', 'Jumlah Kuiz', 'Kuiz (%)', 'Amali (%)', 'Keseluruhan (%)', 'Kehadiran', 'Status Penilaian'];
+
+  const summaryRows = [summaryHeader];
+  const detailRows = [detailHeader];
+
+  participants.forEach(p => {
+    const modules = participantModules(p.id);
+    const activities = accessibleActivities(p.id);
+    const scores = activities.map(a => ({ a, s: scoreFor(a, p.id) }));
+    const assessed = scores.filter(x => x.s.hasData);
+    const average = assessed.length
+      ? Math.round(avg(assessed.map(x => x.s.overall)))
+      : '';
+
+    let status = '';
+    if (average === '') status = en ? 'Not assessed' : 'Belum dinilai';
+    else if (average >= 80) status = en ? 'Excellent' : 'Cemerlang';
+    else if (average >= 70) status = en ? 'Competent' : 'Kompeten';
+    else status = en ? 'Needs improvement' : 'Perlu penambahbaikan';
+
+    summaryRows.push([
+      p.id || '', p.name || '', p.email || '', p.org || '',
+      modules.length, activities.length, assessed.length, average, status
+    ]);
+
+    scores.forEach(({ a, s }) => {
+      const attempt = s.attempt;
+      const practical = s.pracPct !== null ? s.pracPct : '';
+      const attendance = s.attendance
+        ? (s.attendance.status || '')
+        : '';
+      detailRows.push([
+        p.id || '', p.name || '', p.email || '', p.org || '',
+        moduleName(a.moduleId), a.title || '', a.date || '',
+        attempt ? attempt.score : '', attempt ? attempt.total : '',
+        s.quizPct !== null ? s.quizPct : '', practical,
+        s.overall !== null ? s.overall : '', attendance,
+        s.hasData ? (en ? 'Assessed' : 'Dinilai') : (en ? 'Not assessed' : 'Belum dinilai')
+      ]);
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryRows);
+  const detailWs = XLSX.utils.aoa_to_sheet(detailRows);
+  summaryWs['!cols'] = [
+    {wch:22},{wch:28},{wch:32},{wch:24},{wch:18},{wch:20},{wch:20},{wch:18},{wch:22}
+  ];
+  detailWs['!cols'] = [
+    {wch:22},{wch:28},{wch:32},{wch:24},{wch:28},{wch:32},{wch:16},
+    {wch:14},{wch:14},{wch:12},{wch:14},{wch:14},{wch:18},{wch:20}
+  ];
+  if (summaryRows.length > 1) summaryWs['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:summaryRows.length-1,c:summaryHeader.length-1}}) };
+  if (detailRows.length > 1) detailWs['!autofilter'] = { ref: XLSX.utils.encode_range({s:{r:0,c:0},e:{r:detailRows.length-1,c:detailHeader.length-1}}) };
+  XLSX.utils.book_append_sheet(wb, summaryWs, en ? 'Participant Summary' : 'Ringkasan Peserta');
+  XLSX.utils.book_append_sheet(wb, detailWs, en ? 'Activity Details' : 'Butiran Aktiviti');
+
+  const safeOrg = org.replace(/[^a-z0-9_-]+/gi, '_').replace(/^_+|_+$/g, '') || 'Company';
+  XLSX.writeFile(wb, `VIP_Participant_Data_${safeOrg}.xlsx`);
+  toast(en
+    ? `Exported ${participants.length} company participants to Excel.`
+    : `${participants.length} peserta syarikat berjaya dieksport ke Excel.`, 'ok');
 }
 
 function openVipParticipantProgress(pid) {
@@ -4628,11 +4933,92 @@ function modulesView() {
   </div>`;
 }
 
-function renderMaterialsSection(m, canEdit) {
-  const mats = m.materials || [];
-  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type)}</div><div class="mat-body"><div class="mat-name">${tce(mat.name)}</div><div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer')}</div>`}</div>`;
+
+function materialsLibraryView() {
+  const role = state.user.role;
+  let mods = [];
+  if (role === 'admin' || role === 'vip') {
+    mods = sortModules(DB.modules);
+  } else if (role === 'participant') {
+    const enrolledIds = new Set((DB.enrollments || [])
+      .filter(e => String(e.participantId || e.userId || e.studentId) === String(state.user.id))
+      .map(e => String(e.moduleId)));
+    mods = sortModules(DB.modules.filter(m => m.published && enrolledIds.has(String(m.id))));
+  } else {
+    mods = myModules();
+  }
+  const q = (window.materialLibraryQuery || '').toLowerCase().trim();
+  const rows = mods.map(m => ({...m, materials:(m.materials || []).map(mat=>({...mat, moduleId:m.id, moduleName:m.name}))}))
+    .map(m => ({...m, materials:m.materials.filter(mat => !q || [mat.name,mat.originalName,mat.description,m.name].some(v=>String(v||'').toLowerCase().includes(q)))}))
+    .filter(m => m.materials.length);
+  const total = rows.reduce((n,m)=>n+m.materials.length,0);
+  return `<div class="card">
+    <div class="card-head"><div><h2>📚 ${currentLang==='en'?'Learning Materials':'Bahan Pembelajaran'}</h2>
+      <small class="muted">${currentLang==='en'?'A central library of learning files grouped by training module.':'Pusat bahan pembelajaran yang dihimpunkan dan diasingkan mengikut modul latihan.'}</small></div>
+      <span class="pill">${total} ${currentLang==='en'?'files':'fail'}</span></div>
+    <div style="max-width:520px;margin-bottom:16px">
+      <div class="field"><label>${currentLang==='en'?'Search materials':'Cari bahan'}</label>
+        <input class="input" value="${esc(window.materialLibraryQuery||'')}" placeholder="${currentLang==='en'?'Search file, description or module…':'Cari nama fail, penerangan atau modul…'}" oninput="window.materialLibraryQuery=this.value; const v=document.querySelector('#view'); if(v) v.innerHTML=viewContent()"></div>
+    </div>
+    ${rows.length ? rows.map(m=>`<section class="card" style="box-shadow:none;margin-bottom:12px;background:#fbfdfc">
+      <div class="card-head"><div><h3>📦 ${tce(m.name)}</h3><small class="muted">${m.materials.length} ${currentLang==='en'?'materials':'bahan'}${m.description?' · '+tce(m.description):''}</small></div>
+      <button class="btn btn-sm" data-act="nav" data-view="module" data-id="${esc(m.id)}">${currentLang==='en'?'Open module':'Buka modul'}</button></div>
+      <div class="material-list">${m.materials.map(mat=>`<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name||mat.originalName||''))}</div>
+        <div class="mat-body"><div class="mat-name">${tce(mat.name||mat.originalName||'Untitled file')}</div>
+        <div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name||''))}${mat.size?' · '+formatFileSize(mat.size):''}${mat.uploadedAt?' · '+fmtDate(mat.uploadedAt):''}</div>
+        ${mat.description?`<div class="mat-desc">${tce(mat.description)}</div>`:''}</div>
+        <div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${esc(m.id)}" data-matid="${esc(mat.id)}" title="${t('btn_view')}">👁️ ${currentLang==='en'?'View':'Lihat'}</button>
+        <button class="btn btn-sm" data-act="download-material" data-mid="${esc(m.id)}" data-matid="${esc(mat.id)}" title="${t('btn_download')}">⬇️</button></div></div>`).join('')}</div></section>`).join('') :
+      `<div class="empty">📂<p>${currentLang==='en'?'No learning materials found for the modules available to your account.':'Tiada bahan pembelajaran ditemui bagi modul yang tersedia untuk akaun anda.'}</p><small>${currentLang==='en'?'Materials are shown here when they have been added to a module.':'Bahan akan dipaparkan di sini apabila dimasukkan ke dalam modul.'}</small></div>`}
+  </div>`;
 }
 
+function renderMaterialsSection(m, canEdit) {
+  const mats = m.materials || [];
+  const refreshLabel = currentLang === 'en' ? '🔄 Check Google Drive' : '🔄 Semak Google Drive';
+  const emptyText = canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer');
+  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}</div>`;
+}
+
+/** Pull existing materials from Drive into the module record, so old Drive files
+ * are shown even if they were not uploaded through this app or were never saved
+ * in m.materials. */
+async function refreshModuleMaterialsFromDrive(mid, quiet = false) {
+  const m = getModule(mid);
+  if (!m) { if (!quiet) toast(t('msg_not_found'), 'bad'); return false; }
+  try {
+    const res = await driveAPI('listModuleMaterials', { moduleId: m.id, moduleName: m.name });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Google Drive list failed');
+    const existing = Array.isArray(m.materials) ? m.materials : [];
+    const byFileId = new Map(existing.filter(x => x.fileId).map(x => [String(x.fileId), x]));
+    const merged = existing.slice();
+    (Array.isArray(res.files) ? res.files : []).forEach(f => {
+      if (!f || !f.id) return;
+      const found = byFileId.get(String(f.id));
+      if (found) {
+        Object.assign(found, { downloadUrl: f.downloadUrl || found.downloadUrl, viewUrl: f.viewUrl || found.viewUrl, previewUrl: f.previewUrl || found.previewUrl, folderId: f.folderId || found.folderId, folderUrl: f.folderUrl || found.folderUrl, size: f.size || found.size, mime: f.mimeType || found.mime });
+      } else {
+        const mat = {
+          id: 'drive_' + String(f.id), fileId: String(f.id), name: f.name || 'Drive file', originalName: f.name || 'Drive file',
+          type: fileTypeFromName(f.name || ''), mime: f.mimeType || 'application/octet-stream', size: Number(f.size) || 0,
+          downloadUrl: f.downloadUrl || '', viewUrl: f.viewUrl || f.url || '', previewUrl: f.previewUrl || f.viewUrl || f.url || '',
+          folderId: f.folderId || res.folderId || null, folderUrl: f.folderUrl || res.folderUrl || null,
+          description: f.description || '', uploadedBy: null, uploadedAt: f.createdAt || f.updatedAt || null, fromDrive: true
+        };
+        merged.push(mat); byFileId.set(String(f.id), mat);
+      }
+    });
+    m.materials = merged;
+    saveDB();
+    if (!quiet) toast(currentLang === 'en' ? `Google Drive checked: ${res.files ? res.files.length : 0} file(s) found.` : `Google Drive disemak: ${res.files ? res.files.length : 0} fail ditemui.`, 'ok');
+    if (state.view === 'module' && state.params && state.params.moduleId === mid) render();
+    return true;
+  } catch (err) {
+    console.error('refreshModuleMaterialsFromDrive failed:', err);
+    if (!quiet) toast((currentLang === 'en' ? 'Cannot load module files from Google Drive: ' : 'Gagal memuatkan bahan daripada Google Drive: ') + (err.message || 'Unknown error'), 'bad');
+    return false;
+  }
+}
 function renderTimetableSection(m, canEdit) {
   const entries = moduleTimetable(m.id);
   const byDate = {};
@@ -4759,7 +5145,9 @@ function moduleDetailView() {
 
 function participantTimetableView() {
   const me = state.user;
-  const modules = (me.role === 'participant' ? participantModules(me.id) : myModules()).filter(m => m.published !== false);
+  // VIP is a company-level view: show timetable entries for every programme/module.
+  // Participants still see only their own enrolled modules; trainers/facilitators see assigned modules.
+  const modules = (me.role === 'vip' ? sortModules(DB.modules) : (me.role === 'participant' ? participantModules(me.id) : myModules())).filter(m => m.published !== false);
   const mids = new Set(modules.map(m => m.id));
   const entries = DB.timetables.filter(e => mids.has(e.moduleId)).map(e => ({...e, itemType:'entry', module:getModule(e.moduleId)}));
   modules.forEach(m => { if (m.startDate || m.endDate) entries.push({id:'module-range-'+m.id,moduleId:m.id,module:m,itemType:'range',date:m.startDate||m.endDate,endDate:m.endDate||m.startDate,startTime:m.startTime||'',endTime:m.endTime||'',title:m.name}); });
@@ -4773,7 +5161,13 @@ function participantTimetableView() {
     const dayLabel=dateKey==='undated'?(currentLang==='en'?'Date not set':'Tarikh belum ditetapkan'):(()=>{const d=new Date(dateKey+'T12:00:00');const ms=currentLang==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];return ms[d.getDay()]+', '+fmtDate(dateKey);})();
     return `<div class="card" style="margin-top:14px"><div class="card-head"><h3>📅 ${dayLabel}</h3><span class="badge info">${items.length} ${currentLang==='en'?'sessions':'sesi'}</span></div><div class="table-wrap" style="overflow-x:auto"><table class="participant-day-grid" style="min-width:1850px;border-collapse:separate;border-spacing:0"><thead><tr>${slots.map(s=>`<th style="min-width:130px;text-align:center;white-space:nowrap">${s.label}</th>`).join('')}</tr></thead><tbody><tr>${slots.map(slot=>{const found=items.filter(x=>{const st=toMinutes(x.startTime);return st===null?slot.mins===480:(st>=slot.mins&&st<slot.end);});return `<td style="vertical-align:top;min-width:130px;height:95px;padding:4px">${found.length?found.map(renderItem).join(''):'<span class="muted" style="opacity:.35">—</span>'}</td>`;}).join('')}</tr></tbody></table></div></div>`;
   };
-  return `<div class="card"><div class="card-head"><div><h2>🗓️ ${currentLang==='en'?'Participant Timetable':'Jadual Waktu Peserta'}</h2><small class="muted">${currentLang==='en'?'Each date is displayed in a separate horizontal timetable. Click a session for details.':'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.'}</small></div></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No enrolled modules found.':'Tiada modul yang didaftarkan.'}</div>`}</div>`;
+  const title = me.role === 'vip'
+    ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
+    : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
+  const subtitle = me.role === 'vip'
+    ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
+    : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
+  return `<div class="card"><div class="card-head"><div><h2>🗓️ ${title}</h2><small class="muted">${subtitle}</small></div><span class="pill">${entries.length} ${currentLang==='en'?'sessions':'sesi'}</span></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No modules found.':'Tiada modul ditemui.'}</div>`}</div>`;
 }
 function showParticipantTimetableDetail(id, kind) {
   let x;
@@ -4895,7 +5289,8 @@ function finalExamsView() {
           ${isVip ? `<button class="btn btn-sm btn-primary" data-act="vip-final-scores" data-id="${fe.id}">${t('vip_view_scores')}</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm" data-act="edit-final-exam" data-id="${fe.id}">✏️</button>` : ''}
           ${!isVip && fe.type === 'theory' && (isAdmin || (myProg && myProg.modules > 0)) ? `<button class="btn btn-sm ${(!isAdmin && myPending > 0) ? 'btn-primary' : ''}" data-act="fe-questions-overview" data-id="${fe.id}" title="${t('fe_questions')}">🗂️ ${isAdmin ? feTotalQuestions(fe) + '/' + feTotalExpected(fe) : (myProg ? myProg.count + '/' + myProg.target : '—')}${(!isAdmin && myPending > 0) ? ' 📝' : ''}</button>` : ''}
-          ${!isVip && fe.type === 'practical' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `<button class="btn btn-sm" data-act="fe-assess" data-id="${fe.id}" title="${t('fe_assess')}">📏 ${t('fe_assess')}</button>` : ''}
+          ${!isVip && fe.type === 'theory' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `${feTotalQuestions(fe) > 0 ? `<button class="btn btn-sm" data-act="fe-print-theory" data-id="${fe.id}">🖨️ ${currentLang==='en'?'Print Questions':'Cetak Soalan'}</button>` : ''}<button class="btn btn-sm" data-act="fe-theory-marks" data-id="${fe.id}">✍️ ${currentLang==='en'?'Enter Marks':'Masuk Markah'}</button>` : ''}
+          ${!isVip && fe.type === 'practical' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `<button class="btn btn-sm" data-act="fe-marks-template" data-id="${fe.id}">📥 ${currentLang==='en'?'Excel Template':'Template Excel'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${fe.id}">📤 ${currentLang==='en'?'Upload Marks':'Upload Markah'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${fe.id}">🖨️ ${currentLang==='en'?'Print Rubrics':'Cetak Rubrik'}</button><button class="btn btn-sm" data-act="fe-practical-participants" data-id="${fe.id}">✍️ ${currentLang==='en'?'Enter Marks':'Masuk Markah'}</button>` : ''}
           ${!isVip && fe.published && fe.type === 'theory' && feTotalQuestions(fe) > 0 ? `<button class="btn btn-sm" data-act="open-final-tab" data-id="${fe.id}" title="${t('quiz_preview')}">👁️</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm ${fe.published ? '' : 'btn-primary'}" data-act="toggle-final-publish" data-id="${fe.id}">${fe.published ? t('fe_unpublish') : '✅ ' + t('fe_publish')}</button><button class="btn btn-sm btn-danger" data-act="delete-final-exam" data-id="${fe.id}">🗑️</button>` : ''}
         </div></td>
@@ -5194,11 +5589,102 @@ function handleFeBankPickerSubmit(form) {
   closeModal2(); renderFeQuestionsBuilder(); toast(t('qb_pick_added', picked.length));
 }
 
+function finalPracticalContext(feid) {
+  const fe=getFinalExam(feid); if(!fe || fe.type!=='practical') throw new Error('Final practical exam not found.');
+  const rb=getRubricById(fe.rubricId); const criteria=rb?.criteria||[];
+  if(!criteria.length) throw new Error('Final exam has no rubric criteria.');
+  const mids=feModuleIds(fe);
+  const participants=(DB.users||[]).filter(u=>u.role==='participant'&&u.status==='approved'&&mids.some(mid=>isEnrolled(mid,u.id)));
+  return {fe,rb,criteria,participants};
+}
+function downloadFinalPracticalMarksTemplate(feid) {
+  try {
+    if(!ensureXLSX()) return;
+    const {fe,rb,criteria,participants}=finalPracticalContext(feid);
+    const headers=['Participant ID','Participant Name','Organisation',...criteria.map(c=>String(c.name||'Criterion').trim()),'Remarks'];
+    const rows=participants.map(p=>{const pr=fePracticalFor(feid,p.id);return [p.id,p.name||'',p.org||'',...criteria.map((c,i)=>pr?.scores?.[i]??''),pr?.remarks||''];});
+    const ws=XLSX.utils.aoa_to_sheet([[`Final Exam: ${fe.title}`],[`Modules: ${feModulesLabel(fe)}`],[`Rubric: ${rb.name}`],['Instruction: Enter only valid marks shown in the rubric. Do not edit Participant ID or criterion headers.'],[],headers,...rows]);
+    ws['!cols']=[{wch:24},{wch:30},{wch:24},...criteria.map(()=>({wch:22})),{wch:36}];
+    ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:5,c:0},e:{r:5+rows.length,c:headers.length-1}})}; ws['!freeze']={xSplit:3,ySplit:6};
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Final Exam Marks');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FIELD','INSTRUCTION'],['Participant ID','Unique participant key; do not edit.'],['Criterion columns','Enter a numeric mark that matches one of the rubric performance-level marks.'],['Remarks','Optional feedback.'],['Upload','Upload this completed .xlsx to the same Final Exam. Invalid or duplicate rows cancel the import.']]),'Instructions');
+    XLSX.writeFile(wb,`Final_Exam_Marks_${String(fe.title||'Exam').replace(/[^a-z0-9_-]/gi,'_')}.xlsx`);
+    toast(currentLang==='en'?'Final exam Excel template downloaded.':'Template Excel peperiksaan akhir dimuat turun.');
+  } catch(e){toast('⚠️ '+e.message,'bad');}
+}
+async function importFinalPracticalMarksExcel(file,feid) {
+  if(!ensureXLSX()) return;
+  const {fe,criteria,participants}=finalPracticalContext(feid); const wb=await readExcelFile(file);
+  const ws=wb.Sheets['Final Exam Marks']||wb.Sheets[wb.SheetNames[0]]; if(!ws) throw new Error('Final Exam Marks sheet not found.');
+  const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+  const hr=data.findIndex(r=>String(r[0]||'').trim().toLowerCase()==='participant id'); if(hr<0) throw new Error('Participant ID column not found. Download a fresh template.');
+  const headers=data[hr].map(v=>String(v||'').trim()), idCol=headers.findIndex(h=>h.toLowerCase()==='participant id'), remCol=headers.findIndex(h=>h.toLowerCase()==='remarks');
+  const cols=criteria.map(c=>headers.findIndex(h=>h===String(c.name||'').trim())); if(cols.some(i=>i<0)) throw new Error('Rubric columns do not match the current exam. Download a fresh template.');
+  const allowed=new Map(participants.map(p=>[String(p.id),p])), seen=new Set(), parsed=[], errors=[]; let incomplete=0;
+  for(let r=hr+1;r<data.length;r++){const row=data[r]||[],pid=String(row[idCol]||'').trim();if(!pid)continue;
+    if(!allowed.has(pid)){errors.push(`Row ${r+1}: participant ${pid} is not enrolled.`);continue;} if(seen.has(pid)){errors.push(`Row ${r+1}: duplicate participant ${pid}.`);continue;}seen.add(pid);
+    const scores=criteria.map((c,i)=>{const raw=row[cols[i]];if(raw===''||raw===null||raw===undefined)return null;const n=Number(raw);return (c.levels||[]).some(l=>Number(l.mark)===n)?n:null;});
+    if(scores.some(x=>x===null)){incomplete++;continue;}
+    let weighted=0,tw=0;criteria.forEach((c,i)=>{const mx=Math.max(...(c.levels||[]).map(l=>Number(l.mark)||0));tw+=Number(c.weight)||0;weighted+=mx>0?(scores[i]/mx)*(Number(c.weight)||0):0;});
+    parsed.push({pid,scores,total:tw>0?(weighted/tw)*100:0,remarks:remCol>=0?String(row[remCol]||'').trim():''});
+  }
+  if(errors.length) throw new Error(`Import cancelled (${errors.length} issue(s)):\n${errors.slice(0,8).join('\n')}`);
+  if(!parsed.length) throw new Error('No complete valid marks found.');
+  const mids=feModuleIds(fe),fac=state.user.role==='facilitator'||(state.user.role!=='admin'&&mids.some(mid=>isFacilitatorOf(mid,state.user.id)));
+  parsed.forEach(item=>{const payload={scores:item.scores,total:item.total,remarks:item.remarks};
+    if(fac){if(!Array.isArray(DB.pendingApprovals))DB.pendingApprovals=[];let pa=DB.pendingApprovals.find(x=>x.type==='final-practical'&&x.finalId===feid&&x.participantId===item.pid&&x.status==='pending');if(pa){pa.data=payload;pa.submittedAt=nowISO();}else DB.pendingApprovals.push({id:uid('pa'),type:'final-practical',moduleId:mids[0]||null,finalId:feid,participantId:item.pid,data:payload,submittedBy:state.user.id,submittedAt:nowISO(),status:'pending',reviewedBy:null,reviewedAt:null,reviewRemarks:''});}
+    else {let rec=(DB.fePractical||[]).find(x=>x.finalId===feid&&x.participantId===item.pid);if(rec){Object.assign(rec,payload,{by:state.user.id,at:nowISO()});}else DB.fePractical.push({id:uid('fep'),finalId:feid,participantId:item.pid,...payload,by:state.user.id,at:nowISO()});}
+    logAudit(fac?'Bulk Final Practical Submitted':'Bulk Final Practical Marks Import','Peperiksaan',`${feid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
+  });
+  saveDB();toast(`${parsed.length} ${currentLang==='en'?'participant marks imported':'rekod markah peserta diimport'}.${incomplete?` ${incomplete} incomplete row(s) skipped.`:''}${fac?' Sent for trainer approval.':''}`);render();
+}
+function finalPracticalRubricPrintHTML(feid,pid) {
+  const {fe,rb,criteria,participants}=finalPracticalContext(feid), cohort=pid?participants.filter(p=>p.id===pid):participants;
+  if(!cohort.length)throw new Error('No enrolled participants found.');
+  const pages=cohort.map((p,idx)=>{const pr=fePracticalFor(feid,p.id);const rows=criteria.map((c,i)=>`<tr><td><b>${esc(c.name)}</b><div class="muted">${Number(c.weight)||0}%</div></td><td>${(c.levels||[]).slice().sort((a,b)=>Number(b.mark)-Number(a.mark)).map(l=>`<div class="level">□ <b>${esc(l.label)}</b> <span class="mark">${esc(l.mark)}</span><div class="muted">${esc(l.description||'')}</div></div>`).join('')}</td><td class="score">${pr?.scores?.[i]??''}</td></tr>`).join('');
+    return `<section class="page"><header><b>CFTP · FINAL EXAMINATION</b><h1>FINAL EXAM PRACTICAL RUBRIC</h1><h2>${esc(fe.title)}</h2><p>${esc(feModulesLabel(fe))} · ${esc(rb.name)}</p></header><div class="person"><div><small>PARTICIPANT</small><b>${esc(p.name||'')}</b></div><div><small>PARTICIPANT ID</small><b>${esc(p.id)}</b></div><div><small>ORGANISATION</small><b>${esc(p.org||'—')}</b></div><div><small>DATE</small><b>________________</b></div></div><table><thead><tr><th>CRITERION</th><th>PERFORMANCE LEVEL / DESCRIPTOR</th><th>MARK</th></tr></thead><tbody>${rows}</tbody></table><div class="total">OVERALL MARK: <b>${pr?Number(pr.total).toFixed(1)+'%':'________ %'}</b></div><p>Trainer / Facilitator remarks:</p><div class="remarks">${esc(pr?.remarks||'')}</div><div class="sign">_________________________ Trainer / Facilitator <span>_________________________ Participant</span></div><footer>Printed ${esc(new Date().toLocaleString())} · ${idx+1}/${cohort.length}</footer></section>`;
+  }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Final Exam Rubric</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial;color:#26352e}.page{page-break-after:always;break-after:page;min-height:270mm;position:relative}.page:last-child{page-break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px;color:#0b6b53}h1{font-size:19px;margin:6px 0}h2{font-size:14px;margin:0;color:#26352e}header p,.muted{color:#687a72;font-size:9px}.person{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:7px;margin:12px 0}.person div{border:1px solid #ccd9d2;padding:8px;min-height:42px}.person small{display:block;font-size:8px;color:#687a72}.person b{font-size:10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left}.level{padding:4px;border-bottom:1px dotted #ddd}.mark{float:right;font-weight:bold}.score{text-align:center;font-size:15px;font-weight:bold}.total{margin-top:12px;padding:12px;text-align:right;background:#f1f8f4;border:1px solid #b9cfc3}.total b{font-size:17px;color:#0b6b53}.remarks{border:1px solid #cbd8d1;min-height:45px;padding:8px}.sign{display:flex;justify-content:space-between;margin-top:24px;font-size:9px}footer{position:absolute;bottom:0;border-top:1px solid #ddd;width:100%;padding-top:5px;font-size:8px;color:#777}</style></head><body>${pages}</body></html>`;
+}
+function printFinalPracticalRubric(feid,pid){try{printHTML(finalPracticalRubricPrintHTML(feid,pid||null));}catch(e){toast('⚠️ '+e.message,'bad');}}
+
+function printFinalTheoryQuestions(feid) {
+  const fe=getFinalExam(feid); if(!fe || fe.type!=='theory') return;
+  const qs=feQuestionsAll(fe); if(!qs.length){toast(currentLang==='en'?'No theory questions available.':'Tiada soalan teori.','warn');return;}
+  const body=`<h1>${tce(fe.title)}</h1><p>${tce(feModulesLabel(fe))} · ${qs.length} ${currentLang==='en'?'questions':'soalan'}</p><p>${currentLang==='en'?'Participant name':'Nama peserta'}: ____________________ &nbsp; ${currentLang==='en'?'Date':'Tarikh'}: ______________</p><hr>${qs.map((q,i)=>`<section><b>${i+1}. ${tce(q.q)}</b><small> [${tce(moduleName(q.moduleId||''))}]</small>${(q.options||[]).map((o,j)=>`<p>${'ABCD'[j]}. ${tce(o)}</p>`).join('')}<br></section>`).join('')}`;
+  printHTML(`<html><head><meta charset="utf-8"><title>${esc(fe.title)}</title><style>@page{size:A4;margin:18mm}body{font:12pt Arial;line-height:1.5;color:#17251f}h1{color:#0b6b53}section{page-break-inside:avoid;margin:0 0 18px}hr{border:0;border-top:2px solid #dce9e3}</style></head><body>${body}</body></html>`);
+}
+function openFinalTheoryMarks(feid) {
+  const fe=getFinalExam(feid); if(!fe || fe.type!=='theory')return;
+  const mids=feModuleIds(fe); const parts=DB.users.filter(u=>u.role==='participant'&&u.status==='approved'&&mids.some(mid=>isEnrolled(mid,u.id)));
+  openModal2(`<h2>✍️ ${currentLang==='en'?'Final Theory Marks':'Markah Teori Peperiksaan Akhir'}</h2><p class="muted">${tce(fe.title)} · ${tce(feModulesLabel(fe))}</p><div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${currentLang==='en'?'Mark':'Markah'}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(p=>{const a=feAttemptFor(feid,p.id);return `<tr><td>${tce(p.name)}</td><td>${a?`<b>${Math.round(Number(a.score)/Math.max(1,Number(a.total))*100)}%</b>`:'—'}</td><td><button class="btn btn-sm btn-primary" data-act="fe-theory-mark-one" data-feid="${feid}" data-pid="${p.id}">✍️ ${currentLang==='en'?'Enter / Edit':'Masuk / Edit'}</button></td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`, 'modal-lg');
+}
+function openFinalTheoryMarkForm(feid,pid) {
+  const fe=getFinalExam(feid),p=DB.users.find(x=>x.id===pid);if(!fe||!p)return;
+  const old=feAttemptFor(feid,pid), total=feQuestionsAll(fe).length||100;
+  const oldPct=old?Number(old.score)/Math.max(1,Number(old.total))*100:'';
+  openModal(`<h2>✍️ ${currentLang==='en'?'Enter Theory Mark':'Masukkan Markah Teori'}</h2><p><b>${tce(p.name)}</b> · ${tce(fe.title)}</p><form data-form="final-theory-mark" data-feid="${feid}" data-pid="${pid}"><div class="field"><label>${currentLang==='en'?'Mark (%)':'Markah (%)'} *</label><input class="input" type="number" name="mark" min="0" max="100" step="0.1" required value="${oldPct===''?'':oldPct.toFixed(1)}" placeholder="0 - 100"></div><div class="field"><label>${currentLang==='en'?'Trainer / Facilitator notes':'Catatan Jurulatih / Fasilitator'}</label><textarea class="textarea" name="notes">${esc(old?.manualNotes||'')}</textarea></div><div class="info-box"><p>${currentLang==='en'?'This is a manually entered percentage mark. It will be recorded as the participant’s final theory result.':'Markah peratus dimasukkan secara manual dan direkodkan sebagai keputusan teori peperiksaan akhir peserta.'}</p></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">💾 ${t('btn_save')}</button></div></form>`);
+}
+function handleSaveFinalTheoryMark(form) {
+  const feid=form.dataset.feid,pid=form.dataset.pid,fe=getFinalExam(feid);if(!fe)return;
+  const mark=Number(form.mark.value);if(!Number.isFinite(mark)||mark<0||mark>100){toast(currentLang==='en'?'Enter a mark from 0 to 100.':'Masukkan markah antara 0 hingga 100.','bad');return;}
+  if(!['admin','trainer','facilitator'].includes(state.user.role)||(state.user.role!=='admin'&&!feModuleIds(fe).some(mid=>canTrainerAccessModule(mid)))){toast(t('msg_no_access'),'bad');return;}
+  if(!Array.isArray(DB.feAttempts))DB.feAttempts=[];
+  let rec=DB.feAttempts.find(x=>x.finalId===feid&&x.participantId===pid&&x.manualEntry);
+  const data={score:mark,total:100,answers:[],at:nowISO(),auto:false,manualEntry:true,manualNotes:(form.notes?.value||'').trim(),enteredBy:state.user.id,enteredByName:state.user.name,source:'manual-final-theory-mark'};
+  if(rec)Object.assign(rec,data);else DB.feAttempts.push(Object.assign({id:uid('feat'),finalId:feid,participantId:pid},data));
+  saveDB();logAudit('Manual Final Theory Mark','Peperiksaan',`${feid}:${pid}`,`${userName(pid)}: ${mark}%`);closeModal();closeModal2();render();saveCritical(currentLang==='en'?`Final theory mark saved: ${mark}%.`:`Markah teori peperiksaan akhir disimpan: ${mark}%.`,'ok');
+}
+function openFinalPracticalParticipants(feid){
+  const fe=getFinalExam(feid);if(!fe)return;const mids=feModuleIds(fe);const parts=DB.users.filter(u=>u.role==='participant'&&u.status==='approved'&&mids.some(mid=>isEnrolled(mid,u.id)));
+  openModal2(`<h2>✍️ ${currentLang==='en'?'Final Practical Marks':'Markah Praktikal Peperiksaan Akhir'}</h2><p class="muted">${tce(fe.title)} · ${tce(feModulesLabel(fe))}</p><div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(u=>{const pr=fePracticalFor(feid,u.id),pa=hasPendingApprovalFor('final-practical',feid,u.id);return `<tr><td>${tce(u.name)}</td><td>${pr?Math.round(pr.total)+'%':'—'}${pa?' ⏳':''}</td><td><button class="btn btn-sm" data-act="fe-practical-form" data-feid="${feid}" data-pid="${u.id}">${pr?'✏️ '+t('btn_edit'):'✍️ '+t('fe_assess')}</button><button class="btn btn-sm" data-act="fe-print-rubric-one" data-feid="${feid}" data-pid="${u.id}">🖨️</button></td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`, 'modal-lg');
+}
+
 function openFinalAssessModal(feid) {
   const fe = getFinalExam(feid); if (!fe) return;
   const examMids = feModuleIds(fe);
   const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && examMids.some(mid => isEnrolled(mid, u.id)));
-  openModal2(`<h2>📏 ${t('fe_assess')}</h2><p class="muted">${tce(fe.title)} — ${tce(feModulesLabel(fe))}</p>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(u => { const pr = fePracticalFor(feid, u.id); const pa = hasPendingApprovalFor('final-practical', feid, u.id); return `<tr><td>${tce(u.name)}</td><td>${pr ? '<strong>' + Math.round(pr.total) + '%</strong>' : '—'}${pa ? ` <span class="pending-badge-pulse">⏳</span>` : ''}</td><td><button class="btn btn-sm" data-act="fe-practical-form" data-feid="${feid}" data-pid="${u.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('fe_assess')}</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('grad_no_participants')}</div>`}<div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`);
+  openModal2(`<h2>📏 ${t('fe_assess')}</h2><p class="muted">${tce(fe.title)} — ${tce(feModulesLabel(fe))}</p><div class="toolbar" style="margin:10px 0"><button class="btn btn-sm" data-act="fe-marks-template" data-id="${feid}">📥 ${currentLang==='en'?'Download Excel Template':'Muat Turun Template Excel'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${feid}">📤 ${currentLang==='en'?'Upload Excel Marks':'Upload Markah Excel'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${feid}">🖨️ ${currentLang==='en'?'Print Rubrics for Participants':'Cetak Rubrik Peserta'}</button></div>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(u => { const pr = fePracticalFor(feid, u.id); const pa = hasPendingApprovalFor('final-practical', feid, u.id); return `<tr><td>${tce(u.name)}</td><td>${pr ? '<strong>' + Math.round(pr.total) + '%</strong>' : '—'}${pa ? ` <span class="pending-badge-pulse">⏳</span>` : ''}</td><td><button class="btn btn-sm" data-act="fe-practical-form" data-feid="${feid}" data-pid="${u.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('fe_assess')}</button><button class="btn btn-sm" data-act="fe-print-rubric-one" data-feid="${feid}" data-pid="${u.id}" title="${currentLang==='en'?'Print participant rubric':'Cetak rubrik peserta'}">🖨️</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('grad_no_participants')}</div>`}<div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`);
 }
 
 function openFinalPracticalForm(feid, pid) {
@@ -5719,7 +6205,7 @@ function openActivityForm(act, presetModuleId) {
           <div class="field"><label>${t('schedule_close_at')}</label><input class="input" type="datetime-local" name="quizCloseAt" value="${esc(toLocalInput(a.quizOpenAt ? a.quizCloseAt : a.quizCloseAt))}" /><small class="muted">${t('schedule_close_hint')}</small></div>
           <div class="field"><label>${t('qb_duration')}</label><input class="input" type="number" min="0" step="1" name="quizDuration" value="${a.quizDuration != null ? a.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted">${t('qb_duration_hint')}</small></div>
         </div>
-        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div id="activityQuizBuilderSection"></div></div>
+        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div class="toolbar" style="margin:10px 0"><button type="button" class="btn btn-sm" data-act="quiz-template-download">⬇️ Download Question Template (Excel)</button><button type="button" class="btn btn-sm" data-act="quiz-template-upload">⬆️ Upload Question Template</button></div><div class="info-box" style="margin-bottom:10px"><p style="margin:0;font-size:.8rem">Quiz only. Complete Question, Options A–D, and Correct Answer (A/B/C/D or 1/2/3/4). Uploading adds questions to the current quiz.</p></div><div id="activityQuizBuilderSection"></div></div>
         </div>
         <div id="practicalScheduleFields" style="display:${isPractical ? 'block' : 'none'};margin-top:10px"><strong>${t('schedule_practical_title')}</strong><div class="grid2" style="margin-top:8px">
           <div class="field"><label>${t('schedule_open_at')}</label><input class="input" type="datetime-local" name="practicalOpenAt" value="${esc(toLocalInput(a.practicalOpenAt))}" /><small class="muted">${t('schedule_open_hint')}</small></div>
@@ -5734,6 +6220,62 @@ function openActivityForm(act, presetModuleId) {
     </form>`);
   renderQuizBuilder();
 }
+function downloadActivityQuizTemplate() {
+  if (!ensureXLSX()) return;
+  const headers = ['Question','Option A','Option B','Option C','Option D','Correct Answer','Category','Difficulty'];
+  const sample = ['What is the function of a pump?','Move fluid','Measure temperature','Filter gas','Store pressure','A','Fluid Mechanics','Easy'];
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['QUIZ QUESTION TEMPLATE'],
+    ['Instructions: Enter one question per row. Correct Answer must be A/B/C/D or 1/2/3/4. Delete the sample row before uploading if not needed.'],
+    [], headers, sample
+  ]);
+  ws['!cols'] = [{wch:42},{wch:28},{wch:28},{wch:28},{wch:28},{wch:18},{wch:22},{wch:16}];
+  ws['!autofilter'] = {ref:'A4:H5'};
+  const guide = XLSX.utils.aoa_to_sheet([
+    ['Field','Required','Instructions'],
+    ['Question','Yes','Full question text. One question per row.'],
+    ['Option A–D','At least 2','Provide at least two answer choices.'],
+    ['Correct Answer','Yes','Use A, B, C, D or 1, 2, 3, 4.'],
+    ['Category','No','Optional category/topic.'],
+    ['Difficulty','No','Optional: Easy, Medium, or Hard.'],
+    ['Upload','—','Save as .xlsx or .xls, then use Upload Question Template in the activity form.']
+  ]);
+  guide['!cols']=[{wch:22},{wch:14},{wch:88}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Quiz Questions');
+  XLSX.utils.book_append_sheet(wb, guide, 'Instructions');
+  XLSX.writeFile(wb, 'Quiz_Question_Template.xlsx');
+}
+
+async function importActivityQuizTemplate(file) {
+  if (!ensureXLSX()) return;
+  const wb = await readExcelFile(file);
+  const sheetName = wb.SheetNames.find(n => /quiz|question|soalan/i.test(n)) || wb.SheetNames[0];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, defval:''});
+  if (!rows.length) { toast('⚠️ The Excel file is empty.', 'bad'); return; }
+  let headerRow = -1;
+  for (let r=0; r<Math.min(rows.length, 12); r++) {
+    if (getColIndex(rows[r], 'Question','Soalan') !== -1 && getColIndex(rows[r], 'Correct Answer','Answer','Jawapan','Jawapan Betul') !== -1) { headerRow=r; break; }
+  }
+  if (headerRow < 0) { toast('⚠️ Invalid headers. Use the Quiz_Question_Template.xlsx template.', 'bad'); return; }
+  const headers=rows[headerRow];
+  const iq=getColIndex(headers,'Question','Soalan'), ia=getColIndex(headers,'Option A','Pilihan A','A'), ib=getColIndex(headers,'Option B','Pilihan B','B'), ic=getColIndex(headers,'Option C','Pilihan C','C'), id=getColIndex(headers,'Option D','Pilihan D','D'), ians=getColIndex(headers,'Correct Answer','Answer','Jawapan','Jawapan Betul'), icat=getColIndex(headers,'Category','Kategori'), idiff=getColIndex(headers,'Difficulty','Tahap','Level');
+  const imported=[]; const errors=[];
+  for(let r=headerRow+1;r<rows.length;r++) {
+    const row=rows[r]; const q=String(row[iq]||'').trim(); if(!q) continue;
+    const options=[ia,ib,ic,id].map(i=>i<0?'':String(row[i]||'').trim());
+    const raw=String(row[ians]||'').trim().toUpperCase();
+    let answer=/^[A-D]$/.test(raw)?raw.charCodeAt(0)-65:/^[1-4]$/.test(raw)?Number(raw)-1:-1;
+    if(options.filter(Boolean).length<2 || answer<0 || !options[answer]) { errors.push(r+1); continue; }
+    imported.push({q,options,answer,category:icat<0?'':String(row[icat]||'').trim(),difficulty:idiff<0?'Easy':(String(row[idiff]||'Easy').trim()||'Easy')});
+  }
+  if(!imported.length) { toast('⚠️ No valid questions were found.'+(errors.length?' Invalid rows: '+errors.join(', '):''), 'bad'); return; }
+  if(!confirm(`Found ${imported.length} valid questions. Add them to the current quiz?${errors.length?'\n\nRows skipped because answers/options were invalid: '+errors.join(', '):''}`)) return;
+  state.tempQuiz = (state.tempQuiz || []).concat(imported);
+  renderQuizBuilder();
+  toast(`✅ Imported ${imported.length} questions${errors.length?`; skipped ${errors.length} rows`:''}.`);
+}
+
 function handleSaveActivity(form) {
   const id = form.dataset.id;
   const mod = getModule(form.moduleId.value);
@@ -5758,7 +6300,7 @@ function handleSaveActivity(form) {
 /* =========================================================
    MATERIALS
    ========================================================= */
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 function openUploadMaterialModal(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
@@ -6185,7 +6727,13 @@ async function handleManualQuizAnswers(form) {
 function gradingView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  const acts = (isAdmin || isVip) ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
+  // Participant Quiz Assessment is reserved for quiz activities only.
+  const quizActs = (DB.activities || []).filter(a =>
+    !isPracticalActivityMethod(a.method) && Array.isArray(a.quiz) && a.quiz.length > 0
+  );
+  const acts = (isAdmin || isVip)
+    ? sortActs(quizActs)
+    : sortActs(quizActs.filter(a => canTrainerAccessActivity(a.id)));
   if (!acts.length) return `<div class="card"><div class="empty">${t('msg_no_activity')}</div></div>`;
   const selId = state.params.gradingActivity && acts.find(a => a.id === state.params.gradingActivity) ? state.params.gradingActivity : acts[0].id;
   const act = getActivity(selId);
@@ -6423,7 +6971,7 @@ function openUserForm(user) {
       <div class="grid2"><div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(u.name)}" /></div><div class="field"><label>${t('username')} *</label><input class="input" name="username" required pattern="[A-Za-z0-9_]{3,}" value="${esc(u.username||'')}" /></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${isEdit ? 'Reset Password (optional)' : t('lbl_password') + ' *'}</label><input class="input" type="password" name="password" ${isEdit ? '' : 'required'} minlength="8" autocomplete="new-password" placeholder="${isEdit ? 'Leave blank to keep current password' : 'Set initial password'}" /><small>${isEdit ? 'For security, the existing password is not displayed. Enter a new password only if you need to reset it.' : 'Use at least 8 characters.'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_role')}</label><select class="select" name="role">${['participant','trainer','facilitator','vip','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select></div><div class="field"><label>${t('usr_status')}</label><select class="select" name="status"><option value="approved" ${u.status === 'approved' ? 'selected' : ''}>${t('usr_status_approved')}</option><option value="pending" ${u.status === 'pending' ? 'selected' : ''}>${t('usr_status_pending')}</option><option value="rejected" ${u.status === 'rejected' ? 'selected' : ''}>${t('usr_status_rejected')}</option></select></div></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div><div class="field"><label>${t('lbl_org')}</label><select class="select" name="org"><option value="">— Tiada syarikat —</option>${companyList().map(name => `<option value="${esc(name)}" ${sameCompany(name,u.org)?'selected':''}>${tce(name)}</option>`).join('')}</select><small>Pilih syarikat yang telah didaftarkan dalam tab Companies &amp; Participants.</small></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div><div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" list="userCompanyOptions" maxlength="500" autocomplete="off" value="${esc(u.org || '')}" placeholder="${currentLang === 'en' ? 'Select a company or type a new company name' : 'Pilih syarikat atau taip nama syarikat baharu'}" /><datalist id="userCompanyOptions">${companyList().map(company => `<option value="${esc(company)}"></option>`).join('')}</datalist><small>${currentLang === 'en' ? 'Choose from the registered company list or enter a new company name (up to 500 characters).' : 'Pilih daripada senarai syarikat berdaftar atau masukkan nama syarikat baharu (sehingga 500 aksara).'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('phone')}</label><input class="input" name="phone" value="${esc(u.phone || '')}" /></div><div></div></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
@@ -6438,27 +6986,17 @@ function handleSaveUser(form) {
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
   if (role === 'vip' && !org) { toast(t('usr_org_required'), 'bad'); return; }
-  // Resolve the record being edited first. Form dataset values are strings,
-  // while older database records may contain IDs stored in another type.
-  const currentUser = id ? DB.users.find(x => String(x.id) === String(id)) : null;
-  if (id && !currentUser) { toast('User record could not be found. Please refresh and try again.', 'bad'); return; }
-  // During editing, keeping the account's existing username/email must always be allowed.
-  // Exclude the edited record by ID (not object reference), because records can be
-  // reconstructed during database load/synchronisation. Only run the duplicate
-  // check when the value is new or has actually been changed.
-  const currentUsername = String(currentUser?.username || '').trim().toLowerCase();
-  const currentEmail = String(currentUser?.email || '').trim().toLowerCase();
-  const usernameChanged = !currentUser || username.toLowerCase() !== currentUsername;
-  const emailChanged = !currentUser || email !== currentEmail;
-  if (usernameChanged) {
-    const dupU = DB.users.find(u => String(u.id) !== String(id || '') && String(u.username||'').trim().toLowerCase() === username.toLowerCase());
-    if (dupU) { toast(t('username_taken'), 'bad'); return; }
+  if (org.length > 500) { toast(currentLang === 'en' ? 'Company name must not exceed 500 characters.' : 'Nama syarikat tidak boleh melebihi 500 aksara.', 'bad'); return; }
+  const dupU = DB.users.find(u => u.id !== id && String(u.username||'').toLowerCase() === username.toLowerCase());
+  if (dupU) { toast(t('username_taken'), 'bad'); return; }
+  const dupE = DB.users.find(u => u.id !== id && String(u.email||'').toLowerCase() === email);
+  if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
+  // Keep manually entered organisation names in the shared company registry.
+  if (org && !companyList().some(company => sameCompany(company, org))) {
+    if (!Array.isArray(DB.companies)) DB.companies = [];
+    DB.companies.push({ id: uid('co'), name: org, createdAt: nowISO(), createdBy: state.user.id });
   }
-  if (emailChanged) {
-    const dupE = DB.users.find(u => String(u.id) !== String(id || '') && String(u.email||'').trim().toLowerCase() === email);
-    if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-  }
-  if (id) { const u = currentUser; Object.assign(u, { name, username, email, role, ic, org, phone, status }); if (passwordInput) { u.password = passwordInput; u.passwordResetAt = nowISO(); u.mustChangePassword = true; } saveDB(); logAudit(passwordInput ? 'Update User + Reset Password' : 'Update User', 'Pengguna', id, name); toast(passwordInput ? 'User updated and password reset. Tell the user to change it after signing in.' : t('msg_updated')); }
+  if (id) { const u = DB.users.find(x => x.id === id); if (!u) return; Object.assign(u, { name, username, email, role, ic, org, phone, status }); if (passwordInput) { u.password = passwordInput; u.passwordResetAt = nowISO(); u.mustChangePassword = true; } saveDB(); logAudit(passwordInput ? 'Update User + Reset Password' : 'Update User', 'Pengguna', id, name); toast(passwordInput ? 'User updated and password reset. Tell the user to change it after signing in.' : t('msg_updated')); }
   else { const nu = { id: uid('u'), name, username, email, password: passwordInput, role, ic, org, phone, status: status || 'approved', createdAt: nowISO(), mustChangePassword: true }; DB.users.push(nu); saveDB(); logAudit('Create User', 'Pengguna', nu.id, name); toast(t('msg_created')); }
   closeModal(); render();
 }
@@ -6519,16 +7057,17 @@ function sameCompany(a, b) {
 function companyList() {
   if (!Array.isArray(DB.companies)) DB.companies = [];
   const names = DB.companies.map(c => typeof c === 'string' ? c : c && c.name).filter(Boolean);
-  // Keep every existing organisation, regardless of account role.
-  DB.users.forEach(u => { if (String(u.org || '').trim()) names.push(String(u.org).trim()); });
+  // Legacy migration: preserve company names already used by VIP and participant accounts.
+  DB.users.forEach(u => { if (['vip','participant'].includes(u.role) && String(u.org || '').trim()) names.push(String(u.org).trim()); });
   return [...new Map(names.map(name => [normalizeCompanyName(name), String(name).trim()])).values()]
     .filter(Boolean).sort((a,b) => a.localeCompare(b));
 }
 function companiesView() {
   if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  // Import legacy organisation names into the registry so existing accounts remain manageable.
   if (!Array.isArray(DB.companies)) DB.companies = [];
   let migratedCompanies = false;
-  DB.users.filter(u => String(u.org || '').trim()).forEach(u => {
+  DB.users.filter(u => ['vip','participant'].includes(u.role) && String(u.org || '').trim()).forEach(u => {
     const name = String(u.org).trim().replace(/\s+/g,' ');
     if (!DB.companies.some(c => sameCompany(typeof c === 'string' ? c : c && c.name, name))) {
       DB.companies.push({id:uid('co'), name, createdAt:nowISO(), createdBy:state.user.id, migrated:true});
@@ -6537,23 +7076,24 @@ function companiesView() {
   });
   if (migratedCompanies) saveDB();
   const companies = companyList();
-  const roles = ['admin','vip','trainer','facilitator','participant'];
-  const roleCounts = name => Object.fromEntries(roles.map(role => [role, DB.users.filter(u => u.role === role && sameCompany(u.org,name)).length]));
-  const users = DB.users.slice().sort((a,b) => (a.role||'').localeCompare(b.role||'') || (a.name||'').localeCompare(b.name||''));
-  const options = selected => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
-  const roleBadge = role => `<span class="badge ${role==='admin'||role==='vip'?'info':role==='trainer'?'ok':role==='facilitator'?'warn':'draft'}">${roleLabel(role)}</span>`;
+  const participants = DB.users.filter(u => u.role === 'participant').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const vips = DB.users.filter(u => u.role === 'vip').sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const options = (selected) => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
   return `<div class="card">
     <div class="card-head"><h2>🏢 Daftar Syarikat</h2><span class="pill">${companies.length} syarikat</span></div>
-    <p class="muted">Daftarkan nama syarikat sekali sahaja. Semua peranan pengguna boleh dipautkan kepada syarikat yang berdaftar.</p>
-    <form data-form="company" class="toolbar"><input class="input" style="max-width:420px" name="companyName" required maxlength="120" placeholder="Nama syarikat baharu" /><button class="btn btn-primary" type="submit">➕ Daftar Syarikat</button></form>
-    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>Admin</th><th>VIP</th><th>Trainer</th><th>Facilitator</th><th>Participant</th><th>Jumlah</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{const counts=roleCounts(name);const total=roles.reduce((n,r)=>n+counts[r],0);const co=DB.companies.find(c=>typeof c!=='string'&&sameCompany(c.name,name));return `<tr><td><strong>${tce(name)}</strong></td>${roles.map(r=>`<td>${counts[r]}</td>`).join('')}<td><strong>${total}</strong></td><td>${co?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(co.id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`}).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
+    <p class="muted">Daftarkan nama syarikat sekali sahaja. Gunakan nama yang sama untuk akaun VIP dan peserta supaya VIP hanya melihat peserta syarikatnya.</p>
+    <form data-form="company" class="toolbar"><input class="input" style="max-width:420px" name="companyName" required maxlength="500" placeholder="Nama syarikat baharu" /><button class="btn btn-primary" type="submit">➕ Daftar Syarikat</button></form>
+    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>VIP</th><th>Peserta</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{const countP=participants.filter(p=>sameCompany(p.org,name)).length;const countV=vips.filter(v=>sameCompany(v.org,name)).length;const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;return `<tr><td><strong>${tce(name)}</strong></td><td>${countV}</td><td>${countP}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`}).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
   </div>
-  <div class="card"><div class="card-head"><h2>👥 Tetapkan Syarikat Pengguna</h2><span class="pill">${users.length} pengguna</span></div>
-    <p class="muted">Pilih syarikat untuk mana-mana akaun. Paparan Users dikekalkan seperti asal; pemilihan syarikat juga boleh dibuat semasa tambah atau edit pengguna.</p>
-    ${users.length ? `<div class="table-wrap"><table><thead><tr><th>Nama</th><th>Username</th><th>Peranan</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${users.map(u=>`<tr><td><strong>${tce(u.name)}</strong></td><td>${esc(u.username||'—')}</td><td>${roleBadge(u.role)}</td><td>${u.status==='approved'?'<span class="badge ok">Diluluskan</span>':u.status==='pending'?'<span class="badge warn">Menunggu</span>':'<span class="badge bad">Ditolak</span>'}</td><td><select class="select" id="company-for-${esc(u.id)}">${options(u.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(u.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun pengguna.</div>`}
+  <div class="card"><div class="card-head"><h2>👥 Tetapkan Syarikat Peserta</h2><span class="pill">${participants.length} peserta</span></div>
+    <p class="muted">Pilih syarikat bagi setiap peserta. Perubahan ini menentukan senarai Spider Web yang akan dipaparkan kepada VIP.</p>
+    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>Nama Peserta</th><th>Username</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${participants.map(p=>`<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.username||'—')}</td><td>${p.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(p.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(p.id)}">${options(p.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(p.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun peserta.</div>`}
+  </div>
+  <div class="card"><div class="card-head"><h2>🔐 Tetapkan Syarikat Akaun VIP</h2><span class="pill">${vips.length} akaun VIP</span></div>
+    <p class="muted">Pastikan setiap akaun VIP dipautkan kepada syarikat yang betul. VIP akan melihat peserta yang ditetapkan kepada syarikat yang sama.</p>
+    ${vips.length ? `<div class="table-wrap"><table><thead><tr><th>Nama VIP</th><th>Username</th><th>Syarikat semasa</th><th>Syarikat baharu</th><th></th></tr></thead><tbody>${vips.map(v=>`<tr><td><strong>${tce(v.name)}</strong></td><td>${esc(v.username||'—')}</td><td>${tce(v.org||'—')}</td><td><select class="select" id="company-for-${esc(v.id)}">${options(v.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(v.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun VIP.</div>`}
   </div>`;
 }
-
 function handleSaveCompany(form) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
   const name = String(form.companyName.value || '').trim().replace(/\s+/g,' ');
@@ -6565,21 +7105,21 @@ function handleSaveCompany(form) {
 }
 function assignCompanyToUser(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
-  const user = DB.users.find(u=>u.id===id);
+  const user = DB.users.find(u=>u.id===id && ['participant','vip'].includes(u.role));
   const select = document.getElementById('company-for-' + id);
   if (!user || !select) return;
   const selected = String(select.value||'').trim();
   if (selected && !companyList().some(name=>sameCompany(name,selected))) { toast('Syarikat tidak sah.','bad'); return; }
   const old = user.org || '';
   user.org = selected;
-  saveDB(); logAudit('Tetapkan Syarikat', roleLabel(user.role), id, `${old || 'Tiada'} → ${selected || 'Tiada'}`);
+  saveDB(); logAudit('Tetapkan Syarikat', user.role === 'vip' ? 'Akaun VIP' : 'Peserta', id, `${old || 'Tiada'} → ${selected || 'Tiada'}`);
   toast('Syarikat berjaya dikemas kini.'); render();
 }
 function deleteCompany(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
   const company = (DB.companies||[]).find(c=>c && typeof c!=='string' && c.id===id);
   if (!company) return;
-  if (DB.users.some(u=>sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh akaun pengguna.','warn'); return; }
+  if (DB.users.some(u=>['vip','participant'].includes(u.role)&&sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh akaun VIP atau peserta.','warn'); return; }
   if (!confirm(`Padam syarikat "${company.name}"?`)) return;
   DB.companies = DB.companies.filter(c=>!(c && typeof c!=='string' && c.id===id));
   saveDB(); logAudit('Padam Syarikat','Syarikat',id,company.name); toast('Syarikat dipadam.'); render();
@@ -6594,7 +7134,7 @@ function reportsView() {
     const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && sameCompany(u.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     const allParts = allParticipants().filter(p => sameCompany(p.org, me.org)).sort((a,b) => (a.name||'').localeCompare(b.name||''));
     return `<div class="card" style="background:linear-gradient(135deg,#eef7ff,#fff);border-color:#b8d9f0"><div class="card-head"><h2>📄 ${t('rep_title')}</h2><span class="pill">${tce(me.org || '—')}</span></div><p class="muted" style="margin:0">${t('vip_all_data_hint')}</p></div>
-    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button></div></div>
+    <div class="card"><div class="card-head"><h2>${t('rep_program')}</h2></div><div class="toolbar"><button class="btn btn-primary" data-act="report-program">${t('rep_program_btn')} — ${tce(me.org || '')}</button><button class="btn" data-act="vip-export-participants">📥 ${currentLang === 'en' ? 'Export Participant Data (Excel)' : 'Eksport Data Peserta (Excel)'}</button></div></div>
     <div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><div class="toolbar" style="margin-bottom:10px"><select class="select" id="reportParticipant" style="max-width:340px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="report-individual-selected">${t('rep_generate')}</button></div><p class="muted" style="font-size:.8rem;margin:0">${parts.length} ${t('vip_participants')} ${tce(me.org || '')}</p></div>
     <div class="card spider-review-card"><div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Company Participants — Spider Web Assessment' : 'Spider Web Penilaian Peserta Syarikat'}</h2><span class="pill">${allParts.length} ${currentLang === 'en' ? 'participants' : 'peserta'}</span></div><p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'View each participant’s practical assessment spider web, including all modules they have taken within your company.' : 'Lihat spider web penilaian praktikal setiap peserta, termasuk semua modul yang telah diikuti oleh peserta dalam syarikat anda.'}</p>${allParts.length ? `<div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:420px">${allParts.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang === 'en' ? 'View Spider Web' : 'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>` : `<div class="empty">${currentLang === 'en' ? 'No participants found for your company.' : 'Tiada peserta ditemui untuk syarikat anda.'}</div>`}</div>`;
   }
@@ -6969,15 +7509,12 @@ function questionBankView() {
   const q = (state.params.bankSearch || '').toLowerCase();
   const cat = state.params.bankCategory || '';
   const diff = state.params.bankDiff || '';
-  const modFilter = state.params.bankModule || '';
   const categories = [...new Set(allBank.map(b => b.category).filter(Boolean))].sort();
-  const filtered = allBank.filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff).filter(b => !modFilter || b.moduleId === modFilter).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const filtered = allBank.filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   const usage = (qid) => DB.activities.reduce((n, a) => n + (a.quiz||[]).filter(x => x.sourceBankId === qid).length, 0);
-  const modsForFilter = isAdmin ? sortModules(DB.modules) : myModules();
   return `<div class="card"><div class="card-head"><div><h2>${t('bank_title')}</h2><small class="muted">${t('bank_all_modules')} · ${allBank.length} ${t('lbl_questions')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="excel-qbank-download" title="${esc(t('excel_template_download'))}">📥 Template</button><button class="btn btn-sm" data-act="excel-qbank-upload" title="${esc(t('excel_import_upload'))}">📤 Import</button><button class="btn btn-sm" data-act="check-duplicate-bank-questions">🔎 Check Duplicate Questions</button><button class="btn btn-primary" data-act="new-question">➕</button></div></div>
     <div class="toolbar" style="margin-bottom:14px">
       <input class="input" style="max-width:260px" placeholder="${t('bank_search')}" value="${esc(state.params.bankSearch || '')}" data-input="bank-search" />
-      <select class="select" style="max-width:220px" data-change="bank-module"><option value="">📦 ${t('bank_all_modules')}</option>${modsForFilter.map(m => `<option value="${m.id}" ${modFilter === m.id ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select>
       <select class="select" style="max-width:180px" data-change="bank-category"><option value="">${t('bank_all')}</option>${categories.map(c => `<option value="${esc(c)}" ${cat === c ? 'selected' : ''}>${tce(c)}</option>`).join('')}</select>
       <select class="select" style="max-width:150px" data-change="bank-diff"><option value="">${t('bank_all')}</option>${['Mudah','Sederhana','Sukar'].map(d => `<option value="${d}" ${diff === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select>
       <span class="pill">${filtered.length}</span>
@@ -7225,6 +7762,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'inline-fe-question') handleSaveFeInlineQuestion(form);
   else if (k === 'fe-bank-picker') handleFeBankPickerSubmit(form);
   else if (k === 'final-practical') handleSaveFinalPractical(form);
+  else if (k === 'final-theory-mark') handleSaveFinalTheoryMark(form);
 });
 
 document.addEventListener('click', async (e) => {
@@ -7247,6 +7785,7 @@ document.addEventListener('click', async (e) => {
       saveDB(); logAudit(act==='verify-attendance'?'Verify Attendance':'Reject Attendance','Kehadiran',`${date}:${pid}`,`${userName(pid)} — ${date}`); render(); break;
     }
     case 'manual-sync': manualSyncNow(); break;
+    case 'sync-all-now': syncAllNow(); break;
     case 'print-all-modules': printAllModulesPDF(); break;
     case 'print-system-book': printSystemBookPDF(); break;
     case 'toggle-lang': {
@@ -7298,9 +7837,9 @@ document.addEventListener('click', async (e) => {
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
     case 'logout': handleLogoutClick(); break;
-    case 'nav': state.view = tgt.dataset.view; state.params = {}; render(); break;
+    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
-    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); break;
+    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
     case 'print-activity-quiz': printActivityQuiz(id); break;
     case 'manual-quiz-answers': openManualQuizAnswers(tgt.dataset.aid, tgt.dataset.pid); break;
@@ -7313,6 +7852,8 @@ document.addEventListener('click', async (e) => {
     case 'delete-module': deleteModule(id); break;
     case 'toggle-publish-module': togglePublishModule(id); break;
     case 'new-activity': openActivityForm(null, tgt.dataset.module); break;
+    case 'quiz-template-download': downloadActivityQuizTemplate(); break;
+    case 'quiz-template-upload': { if (document.getElementById('activityMethod')?.value === 'Practical Test') { toast(currentLang === 'en' ? 'This template is for Quiz activities only.' : 'Templat ini untuk aktiviti Kuiz sahaja.', 'warn'); break; } pickExcelFile('.xlsx,.xls', importActivityQuizTemplate); break; }
     case 'edit-activity': openActivityForm(getActivity(id)); break;
     case 'delete-activity': deleteActivity(id); break;
     case 'toggle-publish': {
@@ -7355,6 +7896,27 @@ document.addEventListener('click', async (e) => {
     case 'approve-user': approveUser(id); break;
     case 'reject-user': rejectUser(id); break;
     case 'vip-view-progress': openVipParticipantProgress(id); break;
+    case 'vip-export-participants': exportVipCompanyParticipantsExcel(); break;
+    case 'spider-review-open': {
+      const pid = tgt.dataset.pid;
+      const role = state.user.role;
+      const person = DB.users.find(u => u.id === pid && u.role === 'participant');
+      if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      if (!['admin','trainer','facilitator','vip'].includes(role)) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      const permitted = role === 'admin' ? sortModules(DB.modules)
+        : role === 'vip' ? participantModules(pid) : myModules();
+      if (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id))) {
+        toast(t('msg_no_access'), 'bad'); break;
+      }
+      const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id));
+      const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`;
+      openModal(`<h2>🕸️ ${tce(person.name || '')} — ${currentLang === 'en' ? 'Assessment Spider Web' : 'Spider Web Penilaian'}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg');
+      break;
+    }
     case 'spider-print-self': { const pid = state.user.id; printHTML(spiderReportHTML(pid, participantModules(pid))); break; }
     case 'spider-print-overall': { const role = state.user.role; if (!['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); break; } const mods = role === 'admin' ? sortModules(DB.modules) : myModules(); const ids = new Set(); mods.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id))); const ps = allParticipants().filter(p => ids.has(p.id)); printHTML(overallSpiderReportHTML(mods, ps)); break; }
     case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(person.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
@@ -7408,6 +7970,7 @@ document.addEventListener('click', async (e) => {
     case 'edit-quiz-builder': { if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openQuizEditor(id); break; }
     case 'save-quiz-config': handleSaveQuizConfig(); break;
     case 'upload-material': openUploadMaterialModal(tgt.dataset.mid); break;
+    case 'refresh-module-materials': refreshModuleMaterialsFromDrive(tgt.dataset.mid, false); break;
     case 'view-material': viewMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'download-material': downloadMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'delete-material': deleteMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
@@ -7439,7 +8002,19 @@ document.addEventListener('click', async (e) => {
     case 'fe-q-down': { const i = Number(tgt.dataset.idx); if (i < state.tempFeQuestions.length - 1) { [state.tempFeQuestions[i+1], state.tempFeQuestions[i]] = [state.tempFeQuestions[i], state.tempFeQuestions[i+1]]; renderFeQuestionsBuilder(); } break; }
     case 'fe-q-pick-bank': openFeBankPicker(); break;
     case 'fe-assess': openFinalAssessModal(id); break;
-    case 'fe-practical-form': openFinalPracticalForm(tgt.dataset.feid, tgt.dataset.pid); break;
+    case 'fe-print-theory': printFinalTheoryQuestions(id); break;
+    case 'fe-theory-marks': openFinalTheoryMarks(id); break;
+    case 'fe-theory-mark-one': closeModal2(); openFinalTheoryMarkForm(tgt.dataset.feid,tgt.dataset.pid); break;
+    case 'fe-practical-participants': openFinalPracticalParticipants(id); break;
+    case 'fe-marks-template': downloadFinalPracticalMarksTemplate(id); break;
+    case 'fe-marks-upload': { const feid=id; pickExcelFile('.xlsx,.xls',(f)=>importFinalPracticalMarksExcel(f,feid)); break; }
+    case 'fe-print-rubric-all': printFinalPracticalRubric(id,null); break;
+    case 'fe-print-rubric-one': printFinalPracticalRubric(tgt.dataset.feid,tgt.dataset.pid); break;
+    case 'fe-practical-form':
+      // Close the participant list first so the rubric replaces the Assess modal.
+      closeModal2();
+      openFinalPracticalForm(tgt.dataset.feid, tgt.dataset.pid);
+      break;
     case 'fe-add-module-config': {
       const avail = state.user.role === 'admin' ? sortModules(DB.modules) : myModules();
       const usedIds = (state.tempModuleConfigs || []).map(mc => mc.moduleId);
@@ -7484,7 +8059,6 @@ document.addEventListener('change', (e) => {
   const tgt = e.target.closest('[data-change]');
   if (tgt && tgt.dataset.change === 'bank-category') { state.params.bankCategory = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'bank-diff') { state.params.bankDiff = tgt.value; render(); return; }
-  if (tgt && tgt.dataset.change === 'bank-module') { state.params.bankModule = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-activity') { state.params.gradingActivity = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-rubric') {
     const aid = tgt.dataset.aid, a = getActivity(aid);
