@@ -3989,6 +3989,7 @@ function navItems() {
     return [
       { v:'dashboard', label:t('nav_portal'), icon:'🧑‍🏫' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+      { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -4009,6 +4010,7 @@ function navItems() {
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+      { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -4030,6 +4032,7 @@ function navItems() {
   return [
     { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+    { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
     { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -4102,7 +4105,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
@@ -4219,6 +4222,7 @@ function viewContent() {
     case 'dashboard': return dashboardView();
     case 'modules': return modulesView();
     case 'materials-library': return materialsLibraryView();
+    case 'system-information': return systemInformationView();
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
     case 'enrolled-programs': return enrolledProgramsView();
@@ -4245,6 +4249,109 @@ function viewContent() {
   } finally {
     DB = originalDB;
   }
+}
+
+
+/* =========================================================
+   SYSTEM INFORMATION — ADMIN MANAGED VIDEO GUIDES
+   Videos are stored in Google Drive / CFTP Malaysia / Learning Material.
+   ========================================================= */
+const SYSTEM_INFO_MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const SYSTEM_INFO_CHUNK_BYTES = 4 * 1024 * 1024;
+let systemInformationCache = [];
+function isSystemInfoAdmin() { return !!(state.user && state.user.role === 'admin'); }
+function systemInfoText(ms, en) { return currentLang === 'en' ? en : ms; }
+async function loadSystemInformation(quiet) {
+  try {
+    const res = await driveAPI('listSystemInformation', {});
+    if (!res || !res.ok) throw new Error(res && res.error || 'Unable to load system information');
+    systemInformationCache = Array.isArray(res.items) ? res.items : [];
+    if (state.view === 'system-information') render();
+    return systemInformationCache;
+  } catch (err) {
+    if (!quiet) toast(systemInfoText('Gagal memuatkan maklumat sistem: ', 'Unable to load system information: ') + (err.message || ''), 'bad');
+    return [];
+  }
+}
+function systemInformationView() {
+  const admin = isSystemInfoAdmin();
+  const items = systemInformationCache || [];
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Video panduan untuk membantu fasilitator dan trainer menggunakan sistem CFTP.','Video tutorials to help facilitators and trainers use the CFTP system.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan video. Had setiap video ialah 100 MB.','Admins can add, update and delete video guides. Maximum video size is 100 MB per file.')}</p></div>` : ''}</div>`;
+  const cards = items.length ? `<div class="grid2">${items.map(item => `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}${item.viewUrl ? `<div style="margin-top:12px;position:relative;padding-top:56.25%;background:#111;border-radius:12px;overflow:hidden"><iframe src="${esc(item.previewUrl || item.viewUrl)}" title="${esc(item.title || 'System tutorial video')}" allow="autoplay; fullscreen" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div><div class="toolbar" style="margin-top:10px"><a class="btn btn-sm" href="${esc(item.viewUrl)}" target="_blank" rel="noopener">▶ ${systemInfoText('Buka video','Open video')}</a>${item.downloadUrl ? `<a class="btn btn-sm" href="${esc(item.downloadUrl)}" target="_blank" rel="noopener">⬇ ${systemInfoText('Muat turun','Download')}</a>` : ''}</div>` : `<div class="empty">${systemInfoText('Video belum tersedia.','Video is not available.')}</div>`}<div class="muted" style="font-size:.78rem;margin-top:8px">${item.size ? formatFileSize(item.size) : ''}${item.uploadedByName ? ' · '+tce(item.uploadedByName) : ''}</div></div>`).join('')}</div>` : `<div class="card"><div class="empty">🎬 ${systemInfoText('Belum ada panduan penggunaan sistem.','No system usage guides have been added yet.')}</div></div>`;
+  if (!window._systemInfoInitialLoad && state.view === 'system-information') { window._systemInfoInitialLoad = true; setTimeout(() => loadSystemInformation(true), 0); }
+  return header + cards;
+}
+function openSystemInformationModal(id) {
+  if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
+  if (id && !old) { toast(systemInfoText('Rekod tidak ditemui.','Record not found.'),'bad'); return; }
+  state.systemInfoFile = null;
+  openModal(`<h2>🎬 ${old ? systemInfoText('Kemaskini Panduan','Edit Guide') : systemInfoText('Tambah Panduan Baharu','Add New Guide')}</h2><form data-form="system-information-save" data-id="${old ? esc(old.id) : ''}"><div class="field"><label>${systemInfoText('Tajuk','Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div><div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan video ini...','Describe what this video covers...')}">${esc(old?.description || '')}</textarea></div><div class="field"><label>${systemInfoText(old ? 'Ganti video (pilihan)' : 'Muat naik video *', old ? 'Replace video (optional)' : 'Upload video *')}</label><input class="input" type="file" id="systemInfoVideoInput" accept="video/*" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Format video yang disokong oleh pelayar. Saiz maksimum 100 MB.','Browser-supported video formats. Maximum size 100 MB.')}</small><div id="systemInfoFileInfo" class="muted" style="margin-top:6px">${old ? systemInfoText('Video semasa: ','Current video: ')+tce(old.filename || '') : ''}</div></div><div id="systemInfoUploadProgress" style="display:none;margin:12px 0"><div class="progress"><span id="systemInfoUploadProgressBar" style="width:0%"></span></div><small id="systemInfoUploadStatus" class="muted">${systemInfoText('Memuat naik...','Uploading...')}</small></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div></form>`);
+  const input = document.getElementById('systemInfoVideoInput');
+  if (input) input.addEventListener('change', () => {
+    const f = input.files && input.files[0]; state.systemInfoFile = f || null;
+    const info = document.getElementById('systemInfoFileInfo');
+    if (!f) { if (info && !old) info.textContent = ''; return; }
+    if (f.size > SYSTEM_INFO_MAX_VIDEO_BYTES) { toast(systemInfoText('Video melebihi had 100 MB.','Video exceeds the 100 MB limit.'),'bad'); input.value=''; state.systemInfoFile=null; return; }
+    if (!String(f.type || '').startsWith('video/')) { toast(systemInfoText('Sila pilih fail video yang sah.','Please select a valid video file.'),'bad'); input.value=''; state.systemInfoFile=null; return; }
+    if (info) info.textContent = f.name + ' · ' + formatFileSize(f.size);
+  });
+}
+function readFileChunkAsBase64(file, start, end) {
+  return new Promise((resolve,reject) => { const r=new FileReader(); r.onload=()=>resolve(String(r.result).split(',')[1]); r.onerror=()=>reject(r.error || new Error('File read failed')); r.readAsDataURL(file.slice(start,end)); });
+}
+async function uploadSystemInfoVideo(file, title, description, onProgress) {
+  const begin = await driveAPI('beginSystemInformationUpload', { payload:{ filename:file.name, mimeType:file.type || 'video/mp4', size:file.size, title, description } });
+  if (!begin || !begin.ok || !begin.uploadId) throw new Error(begin && begin.error || 'Unable to start upload');
+  const total = Math.ceil(file.size / SYSTEM_INFO_CHUNK_BYTES);
+  try {
+    for (let i=0;i<total;i++) {
+      const start=i*SYSTEM_INFO_CHUNK_BYTES, end=Math.min(file.size,start+SYSTEM_INFO_CHUNK_BYTES);
+      const base64=await readFileChunkAsBase64(file,start,end);
+      const res=await driveAPI('uploadSystemInformationChunk',{uploadId:begin.uploadId,index:i,base64});
+      if (!res || !res.ok) throw new Error(res && res.error || ('Upload chunk '+(i+1)+' failed'));
+      if (onProgress) onProgress(Math.round(((i+1)/total)*95));
+    }
+    const done=await driveAPI('completeSystemInformationUpload',{uploadId:begin.uploadId});
+    if (!done || !done.ok || !done.item) throw new Error(done && done.error || 'Unable to complete video upload');
+    if (onProgress) onProgress(100);
+    return done.item;
+  } catch (err) {
+    try { await driveAPI('cancelSystemInformationUpload',{uploadId:begin.uploadId}); } catch (_) {}
+    throw err;
+  }
+}
+async function handleSaveSystemInformation(form) {
+  if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
+  const id=form.dataset.id || '';
+  const file=state.systemInfoFile || null;
+  if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
+  if (!id && !file) { toast(systemInfoText('Sila pilih video.','Please select a video.'),'bad'); return; }
+  if (file && (file.size > SYSTEM_INFO_MAX_VIDEO_BYTES || !String(file.type||'').startsWith('video/'))) { toast(systemInfoText('Fail video tidak sah atau melebihi 100 MB.','Invalid video or file exceeds 100 MB.'),'bad'); return; }
+  const btn=form.querySelector('button[type="submit"]'); if(btn) btn.disabled=true;
+  const prog=document.getElementById('systemInfoUploadProgress'), bar=document.getElementById('systemInfoUploadProgressBar'), status=document.getElementById('systemInfoUploadStatus');
+  try {
+    let item;
+    if (file) {
+      if(prog) prog.style.display='block';
+      item=await uploadSystemInfoVideo(file,title,description,p=>{if(bar)bar.style.width=p+'%';if(status)status.textContent=systemInfoText('Memuat naik video... ','Uploading video... ')+p+'%';});
+      const saved=await driveAPI('saveSystemInformation',{payload:{id:id || item.id,fileId:item.id,title,description,uploadedBy:state.user.id,uploadedByName:state.user.name}});
+      if(!saved || !saved.ok) throw new Error(saved && saved.error || 'Metadata save failed');
+    } else {
+      const saved=await driveAPI('saveSystemInformation',{payload:{id,title,description,uploadedBy:state.user.id,uploadedByName:state.user.name}});
+      if(!saved || !saved.ok) throw new Error(saved && saved.error || 'Save failed');
+    }
+    state.systemInfoFile=null; closeModal(); window._systemInfoInitialLoad=false;
+    await loadSystemInformation(true); toast(systemInfoText('Panduan berjaya disimpan.','Guide saved successfully.')); render();
+  } catch(err) { console.error(err); toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad'); if(btn)btn.disabled=false; }
+}
+async function deleteSystemInformation(id) {
+  if(!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const ok=confirm(systemInfoText('Padam panduan ini? Video dalam Google Drive juga akan dipadam.','Delete this guide? The video in Google Drive will also be deleted.'));
+  if(!ok)return;
+  try { const res=await driveAPI('deleteSystemInformation',{id}); if(!res||!res.ok)throw new Error(res&&res.error||'Delete failed'); await loadSystemInformation(true); toast(systemInfoText('Panduan dipadam.','Guide deleted.')); render(); }
+  catch(err){toast(systemInfoText('Gagal memadam: ','Delete failed: ')+(err.message||''),'bad');}
 }
 
 /* =========================================================
@@ -7800,6 +7907,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'bank-picker') handleBankPickerSubmit(form);
   else if (k === 'enroll-bulk') handleBulkEnroll(form);
   else if (k === 'upload-material') handleUploadMaterial(form);
+  else if (k === 'system-information-save') handleSaveSystemInformation(form);
   else if (k === 'timetable') handleSaveTimetable(form);
   else if (k === 'manual-quiz-answers') handleManualQuizAnswers(form);
   else if (k === 'upload-certificate') handleUploadCertificate(form);
@@ -7830,6 +7938,10 @@ document.addEventListener('click', async (e) => {
       saveDB(); logAudit(act==='verify-attendance'?'Verify Attendance':'Reject Attendance','Kehadiran',`${date}:${pid}`,`${userName(pid)} — ${date}`); render(); break;
     }
     case 'manual-sync': manualSyncNow(); break;
+    case 'system-info-add': openSystemInformationModal(); break;
+    case 'system-info-edit': openSystemInformationModal(tgt.dataset.id); break;
+    case 'system-info-delete': deleteSystemInformation(tgt.dataset.id); break;
+    case 'system-info-refresh': window._systemInfoInitialLoad=false; loadSystemInformation(false); break;
     case 'sync-all-now': syncAllNow(); break;
     case 'print-all-modules': printAllModulesPDF(); break;
     case 'print-system-book': printSystemBookPDF(); break;
