@@ -4284,13 +4284,15 @@ function viewContent() {
    Files are stored in Google Drive through the System Information backend action.
    NOTE: Apps Script must support the System Information list/save/delete actions and v4.7.0 chunk-upload actions.
    ========================================================= */
-// System Information uses the same single-request Google Drive upload path as Module Materials.
-// Base64 expands the request; keep this below the Apps Script web-app POST ceiling.
-const SYSTEM_INFO_MAX_FILE_BYTES = 30 * 1024 * 1024;
+// System Information uses the v4.7.0 chunked upload API.
+// Keep each chunk below Apps Script request limits and allow large files up to 100 MB.
+const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
+const SYSTEM_INFO_CHUNK_BYTES = 5 * 1024 * 1024;
 const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
 let systemInformationCache = [];
 let systemInformationLastLoadedAt = 0;
 let systemInformationLoading = false;
+let systemInformationError = '';
 let systemInfoSelectedFiles = [];
 let systemInfoPendingUploads = [];
 let postLoginDrivePreloadPromise = null;
@@ -4299,10 +4301,10 @@ const POST_LOGIN_DRIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 function isSystemInfoAdmin() { return !!(state.user && state.user.role === 'admin'); }
 function systemInfoText(ms, en) { return currentLang === 'en' ? en : ms; }
 function systemInfoFileKind(file) {
-  const name = String(file && (file.filename || file.name) || '').toLowerCase();
-  const mime = String(file && file.mimeType || file.type || '').toLowerCase();
+  const name = String(file && (file.filename || file.name || file.title) || '').toLowerCase();
+  const mime = String(file && (file.mimeType || file.type || file.mime_type) || '').toLowerCase();
   const ext = name.includes('.') ? name.split('.').pop() : '';
-  if (mime.startsWith('video/') || ['mp4','mov','avi','mkv','webm','m4v'].includes(ext)) return 'video';
+  if (mime.startsWith('video/') || ['mp4','mov','avi','mkv','webm','m4v','mpeg','mpg','3gp','ogv'].includes(ext)) return 'video';
   if (mime === 'application/pdf' || ext === 'pdf') return 'pdf';
   if (['doc','docx','odt'].includes(ext) || mime.includes('word') || mime.includes('officedocument.word')) return 'word';
   if (['ppt','pptx','odp'].includes(ext) || mime.includes('presentation') || mime.includes('powerpoint')) return 'powerpoint';
@@ -4314,6 +4316,53 @@ function systemInfoFileIcon(file) {
   const kind = systemInfoFileKind(file);
   return ({video:'🎬',pdf:'📄',word:'📝',powerpoint:'📊',excel:'📈',image:'🖼️',other:'📎'})[kind] || '📎';
 }
+function systemInfoExtractDriveId(file) {
+  if (!file || typeof file !== 'object') return '';
+  const direct = file.fileId || file.driveId || file.googleDriveId || file.id;
+  if (direct && !String(direct).includes('/') && !String(direct).includes('http')) return String(direct);
+  const urls = [file.previewUrl, file.viewUrl, file.webViewLink, file.url, file.downloadUrl, file.webContentLink].filter(Boolean);
+  for (const raw of urls) {
+    const u = String(raw);
+    let m = u.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m && m[1]) return m[1];
+  }
+  return '';
+}
+function systemInfoNormalizeFiles(item) {
+  if (!item || typeof item !== 'object') return [];
+  let files = item.files;
+  if (typeof files === 'string') {
+    try { files = JSON.parse(files); } catch (_) { files = []; }
+  }
+  if (!Array.isArray(files) || !files.length) {
+    const alternate = item.attachments || item.file || item.driveFile;
+    if (Array.isArray(alternate)) files = alternate;
+    else if (alternate && typeof alternate === 'object') files = [alternate];
+    else if (item.fileId || item.driveId || item.viewUrl || item.previewUrl || item.filename) {
+      files = [{
+        fileId: item.fileId || item.driveId || '',
+        id: item.fileId || item.driveId || '',
+        filename: item.filename || item.title || 'Guide video',
+        mimeType: item.mimeType || (item.videoSource === 'youtube' ? 'video/youtube' : 'video/mp4'),
+        size: item.size,
+        viewUrl: item.viewUrl,
+        previewUrl: item.previewUrl,
+        downloadUrl: item.downloadUrl
+      }];
+    } else files = [];
+  }
+  return files.filter(f => f && typeof f === 'object').map(f => {
+    const file = { ...f };
+    file.fileId = systemInfoExtractDriveId(file) || file.fileId || '';
+    file.id = file.fileId || file.id || '';
+    file.filename = file.filename || file.name || file.title || 'Attached file';
+    file.mimeType = file.mimeType || file.mime_type || file.type || '';
+    file.viewUrl = file.viewUrl || file.webViewLink || file.url || (file.fileId ? `https://drive.google.com/file/d/${encodeURIComponent(file.fileId)}/view` : '');
+    file.downloadUrl = file.downloadUrl || file.webContentLink || '';
+    file.previewUrl = file.previewUrl || (file.fileId ? `https://drive.google.com/file/d/${encodeURIComponent(file.fileId)}/preview` : '');
+    return file;
+  });
+}
 let systemInfoEagerVideoClaimed = false;
 function systemInfoFileList(files, compact) {
   const list = Array.isArray(files) ? files : [];
@@ -4323,37 +4372,35 @@ function systemInfoFileList(files, compact) {
     const url = file.viewUrl || file.webViewLink || '';
     const download = file.downloadUrl || file.webContentLink || '';
     const kind = systemInfoFileKind(file);
-    // Prefer Drive's native preview endpoint for video streaming. It supports
-    // Google's own adaptive/range playback better than forcing a raw download URL.
-    const driveId = file.fileId || file.id;
+    const driveId = systemInfoExtractDriveId(file);
     let preview = file.previewUrl || url;
-    if (kind === 'video' && driveId && (!preview || /drive\.google\.com\/uc\?/i.test(preview))) {
-      preview = `https://drive.google.com/file/d/${encodeURIComponent(String(driveId))}/preview?rm=minimal`;
+    if (kind === 'video' && driveId) {
+      preview = `https://drive.google.com/file/d/${encodeURIComponent(String(driveId))}/preview`;
     } else if (kind === 'video' && preview && /drive\.google\.com\/file\/d\//i.test(preview) && !/[?&]rm=minimal/.test(preview)) {
       preview += (preview.includes('?') ? '&' : '?') + 'rm=minimal';
     }
     const size = file.size ? formatFileSize(Number(file.size)) : '';
-    const video = kind === 'video' && preview;
+    const video = kind === 'video' && !!preview;
     const eagerVideo = !!(video && !compact && !systemInfoEagerVideoClaimed);
     if (eagerVideo) systemInfoEagerVideoClaimed = true;
     return `<div style="border:1px solid var(--line);border-radius:10px;padding:11px;min-width:0">
       <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="font-size:1.35rem">${systemInfoFileIcon(file)}</span><div style="min-width:0;flex:1"><strong style="display:block;overflow-wrap:anywhere">${tce(name)}</strong><small class="muted">${size}${file.mimeType ? (size ? ' · ' : '')+tce(file.mimeType) : ''}</small></div>
       ${url ? `<a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${systemInfoText('Buka','Open')}</a>` : ''}
       ${download ? `<a class="btn btn-sm" href="${esc(download)}" target="_blank" rel="noopener">⬇</a>` : ''}</div>
-      ${video ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe data-system-info-player="${esc(String(file.fileId || file.id || preview))}" src="${esc(preview)}" title="${esc(name)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="${eagerVideo ? 'eager' : 'lazy'}" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0" onerror="this.style.background='#111'"></iframe></div>` : ''}
+      ${video ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe data-system-info-player="${esc(String(driveId || preview))}" src="${esc(preview)}" title="${esc(name)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="${eagerVideo ? 'eager' : 'lazy'}" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>` : ''}
       ${!url && !video ? `<small class="muted">${systemInfoText('Pautan fail belum diterima daripada server.','File link has not been returned by the server.')}</small>` : ''}
     </div>`;
   }).join('')}</div>`;
 }
 function systemInfoFilesForGuide(item) {
-  if (Array.isArray(item && item.files) && item.files.length) return item.files;
-  // Backward compatibility for guides saved using the previous single-video format.
-  if (item && (item.fileId || item.viewUrl || item.filename)) return [{
-    id:item.fileId || item.id, fileId:item.fileId || item.id,
-    filename:item.filename || item.title || 'Guide video', mimeType:item.mimeType || 'video/mp4',
-    size:item.size, viewUrl:item.viewUrl, previewUrl:item.previewUrl, downloadUrl:item.downloadUrl
-  }];
-  return [];
+  return systemInfoNormalizeFiles(item);
+}
+function systemInfoYouTubePreview(item) {
+  const raw = String(item && (item.youtubeId || item.youtubeURL || item.youtubeUrl || '') || '').trim();
+  if (!raw) return '';
+  const m = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/);
+  const id = m ? m[1] : (/^[A-Za-z0-9_-]{6,}$/.test(raw) ? raw : '');
+  return id ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}` : '';
 }
 let systemInformationLoadPromise = null;
 async function loadSystemInformation(quiet, force = false) {
@@ -4378,13 +4425,11 @@ async function loadSystemInformation(quiet, force = false) {
         : (res.data && Array.isArray(res.data.items)) ? res.data.items
         : (res.data && Array.isArray(res.data.guides)) ? res.data.guides
         : [];
+      systemInformationError = '';
       systemInformationCache = returnedItems.map(item => {
         const guide = item && typeof item === 'object' ? { ...item } : {};
-        if (!Array.isArray(guide.files)) {
-          if (Array.isArray(guide.attachments)) guide.files = guide.attachments;
-          else if (guide.file || guide.driveFile) guide.files = [guide.file || guide.driveFile];
-        }
-        if (!guide.id) guide.id = guide.guideId || guide.recordId || guide.fileId || '';
+        guide.files = systemInfoNormalizeFiles(guide);
+        if (!guide.id) guide.id = guide.guideId || guide.recordId || guide.fileId || guide.id || '';
         if (!guide.title) guide.title = guide.name || guide.label || guide.filename || 'Untitled guide';
         return guide;
       });
@@ -4393,7 +4438,8 @@ async function loadSystemInformation(quiet, force = false) {
       if (state.view === 'system-information') render();
       return systemInformationCache;
     } catch (err) {
-      if (!quiet) toast(systemInfoText('Gagal memuatkan maklumat sistem: ', 'Unable to load system information: ') + (err.message || ''), 'bad');
+      systemInformationError = String(err && err.message || err || 'Unknown API error');
+      if (!quiet) toast(systemInfoText('Gagal memuatkan maklumat sistem: ', 'Unable to load system information: ') + systemInformationError, 'bad');
       console.warn('[System Usage Guides] automatic Drive load failed:', err);
       return systemInformationCache || [];
     } finally {
@@ -4454,12 +4500,14 @@ function systemInformationView() {
   systemInfoEagerVideoClaimed = false;
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
-  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 30 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 30 MB per file, using the same Google Drive upload method as Module Materials.')}</p></div>` : ''}</div>`;
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 30 MB per file, using the same Google Drive upload method as Module Materials.')}</p></div>` : ''}</div>`;
   const pendingCards = systemInfoPendingUploads.length ? `<div class="grid2" style="margin-bottom:14px">${systemInfoPendingUploads.map(job => `<div class="card" id="sysupload-card-${esc(job.id)}" style="min-width:0;border:1px dashed var(--primary,#0b7658)"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">⏳ ${tce(job.title)}</h3><small class="muted" id="sysupload-status-${esc(job.id)}">${systemInfoText('Sedang diproses','Processing in background')} · ${tce(job.status || systemInfoText('Menyediakan muat naik...','Preparing upload...'))}</small></div><span class="pill" id="sysupload-pct-${esc(job.id)}">${Math.round(job.progress || 0)}%</span></div>${job.description ? `<p>${tce(job.description)}</p>` : ''}<div class="progress"><span id="sysupload-bar-${esc(job.id)}" style="width:${Math.max(0,Math.min(100,job.progress||0))}%"></span></div><small class="muted">${tce(job.filename || '')}</small></div>`).join('')}</div>` : '';
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
-    return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
-  }).join('')}</div>` : `<div class="card"><div class="empty">${systemInformationLoading ? '⏳ ' + systemInfoText('Sedang memuatkan panduan daripada Google Drive…','Loading guides from Google Drive…') : '🎬 ' + systemInfoText('Belum ada panduan penggunaan sistem.','No system usage guides have been added yet.')}</div></div>`;
+    const youtubePreview = systemInfoYouTubePreview(item);
+    const previewBlock = youtubePreview ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe src="${esc(youtubePreview)}" title="${esc(item.title || 'System usage guide')}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>` : '';
+    return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}${previewBlock}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
+  }).join('')}</div>` : `<div class="card"><div class="empty">${systemInformationLoading ? '⏳ ' + systemInfoText('Sedang memuatkan panduan daripada Google Drive…','Loading guides from Google Drive…') : systemInformationError ? '⚠️ ' + systemInfoText('Gagal mendapatkan kandungan daripada backend: ','Could not retrieve guide content from the backend: ') + tce(systemInformationError) : '🎬 ' + systemInfoText('Backend berjaya dihubungi tetapi tiada rekod panduan dikembalikan. Semak tab SystemInformation dalam Google Sheets.','The backend responded but returned no guide records. Check the SystemInformation tab in Google Sheets.')}</div>${systemInformationError ? `<div style="padding:0 16px 16px"><button class="btn btn-primary btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Cuba semula','Retry')}</button><small class="muted" style="display:block;margin-top:8px">${systemInfoText('Jika ralat menyatakan Unknown action, deploy versi Apps Script v4.7.0 yang mengandungi listSystemInformation.','If the error says Unknown action, deploy Apps Script v4.7.0 with listSystemInformation enabled.')}</small></div>` : ''}</div>`;
   if (state.view === 'system-information' && !systemInformationLoadPromise && (!systemInformationLastLoadedAt || Date.now() - systemInformationLastLoadedAt > 2 * 60 * 1000)) {
     setTimeout(() => { if (state.user && state.view === 'system-information') loadSystemInformation(true, false); }, 0);
   }
@@ -4477,7 +4525,7 @@ function openSystemInformationModal(id) {
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
       ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 30 MB bagi setiap fail menggunakan kaedah upload yang sama seperti Bahan Modul.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 30 MB per file using the same upload method as Module Materials.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 100 MB bagi setiap fail menggunakan muat naik berperingkat ke Google Drive.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 100 MB per file using reliable chunked upload to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
@@ -4488,7 +4536,7 @@ function openSystemInformationModal(id) {
     systemInfoSelectedFiles = [];
     const f = chosen[0];
     if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
-      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 30 MB.','File \"'+f.name+'\" exceeds the 30 MB limit.'),'bad');
+      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 100 MB.','File \"'+f.name+'\" exceeds the 100 MB limit.'),'bad');
       input.value = '';
     } else if (f) {
       systemInfoSelectedFiles.push(f);
@@ -4499,44 +4547,75 @@ function openSystemInformationModal(id) {
 /**
  * Upload System Information using the same Google Drive upload pattern as Module Materials.
  * Files are stored in a dedicated "System Information [system-information]" folder.
- * A 30 MB limit keeps the Base64 request within the practical Apps Script POST limit.
+ * Uses the v4.7.0 chunked upload API so files up to 100 MB do not need one oversized POST request.
  */
 async function uploadSystemInfoFile(file, title, description, onProgress) {
   const report = (pct, stage) => { if (onProgress) onProgress(pct, stage); };
-  report(5, systemInfoText('Membaca fail...', 'Reading file...'));
-  const base64 = await fileToBase64(file, pct => {
-    report(Math.max(5, Math.min(45, pct)), systemInfoText('Menyediakan fail...', 'Preparing file...'));
-  });
-  report(50, systemInfoText('Memuat naik ke Google Drive...', 'Uploading to Google Drive...'));
-  const res = await driveAPI('uploadSystemInformationFile', {
-    payload: {
-      filename: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      base64,
-      size: file.size,
-      title,
-      description,
-      uploadedBy: state.user && state.user.id,
-      uploadedByName: state.user && state.user.name
+  let uploadId = '';
+  try {
+    report(1, systemInfoText('Memulakan sesi muat naik...', 'Starting upload session...'));
+    const begin = await driveAPI('beginSystemInformationUpload', {
+      payload: {
+        filename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        title,
+        description,
+        uploadedBy: state.user && state.user.id,
+        uploadedByName: state.user && state.user.name
+      }
+    }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+    if (!begin || !begin.ok || !begin.uploadId) {
+      throw new Error((begin && begin.error) || 'Could not start chunked upload.');
     }
-  }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
-  if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
-  const uploaded = res.file || res.item || (res.data && (res.data.file || res.data.item)) || res;
-  const fileId = uploaded.fileId || uploaded.id;
-  if (!fileId) throw new Error('Upload berjaya tetapi server tidak memulangkan ID fail.');
-  const isVideo = (file.type || '').toLowerCase().startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(file.name || '');
-  const result = {
-    fileId,
-    id: uploaded.id || uploaded.fileId,
-    filename: uploaded.filename || uploaded.name || file.name,
-    mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
-    size: Number(uploaded.size) || file.size,
-    viewUrl: uploaded.viewUrl || uploaded.url || uploaded.webViewLink || '',
-    previewUrl: uploaded.previewUrl || (isVideo ? 'https://drive.google.com/file/d/' + encodeURIComponent(String(fileId)) + '/preview' : ''),
-    downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ''
-  };
-  report(100, systemInfoText('Selesai', 'Done'));
-  return result;
+    uploadId = begin.uploadId;
+    const chunkSize = Math.max(256 * 1024, Math.min(SYSTEM_INFO_CHUNK_BYTES, Number(begin.chunkSize) || SYSTEM_INFO_CHUNK_BYTES));
+    const total = Math.ceil(file.size / chunkSize);
+
+    for (let index = 0; index < total; index++) {
+      const blob = file.slice(index * chunkSize, Math.min(file.size, (index + 1) * chunkSize), file.type || 'application/octet-stream');
+      const base64 = await fileToBase64(blob);
+      let result = null;
+      // Retry transient failures; the backend treats repeated chunk indexes as safe duplicates.
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          result = await driveAPI('uploadSystemInformationChunk', { uploadId, index, base64 }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+          if (result && result.ok) break;
+          throw new Error((result && result.error) || ('Chunk ' + (index + 1) + ' failed.'));
+        } catch (err) {
+          if (attempt === 3) throw err;
+          await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        }
+      }
+      const pct = 5 + Math.round(((index + 1) / total) * 85);
+      report(pct, systemInfoText('Memuat naik bahagian ' + (index + 1) + '/' + total + '...', 'Uploading chunk ' + (index + 1) + '/' + total + '...'));
+    }
+
+    report(92, systemInfoText('Menggabungkan fail di Google Drive...', 'Assembling file in Google Drive...'));
+    const completed = await driveAPI('completeSystemInformationUpload', { uploadId }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+    if (!completed || !completed.ok) throw new Error((completed && completed.error) || 'Could not complete upload.');
+    const uploaded = completed.file || completed.item || (completed.data && (completed.data.file || completed.data.item)) || completed;
+    const fileId = uploaded.fileId || uploaded.id;
+    if (!fileId) throw new Error('Upload completed but the server did not return a file ID.');
+    const isVideo = (file.type || '').toLowerCase().startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(file.name || '');
+    const result = {
+      fileId,
+      id: uploaded.id || uploaded.fileId,
+      filename: uploaded.filename || uploaded.name || file.name,
+      mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
+      size: Number(uploaded.size) || file.size,
+      viewUrl: uploaded.viewUrl || uploaded.url || uploaded.webViewLink || ('https://drive.google.com/file/d/' + encodeURIComponent(String(fileId)) + '/view'),
+      previewUrl: uploaded.previewUrl || (isVideo ? 'https://drive.google.com/file/d/' + encodeURIComponent(String(fileId)) + '/preview' : ''),
+      downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(String(fileId)))
+    };
+    report(100, systemInfoText('Selesai', 'Done'));
+    return result;
+  } catch (err) {
+    if (uploadId) {
+      try { await driveAPI('cancelSystemInformationUpload', { uploadId }, 30000); } catch (cleanupError) {}
+    }
+    throw err;
+  }
 }
 
 async function handleSaveSystemInformation(form) {
@@ -4549,7 +4628,7 @@ async function handleSaveSystemInformation(form) {
   if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
   if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
-  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 30 MB.','Each file must not exceed 30 MB.'),'bad'); return; }
+  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
 
   // Close the form immediately; upload and metadata save continue in background.
   const jobId = uid('sysupload');
