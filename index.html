@@ -63,7 +63,7 @@ small,.muted{color:var(--muted)}
 .login-input:focus{outline:none;border-color:#12a37f;box-shadow:0 0 0 3px rgba(18,163,127,0.1)}
 .login-input::placeholder{color:#94a39d}
 .password-wrapper{position:relative}
-.password-wrapper .login-input{padding-right:48px}
+.password-wrapper .login-input{padding-right:48px}.password-wrapper .input{padding-right:48px}
 .pwd-toggle{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a39d;padding:0;display:flex;align-items:center;justify-content:center}
 .pwd-toggle:hover{color:#0b6b53}
 .login-btn{width:100%;padding:16px;background:#0b6b53;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background 0.2s,transform 0.1s;margin-top:10px}
@@ -782,12 +782,9 @@ function downloadQuestionBankTemplate() {
     'Modul', 'Soalan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
     'Jawapan (A/B/C/D)', 'Kategori', 'Tahap (Mudah/Sederhana/Sukar)'
   ];
-  const sampleRows = [
-    [mods[0] ? mods[0].name : 'Nama Modul', 'Contoh soalan 1?', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'A', 'Kategori', 'Mudah'],
-    [mods[0] ? mods[0].name : 'Nama Modul', 'Contoh soalan 2?', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'B', 'Kategori', 'Sederhana']
-  ];
+  // Blank template only: all actual module/question data must come from Google Sheets.
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = [{wch:28},{wch:50},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:20},{wch:26}];
   XLSX.utils.book_append_sheet(wb, ws, 'Soalan');
   const refWs = XLSX.utils.aoa_to_sheet([
@@ -904,12 +901,9 @@ function downloadRubricTemplate() {
     'Level 4 Label', 'Level 4 Markah', 'Level 4 Penerangan',
     'Level 5 Label', 'Level 5 Markah', 'Level 5 Penerangan'
   ];
-  const sample = [
-    ['Rubrik Contoh', 'Penerangan rubrik', 'Kriteria 1', 30, 'Cemerlang', 5, 'Penerangan', 'Baik', 4, 'Penerangan', 'Sederhana', 3, 'Penerangan', 'Lemah', 2, 'Penerangan', 'Gagal', 1, 'Penerangan'],
-    ['Rubrik Contoh', 'Penerangan rubrik', 'Kriteria 2', 70, 'Cemerlang', 5, 'Penerangan', 'Baik', 4, 'Penerangan', 'Sederhana', 3, 'Penerangan', 'Lemah', 2, 'Penerangan', 'Gagal', 1, 'Penerangan']
-  ];
+  // Blank template only; no sample rubric data is embedded.
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = headers.map((h, i) => ({ wch: i <= 3 ? 22 : (i % 3 === 1 ? 10 : 20) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Rubrik');
   XLSX.writeFile(wb, 'template-rubrik.xlsx');
@@ -999,9 +993,9 @@ function downloadTimetableTemplate(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
   const headers = ['Modul', 'Tarikh (YYYY-MM-DD)', 'Masa Mula (HH:MM)', 'Masa Tamat (HH:MM)', 'Tajuk / Topik', 'Pengajar', 'Lokasi', 'Catatan'];
-  const sample = [[m.name, todayISO(), '09:00', '10:30', 'Tajuk contoh', moduleTrainerNames(m) || '', 'Lokasi', '']];
+  // Blank template only; timetable rows are supplied by the user and saved to Google Sheets.
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
   ws['!cols'] = [{wch:28},{wch:20},{wch:18},{wch:18},{wch:40},{wch:28},{wch:24},{wch:30}];
   XLSX.utils.book_append_sheet(wb, ws, 'Jadual');
   const refWs = XLSX.utils.aoa_to_sheet([['Modul Yang Sah'], ...(state.user.role === 'admin' ? sortModules(DB.modules) : myModules()).map(x => [x.name])]);
@@ -1633,7 +1627,7 @@ const I18N = {
     enr_success: '{0} peserta didaftarkan.', enr_unenroll_success: 'Dikeluarkan.',
     mat_pick_file: 'Fail', mat_pick_name: 'Nama Paparan', mat_pick_desc: 'Penerangan',
     mat_pick_save: 'Muat Naik', mat_pick_cancel: 'Batal',
-    mat_pick_info_title: 'Format Diterima', mat_pick_info_limit: 'Had saiz: 100 MB per fail.',
+    mat_pick_info_title: 'Format Diterima', mat_pick_info_limit: 'Had saiz: 30 MB per fail.',
     rpt_title: 'Laporan Individu Peserta', rpt_summary_activities: 'Aktiviti',
     rpt_summary_assessed: 'Dinilai', rpt_summary_average: 'Purata', rpt_details: 'Butiran',
     rpt_col_activity: 'Aktiviti', rpt_col_module: 'Modul', rpt_col_date: 'Tarikh',
@@ -1651,7 +1645,7 @@ const I18N = {
     sijil_replace_warn: 'Peserta sudah ada sijil. Memuat naik sijil baharu akan menggantikan sijil lama.',
     sijil_upload_format: 'Format Diterima',
     sijil_only_pdf: 'Hanya fail PDF (.pdf) diterima untuk sijil.',
-    sijil_upload_limit: 'Had saiz: 100 MB per fail.',
+    sijil_upload_limit: 'Had saiz: 30 MB per fail.',
     sijil_uploaded: 'Sijil dimuat naik ke Google Drive.', sijil_uploaded_on: 'Dimuat naik pada',
     sijil_confirm_delete: 'Padam sijil "{0}"?', sijil_stats_total: 'Jumlah Peserta',
     sijil_stats_with: 'Ada Sijil', sijil_stats_without: 'Belum Ada Sijil',
@@ -2160,7 +2154,7 @@ const I18N = {
     enr_success: '{0} participants enrolled.', enr_unenroll_success: 'Removed.',
     mat_pick_file: 'File', mat_pick_name: 'Display Name', mat_pick_desc: 'Description',
     mat_pick_save: 'Upload', mat_pick_cancel: 'Cancel',
-    mat_pick_info_title: 'Accepted Formats', mat_pick_info_limit: 'Size limit: 100 MB per file.',
+    mat_pick_info_title: 'Accepted Formats', mat_pick_info_limit: 'Size limit: 30 MB per file.',
     rpt_title: 'Participant Individual Report', rpt_summary_activities: 'Activities',
     rpt_summary_assessed: 'Assessed', rpt_summary_average: 'Average', rpt_details: 'Details',
     rpt_col_activity: 'Activity', rpt_col_module: 'Module', rpt_col_date: 'Date',
@@ -2178,7 +2172,7 @@ const I18N = {
     sijil_replace_warn: 'Participant already has a certificate. Uploading a new one will replace the existing certificate.',
     sijil_upload_format: 'Accepted Format',
     sijil_only_pdf: 'Only PDF files (.pdf) are accepted for certificates.',
-    sijil_upload_limit: 'Size limit: 100 MB per file.',
+    sijil_upload_limit: 'Size limit: 30 MB per file.',
     sijil_uploaded: 'Certificate uploaded to Google Drive.', sijil_uploaded_on: 'Uploaded on',
     sijil_confirm_delete: 'Delete certificate "{0}"?', sijil_stats_total: 'Total Participants',
     sijil_stats_with: 'Has Certificate', sijil_stats_without: 'No Certificate Yet',
@@ -2770,6 +2764,10 @@ async function forceSaveNow() {
 }
 
 async function syncAllNow() {
+  if (isSystemInfoVideoSessionActive()) {
+    notifySystemInfoVideoSyncPaused();
+    return;
+  }
   const btn = document.getElementById('syncAllNowBtn');
   const badge = document.getElementById('syncBadge');
   const en = currentLang === 'en';
@@ -2815,6 +2813,10 @@ async function syncAllNow() {
 }
 
 async function manualSyncNow() {
+  if (isSystemInfoVideoSessionActive()) {
+    notifySystemInfoVideoSyncPaused();
+    return;
+  }
   const btn = document.getElementById('syncNowBtn');
   const b = document.getElementById('syncBadge');
   if (btn) { btn.disabled = true; btn.textContent = '⟳'; }
@@ -2904,11 +2906,9 @@ async function serverPullInBackground() {
         if (hasPending || sessionUserRestored) scheduleServerSave();
         if (state.user) preloadGoogleDriveDataAfterLogin(false).catch(err => console.warn('[session preload] failed:', err));
       } else if (res.ok) {
-        lastSyncedSnapshot = cloneDB(DB);
-        try {
-          const sr = await driveAPI('saveState', { state: DB });
-          if (sr.ok) console.log('✅ Empty state pushed to server.');
-        } catch(e) { console.error('❌ Empty state push failed:', e); }
+        // Never push an empty/local fallback database just because the backend
+        // returned an incomplete loadState response. That could overwrite real data.
+        console.error('[sync] Backend returned an incomplete loadState payload; keeping existing data and refusing to overwrite Google Sheets.');
       }
     } catch(e) {
       console.warn('Background sync failed:', e);
@@ -4282,16 +4282,17 @@ function viewContent() {
 /* =========================================================
    SYSTEM INFORMATION — ADMIN MANAGED GUIDES & MULTIPLE FILES
    Files are stored in Google Drive through the System Information backend action.
-   NOTE: Apps Script must support uploadSystemInformationFile and payload.files[].
+   NOTE: Apps Script must support the System Information list/save/delete actions and v4.7.0 chunk-upload actions.
    ========================================================= */
-const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
-// Direct Base64 uploads are memory-intensive; send files one at a time for stability.
-const SYSTEM_INFO_UPLOAD_CONCURRENCY = 1;
+// System Information uses the same single-request Google Drive upload path as Module Materials.
+// Base64 expands the request; keep this below the Apps Script web-app POST ceiling.
+const SYSTEM_INFO_MAX_FILE_BYTES = 30 * 1024 * 1024;
 const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
 let systemInformationCache = [];
 let systemInformationLastLoadedAt = 0;
 let systemInformationLoading = false;
 let systemInfoSelectedFiles = [];
+let systemInfoPendingUploads = [];
 let postLoginDrivePreloadPromise = null;
 let postLoginDrivePreloadAt = 0;
 const POST_LOGIN_DRIVE_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -4356,6 +4357,9 @@ function systemInfoFilesForGuide(item) {
 }
 let systemInformationLoadPromise = null;
 async function loadSystemInformation(quiet, force = false) {
+  if (isSystemInfoVideoSessionActive()) {
+    return systemInformationCache || [];
+  }
   if (systemInformationLoadPromise) return systemInformationLoadPromise;
   // Reuse a recent successful response unless the user explicitly refreshes
   // or enters the guide page after the cache has expired.
@@ -4368,7 +4372,22 @@ async function loadSystemInformation(quiet, force = false) {
     try {
       const res = await driveAPI('listSystemInformation', {}, 45000);
       if (!res || !res.ok) throw new Error(res && res.error || 'Unable to load system information');
-      systemInformationCache = Array.isArray(res.items) ? res.items : [];
+      const returnedItems = Array.isArray(res.items) ? res.items
+        : Array.isArray(res.guides) ? res.guides
+        : Array.isArray(res.records) ? res.records
+        : (res.data && Array.isArray(res.data.items)) ? res.data.items
+        : (res.data && Array.isArray(res.data.guides)) ? res.data.guides
+        : [];
+      systemInformationCache = returnedItems.map(item => {
+        const guide = item && typeof item === 'object' ? { ...item } : {};
+        if (!Array.isArray(guide.files)) {
+          if (Array.isArray(guide.attachments)) guide.files = guide.attachments;
+          else if (guide.file || guide.driveFile) guide.files = [guide.file || guide.driveFile];
+        }
+        if (!guide.id) guide.id = guide.guideId || guide.recordId || guide.fileId || '';
+        if (!guide.title) guide.title = guide.name || guide.label || guide.filename || 'Untitled guide';
+        return guide;
+      });
       systemInformationLastLoadedAt = Date.now();
       window._systemInfoInitialLoad = true;
       if (state.view === 'system-information') render();
@@ -4435,7 +4454,8 @@ function systemInformationView() {
   systemInfoEagerVideoClaimed = false;
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
-  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB.','Admins can add, edit and delete guides. Maximum size is 100 MB per file. Files are sent directly to Google Drive.')}</p></div>` : ''}</div>`;
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 30 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 30 MB per file, using the same Google Drive upload method as Module Materials.')}</p></div>` : ''}</div>`;
+  const pendingCards = systemInfoPendingUploads.length ? `<div class="grid2" style="margin-bottom:14px">${systemInfoPendingUploads.map(job => `<div class="card" id="sysupload-card-${esc(job.id)}" style="min-width:0;border:1px dashed var(--primary,#0b7658)"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">⏳ ${tce(job.title)}</h3><small class="muted" id="sysupload-status-${esc(job.id)}">${systemInfoText('Sedang diproses','Processing in background')} · ${tce(job.status || systemInfoText('Menyediakan muat naik...','Preparing upload...'))}</small></div><span class="pill" id="sysupload-pct-${esc(job.id)}">${Math.round(job.progress || 0)}%</span></div>${job.description ? `<p>${tce(job.description)}</p>` : ''}<div class="progress"><span id="sysupload-bar-${esc(job.id)}" style="width:${Math.max(0,Math.min(100,job.progress||0))}%"></span></div><small class="muted">${tce(job.filename || '')}</small></div>`).join('')}</div>` : '';
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
     return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
@@ -4443,7 +4463,7 @@ function systemInformationView() {
   if (state.view === 'system-information' && !systemInformationLoadPromise && (!systemInformationLastLoadedAt || Date.now() - systemInformationLastLoadedAt > 2 * 60 * 1000)) {
     setTimeout(() => { if (state.user && state.view === 'system-information') loadSystemInformation(true, false); }, 0);
   }
-  return header + cards;
+  return header + pendingCards + cards;
 }
 function openSystemInformationModal(id) {
   if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
@@ -4456,76 +4476,66 @@ function openSystemInformationModal(id) {
     <form data-form="system-information-save" data-id="${old ? esc(old.id) : ''}">
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
-      ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Fail sedia ada akan dikekalkan apabila anda menambah fail baharu.','Existing files will be retained when you add new files.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Tambah fail','Add files')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Anda boleh pilih beberapa fail serentak. Video, PDF, Word, PowerPoint, Excel, gambar dan fail umum disokong. Maksimum 100 MB bagi setiap fail. Fail dihantar terus ke Google Drive.','Select multiple files at once. Video, PDF, Word, PowerPoint, Excel, images and common files are supported. Maximum 100 MB per file. Files are uploaded directly to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 30 MB bagi setiap fail menggunakan kaedah upload yang sama seperti Bahan Modul.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 30 MB per file using the same upload method as Module Materials.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
   const input = document.getElementById('systemInfoFilesInput');
   if (input) input.addEventListener('change', () => {
-    const chosen = Array.from(input.files || []);
+    const chosen = Array.from(input.files || []).slice(0, 1);
     const info = document.getElementById('systemInfoFileInfo');
     systemInfoSelectedFiles = [];
-    for (const f of chosen) {
-      if (f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
-        toast(systemInfoText('Fail "'+f.name+'" melebihi had 100 MB.','File "'+f.name+'" exceeds the 100 MB limit.'),'bad');
-        input.value = ''; chosen.length = 0; break;
-      }
+    const f = chosen[0];
+    if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
+      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 30 MB.','File \"'+f.name+'\" exceeds the 30 MB limit.'),'bad');
+      input.value = '';
+    } else if (f) {
       systemInfoSelectedFiles.push(f);
     }
-    if (info) info.innerHTML = systemInfoSelectedFiles.map((f,i) => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
+    if (info) info.innerHTML = systemInfoSelectedFiles.map(f => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
   });
 }
 /**
- * Direct (single-request) upload for System Information.
- *
- * IMPORTANT: The Google Apps Script deployment must expose the action
- * `uploadSystemInformationFile` and return { ok:true, file:{...} }.
- * This deliberately does NOT call the chunk upload actions.
+ * Upload System Information using the same Google Drive upload pattern as Module Materials.
+ * Files are stored in a dedicated "System Information [system-information]" folder.
+ * A 30 MB limit keeps the Base64 request within the practical Apps Script POST limit.
  */
 async function uploadSystemInfoFile(file, title, description, onProgress) {
-  const report = (percent, stage) => { if (onProgress) onProgress(percent, stage); };
-  report(0, systemInfoText('Menyediakan fail...','Preparing file...'));
-  // Same Base64 approach used by Upload Material. FileReader progress covers
-  // preparation only; browser fetch does not expose reliable request progress.
+  const report = (pct, stage) => { if (onProgress) onProgress(pct, stage); };
+  report(5, systemInfoText('Membaca fail...', 'Reading file...'));
   const base64 = await fileToBase64(file, pct => {
-    report(Math.min(45, Math.round(pct * 0.9)), systemInfoText('Membaca fail...','Reading file...'));
+    report(Math.max(5, Math.min(45, pct)), systemInfoText('Menyediakan fail...', 'Preparing file...'));
   });
-  report(50, systemInfoText('Menghantar fail ke Google Drive...','Sending file to Google Drive...'));
+  report(50, systemInfoText('Memuat naik ke Google Drive...', 'Uploading to Google Drive...'));
   const res = await driveAPI('uploadSystemInformationFile', {
     payload: {
       filename: file.name,
       mimeType: file.type || 'application/octet-stream',
-      size: file.size,
       base64,
+      size: file.size,
       title,
       description,
       uploadedBy: state.user && state.user.id,
       uploadedByName: state.user && state.user.name
     }
   }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
-  if (!res || !res.ok) {
-    const msg = res && res.error ? res.error : 'Direct upload failed';
-    if (/action|unsupported|unknown|not found/i.test(msg)) {
-      throw new Error('Backend Google Apps Script belum menyokong uploadSystemInformationFile. Apps Script perlu dikemas kini dahulu.');
-    }
-    throw new Error(msg);
-  }
-  report(95, systemInfoText('Mengesahkan fail di Google Drive...','Verifying file in Google Drive...'));
-  const uploaded = res.file || res.item || res;
+  if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
+  const uploaded = res.file || res.item || (res.data && (res.data.file || res.data.item)) || res;
   const fileId = uploaded.fileId || uploaded.id;
-  if (!fileId) throw new Error('Upload berjaya dipanggil tetapi Google Drive tidak memulangkan fileId.');
+  if (!fileId) throw new Error('Upload berjaya tetapi server tidak memulangkan ID fail.');
+  const isVideo = (file.type || '').toLowerCase().startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(file.name || '');
   const result = {
     fileId,
     id: uploaded.id || uploaded.fileId,
     filename: uploaded.filename || uploaded.name || file.name,
     mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
     size: Number(uploaded.size) || file.size,
-    viewUrl: uploaded.viewUrl || uploaded.webViewLink || '',
-    previewUrl: uploaded.previewUrl || (file.type && file.type.startsWith('video/') ? 'https://drive.google.com/file/d/' + fileId + '/preview' : ''),
+    viewUrl: uploaded.viewUrl || uploaded.url || uploaded.webViewLink || '',
+    previewUrl: uploaded.previewUrl || (isVideo ? 'https://drive.google.com/file/d/' + encodeURIComponent(String(fileId)) + '/preview' : ''),
     downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ''
   };
-  report(100, systemInfoText('Fail berjaya dimuat naik','File uploaded successfully'));
+  report(100, systemInfoText('Selesai', 'Done'));
   return result;
 }
 
@@ -4534,60 +4544,49 @@ async function handleSaveSystemInformation(form) {
   const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
   const id=form.dataset.id || '';
   const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
-  const selected = Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice() : [];
+  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice(0, 1) : []);
   if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
-  if (!id && !selected.length) { toast(systemInfoText('Sila pilih sekurang-kurangnya satu fail.','Please select at least one file.'),'bad'); return; }
+  if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
+  if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
-  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
-  const btn=form.querySelector('button[type="submit"]'); if(btn) btn.disabled=true;
-  const prog=document.getElementById('systemInfoUploadProgress');
-  const list=document.getElementById('systemInfoUploadProgressList');
-  const overallBar=document.getElementById('systemInfoOverallProgressBar');
-  const overallStatus=document.getElementById('systemInfoOverallProgressStatus');
+  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 30 MB.','Each file must not exceed 30 MB.'),'bad'); return; }
+
+  // Close the form immediately; upload and metadata save continue in background.
+  const jobId = uid('sysupload');
+  const job = { id:jobId, title, description, filename:selected[0] ? selected[0].name : systemInfoText('Mengemaskini panduan sedia ada','Updating existing guide'), progress:0, status:systemInfoText('Mula memuat naik...','Starting upload...') };
+  systemInfoPendingUploads = [...systemInfoPendingUploads, job];
+  systemInfoSelectedFiles = [];
+  closeModal();
+  window._systemInfoInitialLoad=false;
+  render();
+  toast(systemInfoText('Muat naik diteruskan di latar belakang. Anda boleh tambah panduan lain sekarang.','Upload is continuing in the background. You can add another guide now.'));
+
+  const setJobProgress = (progress, status) => {
+    const current = systemInfoPendingUploads.find(x => x.id === jobId);
+    if (!current) return;
+    current.progress = Math.max(0,Math.min(100,Number(progress)||0));
+    if (status) current.status = status;
+    const pctEl = document.getElementById('sysupload-pct-' + jobId);
+    const barEl = document.getElementById('sysupload-bar-' + jobId);
+    const statusEl = document.getElementById('sysupload-status-' + jobId);
+    if (pctEl) pctEl.textContent = Math.round(current.progress) + '%';
+    if (barEl) barEl.style.width = current.progress + '%';
+    if (statusEl) statusEl.textContent = systemInfoText('Sedang diproses','Processing in background') + ' · ' + current.status;
+  };
   try {
-    const files = systemInfoFilesForGuide(old || {}).map(f => ({
+    const files = (selected.length ? [] : systemInfoFilesForGuide(old || {})).map(f => ({
       fileId:f.fileId || f.id, id:f.id || f.fileId, filename:f.filename || f.name,
       mimeType:f.mimeType || '', size:Number(f.size)||0, viewUrl:f.viewUrl || f.webViewLink || '',
       previewUrl:f.previewUrl || '', downloadUrl:f.downloadUrl || f.webContentLink || ''
     }));
     if (selected.length) {
-      if(prog) prog.style.display='block';
-      if(list) list.innerHTML = selected.map((f,i) => `<div style="border:1px solid var(--line);border-radius:8px;padding:8px"><div style="display:flex;justify-content:space-between;gap:8px"><span style="overflow-wrap:anywhere">${systemInfoFileIcon(f)} ${tce(f.name)}</span><strong id="systemInfoFilePct${i}">0%</strong></div><div class="progress" style="margin-top:6px"><span id="systemInfoFileBar${i}" style="width:0%"></span></div><small id="systemInfoFileStatus${i}" class="muted">${systemInfoText('Menunggu...','Waiting...')}</small></div>`).join('');
-      const progressByFile = selected.map(() => 0);
-      const uploadedByIndex = new Array(selected.length);
-      const totalBytes = selected.reduce((sum,f) => sum + Math.max(1, Number(f.size)||0), 0);
-      const updateOverall = () => {
-        const completedBytes = selected.reduce((sum,f,i) => sum + Math.max(1, Number(f.size)||0) * (progressByFile[i]/100), 0);
-        const value = Math.min(99, Math.round((completedBytes/totalBytes)*100));
-        if(overallBar)overallBar.style.width=value+'%';
-        if(overallStatus)overallStatus.textContent=value+'% · '+systemInfoText('Memuat naik fail...','Uploading files...');
-      };
-      let nextIndex = 0;
-      const worker = async () => {
-        while (true) {
-          const i = nextIndex++;
-          if (i >= selected.length) return;
-          const file = selected[i];
-          const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
-            progressByFile[i] = p;
-            const bar=document.getElementById('systemInfoFileBar'+i), pct=document.getElementById('systemInfoFilePct'+i), st=document.getElementById('systemInfoFileStatus'+i);
-            if(bar)bar.style.width=p+'%';
-            if(pct)pct.textContent=p+'%';
-            if(st)st.textContent=stage || (p===100?systemInfoText('Muat naik selesai','Upload complete'):p+'%');
-            updateOverall();
-          });
-          uploadedByIndex[i] = uploaded;
-          progressByFile[i] = 100;
-          updateOverall();
-        }
-      };
-      await Promise.all(Array.from({length:Math.min(SYSTEM_INFO_UPLOAD_CONCURRENCY,selected.length)}, () => worker()));
-      uploadedByIndex.forEach(f => { if(f) files.push(f); });
+      const file = selected[0];
+      const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
+        setJobProgress(Math.min(95,Math.round(p*0.95)), stage || (p+'%'));
+      });
+      files.push(uploaded);
     }
-    const payload={id:id || undefined,title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
-    // Backward compatibility: older Apps Script deployments require fileId even
-    // when the new files[] array is supplied. Send the first file as the legacy
-    // primary attachment as well; newer backends can store the complete array.
+    const payload={id:id || uid('sgi'),title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
     if (files.length) {
       const primary = files[0];
       payload.fileId = primary.fileId || primary.id;
@@ -4598,14 +4597,32 @@ async function handleSaveSystemInformation(form) {
       payload.previewUrl = primary.previewUrl || '';
       payload.downloadUrl = primary.downloadUrl || '';
     }
+    setJobProgress(97,systemInfoText('Menyimpan rekod panduan...','Saving guide record...'));
     const saved=await driveAPI('saveSystemInformation',{payload},SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
     if(!saved || !saved.ok) throw new Error(saved && saved.error || 'Metadata save failed');
-    if(overallBar && selected.length) overallBar.style.width='100%';
-    if(overallStatus && selected.length) overallStatus.textContent=systemInfoText('100% — Semua fail dimuat naik dan rekod disimpan.','100% — All files uploaded and the guide was saved.');
-    systemInfoSelectedFiles=[]; closeModal(); window._systemInfoInitialLoad=false;
-    await loadSystemInformation(true, true); toast(systemInfoText('Panduan berjaya disimpan. Anda boleh tambah panduan lain.','Guide saved successfully. You can add another guide.')); render();
+    const returnedItem = saved.item || saved.guide || saved.record || (saved.data && (saved.data.item || saved.data.guide)) || {};
+    const savedGuide = {
+      ...payload,
+      ...returnedItem,
+      id: returnedItem.id || saved.id || payload.id,
+      files: Array.isArray(returnedItem.files) && returnedItem.files.length ? returnedItem.files : files,
+      updatedAt: returnedItem.updatedAt || nowISO(),
+      uploadedByName: returnedItem.uploadedByName || payload.uploadedByName
+    };
+    const existingIndex = (systemInformationCache || []).findIndex(x => String(x.id) === String(savedGuide.id));
+    if (existingIndex >= 0) systemInformationCache[existingIndex] = savedGuide;
+    else systemInformationCache = [savedGuide, ...(systemInformationCache || [])];
+    systemInformationLastLoadedAt = Date.now();
+    systemInfoPendingUploads = systemInfoPendingUploads.filter(x => x.id !== jobId);
+    render();
+    if (!isSystemInfoVideoSessionActive()) await loadSystemInformation(true, true);
+    toast(systemInfoText('Panduan berjaya disimpan. Anda boleh tambah panduan lain.','Guide saved successfully. You can add another guide.'));
+    if (state.view === 'system-information') render();
   } catch(err) {
-    console.error(err); toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad'); if(btn)btn.disabled=false;
+    console.error(err);
+    systemInfoPendingUploads = systemInfoPendingUploads.filter(x => x.id !== jobId);
+    if (state.view === 'system-information') render();
+    toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad');
   }
 }
 async function deleteSystemInformation(id) {
@@ -4664,14 +4681,63 @@ function handleSaveProfile(form) {
   u.name = name; u.username = username; u.email = email; u.ic = ic; u.org = org; u.phone = phone;
   saveDB(); logAudit('Update Profile', 'Pengguna', u.id, name); toast('✅ ' + t('profile_updated')); render();
 }
-function handleChangePassword(form) {
-  const u = state.user; if (!u) return;
-  const cur = form.currentPassword.value, np = form.newPassword.value, cp = form.confirmPassword.value;
-  if (cur !== u.password) { toast(t('current_password_wrong'), 'bad'); return; }
+async function handleChangePassword(form) {
+  const activeUser = state.user;
+  if (!activeUser || !Array.isArray(DB?.users)) return;
+
+  // Update the canonical DB.users record. Background synchronization may
+  // replace DB and leave state.user pointing to a detached, outdated object.
+  const userId = String(activeUser.id);
+  const userRecord = DB.users.find(x => String(x.id) === userId);
+  if (!userRecord) {
+    toast(currentLang === 'en' ? 'Unable to locate your account record. Please refresh and try again.' : 'Rekod akaun tidak ditemui. Sila muat semula sistem dan cuba lagi.', 'bad');
+    return;
+  }
+
+  const cur = String(form.currentPassword.value || '');
+  const np = String(form.newPassword.value || '');
+  const cp = String(form.confirmPassword.value || '');
+  if (cur.trim() !== String(userRecord.password ?? '').trim()) { toast(t('current_password_wrong'), 'bad'); return; }
   if (!assessPassword(np).allMet) { toast(t('pwd_format_invalid'), 'bad'); return; }
   if (np !== cp) { toast(t('password_mismatch'), 'bad'); return; }
-  u.password = np; saveDB(); logAudit('Change Password', 'Pengguna', u.id, u.name);
-  toast('✅ ' + t('password_changed')); form.reset();
+  if (np === String(userRecord.password ?? '')) {
+    toast(currentLang === 'en' ? 'The new password must be different from your current password.' : 'Kata laluan baharu mestilah berbeza daripada kata laluan semasa.', 'bad');
+    return;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.textContent : '';
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? '⏳ Saving password…' : '⏳ Menyimpan kata laluan…'; }
+
+  const oldPassword = userRecord.password;
+  try {
+    userRecord.password = np;
+    userRecord.passwordChangedAt = nowISO();
+    userRecord.mustChangePassword = false;
+    state.user = userRecord;
+    saveDB();
+
+    const saved = await forceSaveNow();
+    if (!saved || !saved.ok) throw new Error(saved && saved.error ? saved.error : 'Server save failed');
+
+    const latestUser = DB.users.find(x => String(x.id) === userId);
+    if (latestUser) state.user = latestUser;
+    form.reset();
+    toast('✅ ' + t('password_changed'), 'ok');
+    if (state.view === 'profile') render();
+  } catch (err) {
+    console.error('[change password] save failed:', err);
+    const latestUser = DB.users.find(x => String(x.id) === userId);
+    if (latestUser) {
+      latestUser.password = oldPassword;
+      delete latestUser.passwordChangedAt;
+      state.user = latestUser;
+      saveDB();
+    }
+    toast((currentLang === 'en' ? 'Password could not be saved to the server: ' : 'Kata laluan tidak dapat disimpan ke server: ') + (err.message || ''), 'bad');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
+  }
 }
 
 async function handleLogin(form) {
@@ -6647,14 +6713,13 @@ function openActivityForm(act, presetModuleId) {
 function downloadActivityQuizTemplate() {
   if (!ensureXLSX()) return;
   const headers = ['Question','Option A','Option B','Option C','Option D','Correct Answer','Category','Difficulty'];
-  const sample = ['What is the function of a pump?','Move fluid','Measure temperature','Filter gas','Store pressure','A','Fluid Mechanics','Easy'];
   const ws = XLSX.utils.aoa_to_sheet([
     ['QUIZ QUESTION TEMPLATE'],
-    ['Instructions: Enter one question per row. Correct Answer must be A/B/C/D or 1/2/3/4. Delete the sample row before uploading if not needed.'],
-    [], headers, sample
+    ['Instructions: Enter one question per row. Correct Answer must be A/B/C/D or 1/2/3/4. This template contains no sample questions.'],
+    [], headers
   ]);
   ws['!cols'] = [{wch:42},{wch:28},{wch:28},{wch:28},{wch:28},{wch:18},{wch:22},{wch:16}];
-  ws['!autofilter'] = {ref:'A4:H5'};
+  ws['!autofilter'] = {ref:'A4:H4'};
   const guide = XLSX.utils.aoa_to_sheet([
     ['Field','Required','Instructions'],
     ['Question','Yes','Full question text. One question per row.'],
@@ -7393,7 +7458,7 @@ function openUserForm(user) {
   openModal(`<h2>${isEdit ? t('usr_edit') : t('usr_new')}</h2>
     <form data-form="user" data-id="${isEdit ? u.id : ''}">
       <div class="grid2"><div class="field"><label>${t('lbl_name')} *</label><input class="input" name="name" required value="${esc(u.name)}" /></div><div class="field"><label>${t('username')} *</label><input class="input" name="username" required pattern="[A-Za-z0-9_]{3,}" value="${esc(u.username||'')}" /></div></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${isEdit ? 'Reset Password (optional)' : t('lbl_password') + ' *'}</label><input class="input" type="password" name="password" ${isEdit ? '' : 'required'} minlength="8" autocomplete="new-password" placeholder="${isEdit ? 'Leave blank to keep current password' : 'Set initial password'}" /><small>${isEdit ? 'For security, the existing password is not displayed. Enter a new password only if you need to reset it.' : 'Use at least 8 characters.'}</small></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_email')} *</label><input class="input" type="email" name="email" required value="${esc(u.email)}" /></div><div class="field"><label>${isEdit ? 'Reset Password (optional)' : t('lbl_password') + ' *'}</label><div class="password-wrapper"><input class="input" type="password" name="password" ${isEdit ? '' : 'required'} minlength="8" autocomplete="new-password" placeholder="${isEdit ? 'Leave blank to keep current password' : 'Set initial password'}" /><button type="button" class="pwd-toggle" data-act="toggle-pwd" aria-label="Show password" title="Show password"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small>${isEdit ? 'For security, the existing password is not displayed. Enter a new password only if you need to reset it.' : 'Use at least 8 characters.'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_role')}</label><select class="select" name="role">${['participant','trainer','facilitator','vip','admin'].map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select></div><div class="field"><label>${t('usr_status')}</label><select class="select" name="status"><option value="approved" ${u.status === 'approved' ? 'selected' : ''}>${t('usr_status_approved')}</option><option value="pending" ${u.status === 'pending' ? 'selected' : ''}>${t('usr_status_pending')}</option><option value="rejected" ${u.status === 'rejected' ? 'selected' : ''}>${t('usr_status_rejected')}</option></select></div></div>
       <div class="grid2"><div class="field"><label>${t('lbl_ic')}</label><input class="input" name="ic" value="${esc(u.ic || '')}" /></div><div class="field"><label>${t('lbl_org')}</label><input class="input" name="org" list="userCompanyOptions" maxlength="500" autocomplete="off" value="${esc(u.org || '')}" placeholder="${currentLang === 'en' ? 'Select a company or type a new company name' : 'Pilih syarikat atau taip nama syarikat baharu'}" /><datalist id="userCompanyOptions">${companyList().map(company => `<option value="${esc(company)}"></option>`).join('')}</datalist><small>${currentLang === 'en' ? 'Choose from the registered company list or enter a new company name (up to 500 characters).' : 'Pilih daripada senarai syarikat berdaftar atau masukkan nama syarikat baharu (sehingga 500 aksara).'}</small></div></div>
       <div class="grid2"><div class="field"><label>${t('phone')}</label><input class="input" name="phone" value="${esc(u.phone || '')}" /></div><div></div></div>
@@ -8259,8 +8324,8 @@ document.addEventListener('click', async (e) => {
       if (wrapper) {
         const input = wrapper.querySelector('input');
         const icon = tgt.querySelector('svg');
-        if (input.type === 'password') { input.type = 'text'; if (icon) icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'; }
-        else { input.type = 'password'; if (icon) icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'; }
+        if (input.type === 'password') { input.type = 'text'; tgt.setAttribute('aria-label','Hide password'); tgt.setAttribute('title','Hide password'); if (icon) icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>'; }
+        else { input.type = 'password'; tgt.setAttribute('aria-label','Show password'); tgt.setAttribute('title','Show password'); if (icon) icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'; }
       }
       break;
     }
@@ -8598,6 +8663,27 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
+// System Usage Guides playback protection.
+// Google Drive preview runs in a cross-origin iframe, so the parent page cannot
+// reliably inspect its internal play/pause/ended state. While a guide video
+// player is open on this tab, defer background and manual refresh/sync operations.
+// This prevents the guide list or its iframe from being replaced during playback.
+function isSystemInfoVideoSessionActive() {
+  return !!(
+    state && state.view === 'system-information' &&
+    document.querySelector('#view iframe[data-system-info-player]')
+  );
+}
+function notifySystemInfoVideoSyncPaused() {
+  const en = currentLang === 'en';
+  toast(
+    en
+      ? 'Refresh/sync is paused while a System Usage Guides video is open. Leave this tab after the video to resume syncing.'
+      : 'Refresh/sync dijeda sementara video System Usage Guides dibuka. Keluar dari tab ini selepas video untuk sambung sync.',
+    'warn'
+  );
+}
+
 let pullInFlightPromise = null;
 async function pullFromServer(showToast, options = {}) {
   if (pullInFlightPromise) return pullInFlightPromise;
@@ -8607,6 +8693,9 @@ async function pullFromServer(showToast, options = {}) {
 }
 
 async function pullFromServerInternal(showToast, options = {}) {
+  if (isSystemInfoVideoSessionActive()) {
+    return { ok: false, skipped: 'system-information-video-open' };
+  }
   if (!state.user && !options.allowLoggedOut) return { ok: false, skipped: 'not-logged-in' };
   if (document.hidden && !options.force) return { ok: false, skipped: 'hidden' };
   if (document.querySelector('.modal-backdrop') && !options.force) return { ok: false, skipped: 'modal-open' };
