@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://drive.google.com" crossorigin>
+<link rel="preconnect" href="https://docs.google.com" crossorigin>
+<link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
 <title>Chemical Fundamentals Training Programme Malaysia</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -560,6 +563,29 @@ html, body {
 @media(max-width:900px){.admin-shell{flex-direction:column}.admin-shell>.sidebar{width:100%;min-width:0;height:auto;min-height:0;position:relative;top:auto;align-self:stretch;flex:0 0 auto;padding:12px;overflow:visible}.admin-shell .nav{display:flex;flex-direction:column;gap:6px;overflow:visible}.admin-shell .nav-item{min-height:44px;white-space:normal}.admin-shell .sidebar-foot{display:flex!important;flex-direction:column}.admin-shell>.main{width:100%}.admin-shell #view{padding:18px 14px 28px}}
 @media(max-width:560px){.admin-shell>.sidebar{padding:10px}.admin-shell .nav{gap:5px}.admin-shell .nav-item{padding:10px 11px;font-size:.84rem;min-height:42px}.admin-shell .sidebar-foot{flex-wrap:nowrap}.admin-shell .sidebar-foot .userchip{flex-basis:auto}.admin-shell .sidebar-foot>button{width:100%!important}.admin-shell #view{padding:14px 10px 24px}.admin-shell .topbar{align-items:flex-start;gap:8px}.admin-shell .topbar .tb-right{flex-wrap:wrap;justify-content:flex-end}}
 
+
+/* ALL-ROLE WORKSPACE NAVIGATION — vertical tabs with independent scrolling */
+.shell:not(.admin-shell){display:flex;flex-direction:row;align-items:stretch;min-height:100vh;width:100%;max-width:100%}
+.shell:not(.admin-shell)>.sidebar{width:258px;min-width:258px;max-width:258px;height:100vh;min-height:100vh;position:sticky;top:0;align-self:flex-start;flex:0 0 258px;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.shell:not(.admin-shell) .nav{width:100%;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;align-items:stretch;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:3px 2px 10px;scrollbar-width:thin}
+.shell:not(.admin-shell) .nav-item{width:100%;min-width:0;flex:0 0 auto;white-space:normal;overflow-wrap:anywhere;justify-content:flex-start}
+.shell:not(.admin-shell) .sidebar-foot{flex:0 0 auto;margin-top:auto}
+.shell:not(.admin-shell)>.main{flex:1 1 auto;width:calc(100% - 258px);min-width:0}
+.company-member-line{padding:3px 0;border-bottom:1px dashed var(--line);font-size:.8rem}
+.company-member-line:last-child{border-bottom:0}
+@media(max-width:900px){
+.shell:not(.admin-shell){flex-direction:column}
+.shell:not(.admin-shell)>.sidebar{width:100%;min-width:0;max-width:100%;height:auto;min-height:0;max-height:48vh;position:relative;top:auto;align-self:stretch;flex:0 0 auto;overflow-x:hidden;overflow-y:auto;padding:12px}
+.shell:not(.admin-shell) .nav{flex:1 1 auto;max-height:31vh;min-height:90px;flex-direction:column;overflow-x:hidden;overflow-y:auto}
+.shell:not(.admin-shell) .nav-item{width:100%;white-space:normal}
+.shell:not(.admin-shell) .sidebar-foot{display:flex;flex-direction:column}
+.shell:not(.admin-shell)>.main{width:100%}
+}
+@media(max-width:560px){
+.shell:not(.admin-shell)>.sidebar{max-height:44vh;padding:10px}
+.shell:not(.admin-shell) .nav{max-height:28vh;min-height:80px}
+}
+
 </style>
 </head>
 <body>
@@ -572,14 +598,14 @@ html, body {
 /* =========================================================
    BACKEND CONFIG — PATCH v3.9 (data-free build)
    ========================================================= */
-const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzCF9SJjZupQ5KVs6hmx42PJs3El7mJbu7Lh3JHZb-R8PrrfS1c0AuZrmA-uv7Us9N6/exec';
+const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzwuWLsDVDCN20VkUu5MNmj84o_dHj361ICec9rq7HRsHk2kJMUfdpivICHtvMJTJEb9Q/exec';
 const DRIVE_API_KEY = '';
 const DRIVE_TIMEOUT_MS = 30000;
 
-async function driveAPI(action, data) {
+async function driveAPI(action, data, timeoutMs) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
   const ctl = new AbortController();
-  const tid = setTimeout(() => ctl.abort(), DRIVE_TIMEOUT_MS);
+  const tid = setTimeout(() => ctl.abort(), Number(timeoutMs) || DRIVE_TIMEOUT_MS);
   try {
     const res = await fetch(DRIVE_API_URL, {
       method: 'POST',
@@ -2665,64 +2691,70 @@ async function performMergedSave(maxAttempts = 8) {
     const dbAtStart = cloneDB(DB);
     try {
       const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
+      if (isDiffEmpty(localDiff)) return { ok:true, skipped:true };
 
       let serverState = null;
       try {
         const loadRes = await driveAPI('loadState');
         if (loadRes && loadRes.ok && loadRes.state) serverState = loadRes.state;
-      } catch (loadErr) { console.warn('loadState failed during save:', loadErr); }
+      } catch (loadErr) {
+        console.warn('loadState failed during incremental save:', loadErr);
+      }
 
+      // Merge against the latest server state, but transmit only changed IDs.
       const base = serverState || lastSyncedSnapshot || dbAtStart;
       const merged = applyDiff(base, localDiff);
+      const savedBy = state.user ? state.user.id : 'system';
 
-      merged._rev = ((typeof base._rev === 'number') ? base._rev : 0) + 1;
-      merged._syncId = uid('sync');
-      merged._syncTs = nowISO();
-      merged._savedBy = state.user ? state.user.id : 'system';
-
-      const saveRes = await driveAPI('saveState', { state: merged });
-      if (!saveRes || !saveRes.ok) throw new Error((saveRes && saveRes.error) || 'Save failed');
-
-      await sleep(150 + Math.floor(Math.random() * 200));
-
-      let verified = false;
-      try {
-        const verify = await driveAPI('loadState');
-        if (verify && verify.ok && verify.state) {
-          if (verify.state._syncId === merged._syncId) verified = true;
-          else {
-            const backoff = Math.min(4000, 200 * Math.pow(2, attempt)) + Math.random() * 300;
-            await sleep(backoff);
-            continue;
-          }
-        } else verified = true;
-      } catch (verifyErr) { verified = true; }
-
-      if (verified) {
-        const editsDuringSave = computeDiff(dbAtStart, DB);
-        DB = applyDiff(merged, editsDuringSave);
-        lastSyncedSnapshot = cloneDB(merged);
-        try {
-          localStorage.setItem(DB_KEY, JSON.stringify(DB));
-          localStorage.removeItem('cftpmy_pending_diff');
-        } catch(e) {}
-        pendingSaveSince = 0;
-        updateBeforeUnload();
-        if (!isDiffEmpty(editsDuringSave)) savePending = true;
-        return { ok: true };
+      const saveRes = await driveAPI('saveDelta', {
+        diff: localDiff,
+        savedBy: savedBy
+      });
+      if (!saveRes || !saveRes.ok) {
+        throw new Error((saveRes && saveRes.error) || 'Incremental save failed');
       }
+
+      merged._rev = Number(saveRes._rev) || Number(base._rev) || 0;
+      merged._syncId = saveRes._syncId || uid('sync');
+      merged._syncTs = saveRes._syncTs || nowISO();
+      merged._savedBy = savedBy;
+
+      // Keep edits made while the network request was running.
+      const editsDuringSave = computeDiff(dbAtStart, DB);
+      DB = applyDiff(merged, editsDuringSave);
+      lastSyncedSnapshot = cloneDB(merged);
+
+      const stillPending = computeDiff(lastSyncedSnapshot, DB);
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        if (!isDiffEmpty(stillPending)) {
+          localStorage.setItem('cftpmy_pending_diff', JSON.stringify(stillPending));
+        } else {
+          localStorage.removeItem('cftpmy_pending_diff');
+        }
+      } catch(e) {}
+
+      pendingSaveSince = isDiffEmpty(stillPending) ? 0 : Date.now();
+      updateBeforeUnload();
+      if (!isDiffEmpty(stillPending)) savePending = true;
+      return { ok:true, stats:saveRes.stats || {}, _rev:merged._rev, _syncId:merged._syncId };
     } catch (err) {
-      console.warn(`[save] attempt ${attempt + 1} failed:`, err);
+      console.warn(`[incremental save] attempt ${attempt + 1} failed:`, err);
       if (attempt === maxAttempts - 1) {
         const b = document.getElementById('syncBadge');
-        if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
-        return { ok: false, error: err.message };
+        if (b) {
+          b.textContent = '⚠';
+          b.style.background = '#fdecea';
+          b.style.color = '#c0392b';
+          b.title = 'Save failed: ' + err.message;
+        }
+        return { ok:false, error:err.message };
       }
       const backoff = Math.min(6000, 300 * Math.pow(2, attempt)) + Math.random() * 500;
       await sleep(backoff);
     }
   }
-  return { ok: false, error: 'Max retries exceeded' };
+  return { ok:false, error:'Max retries exceeded' };
 }
 
 async function forceSaveNow() {
@@ -2866,10 +2898,11 @@ async function serverPullInBackground() {
         DB = newDB;
         migrateDB();
         lastSyncedSnapshot = cloneDB(serverState);
-        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); localStorage.setItem('cftpmy_cache_refreshed_at', nowISO()); } catch(e) {}
         const sessionUserRestored = restoreActiveSessionUser();
         if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
         if (hasPending || sessionUserRestored) scheduleServerSave();
+        if (state.user) preloadGoogleDriveDataAfterLogin(false).catch(err => console.warn('[session preload] failed:', err));
       } else if (res.ok) {
         lastSyncedSnapshot = cloneDB(DB);
         try {
@@ -3960,6 +3993,7 @@ function navItems() {
     return [
       { v:'dashboard', label:t('nav_portal'), icon:'🧑‍🏫' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+      { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -3980,6 +4014,7 @@ function navItems() {
     return [
       { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+      { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -4001,6 +4036,7 @@ function navItems() {
   return [
     { v:'dashboard', label:t('nav_dashboard'), icon:'📊' },
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
+    { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
     { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
       { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
@@ -4073,7 +4109,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
@@ -4172,20 +4208,48 @@ function render() {
   stopQuizTimer();
   if (checkStandaloneFinal()) return;
   if (checkStandaloneQuiz()) return;
+
+  // Preserve Google Drive video iframe elements while the app refreshes its UI.
+  // Replacing an iframe resets its playback position and can make a playing
+  // video appear to stop/restart whenever background data is refreshed.
+  const liveSystemInfoPlayers = new Map();
+  if (state.view === 'system-information') {
+    document.querySelectorAll('#view iframe[data-system-info-player]').forEach(frame => {
+      const key = frame.getAttribute('data-system-info-player');
+      if (key) liveSystemInfoPlayers.set(key, frame);
+    });
+  }
+
   const app = $('#app');
   if (!state.user) { app.innerHTML = loginView(); return; }
   app.innerHTML = shell();
-  const v = $('#view'); if (v) v.innerHTML = viewContent();
+  const v = $('#view');
+  if (v) {
+    v.innerHTML = viewContent();
+    // Move the original iframe nodes into the newly rendered cards. Moving the
+    // same DOM node keeps the embedded player's current position and buffering
+    // state. Navigating away and opening the guide again creates a fresh player.
+    liveSystemInfoPlayers.forEach((oldFrame, key) => {
+      const replacement = Array.from(v.querySelectorAll('iframe[data-system-info-player]'))
+        .find(frame => frame.getAttribute('data-system-info-player') === key);
+      if (replacement && oldFrame && oldFrame.isConnected === false) replacement.replaceWith(oldFrame);
+    });
+  }
   pushAppHistoryIfChanged();
 }
 function viewContent() {
   const originalDB = DB;
-  DB = applyGlobalModuleFilter(originalDB, window.globalModuleFilter || 'all');
+  // Admin timetable is a system-wide view: do not let the global module filter
+  // hide schedules belonging to other modules.
+  DB = (state.user && state.user.role === 'admin' && state.view === 'participant-timetable')
+    ? originalDB
+    : applyGlobalModuleFilter(originalDB, window.globalModuleFilter || 'all');
   try {
   switch (state.view) {
     case 'dashboard': return dashboardView();
     case 'modules': return modulesView();
     case 'materials-library': return materialsLibraryView();
+    case 'system-information': return systemInformationView();
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
     case 'enrolled-programs': return enrolledProgramsView();
@@ -4212,6 +4276,344 @@ function viewContent() {
   } finally {
     DB = originalDB;
   }
+}
+
+
+/* =========================================================
+   SYSTEM INFORMATION — ADMIN MANAGED GUIDES & MULTIPLE FILES
+   Files are stored in Google Drive through the System Information backend action.
+   NOTE: Apps Script must support uploadSystemInformationFile and payload.files[].
+   ========================================================= */
+const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
+// Direct Base64 uploads are memory-intensive; send files one at a time for stability.
+const SYSTEM_INFO_UPLOAD_CONCURRENCY = 1;
+const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
+let systemInformationCache = [];
+let systemInformationLastLoadedAt = 0;
+let systemInformationLoading = false;
+let systemInfoSelectedFiles = [];
+let postLoginDrivePreloadPromise = null;
+let postLoginDrivePreloadAt = 0;
+const POST_LOGIN_DRIVE_CACHE_TTL_MS = 5 * 60 * 1000;
+function isSystemInfoAdmin() { return !!(state.user && state.user.role === 'admin'); }
+function systemInfoText(ms, en) { return currentLang === 'en' ? en : ms; }
+function systemInfoFileKind(file) {
+  const name = String(file && (file.filename || file.name) || '').toLowerCase();
+  const mime = String(file && file.mimeType || file.type || '').toLowerCase();
+  const ext = name.includes('.') ? name.split('.').pop() : '';
+  if (mime.startsWith('video/') || ['mp4','mov','avi','mkv','webm','m4v'].includes(ext)) return 'video';
+  if (mime === 'application/pdf' || ext === 'pdf') return 'pdf';
+  if (['doc','docx','odt'].includes(ext) || mime.includes('word') || mime.includes('officedocument.word')) return 'word';
+  if (['ppt','pptx','odp'].includes(ext) || mime.includes('presentation') || mime.includes('powerpoint')) return 'powerpoint';
+  if (['xls','xlsx','csv','ods'].includes(ext) || mime.includes('spreadsheet') || mime.includes('excel')) return 'excel';
+  if (mime.startsWith('image/') || ['jpg','jpeg','png','gif','bmp','webp','svg','tif','tiff'].includes(ext)) return 'image';
+  return 'other';
+}
+function systemInfoFileIcon(file) {
+  const kind = systemInfoFileKind(file);
+  return ({video:'🎬',pdf:'📄',word:'📝',powerpoint:'📊',excel:'📈',image:'🖼️',other:'📎'})[kind] || '📎';
+}
+let systemInfoEagerVideoClaimed = false;
+function systemInfoFileList(files, compact) {
+  const list = Array.isArray(files) ? files : [];
+  if (!list.length) return `<div class="empty">${systemInfoText('Tiada fail dilampirkan.','No files attached.')}</div>`;
+  return `<div style="display:grid;gap:10px">${list.map(file => {
+    const name = file.filename || file.name || 'Untitled file';
+    const url = file.viewUrl || file.webViewLink || '';
+    const download = file.downloadUrl || file.webContentLink || '';
+    const kind = systemInfoFileKind(file);
+    // Prefer Drive's native preview endpoint for video streaming. It supports
+    // Google's own adaptive/range playback better than forcing a raw download URL.
+    const driveId = file.fileId || file.id;
+    let preview = file.previewUrl || url;
+    if (kind === 'video' && driveId && (!preview || /drive\.google\.com\/uc\?/i.test(preview))) {
+      preview = `https://drive.google.com/file/d/${encodeURIComponent(String(driveId))}/preview?rm=minimal`;
+    } else if (kind === 'video' && preview && /drive\.google\.com\/file\/d\//i.test(preview) && !/[?&]rm=minimal/.test(preview)) {
+      preview += (preview.includes('?') ? '&' : '?') + 'rm=minimal';
+    }
+    const size = file.size ? formatFileSize(Number(file.size)) : '';
+    const video = kind === 'video' && preview;
+    const eagerVideo = !!(video && !compact && !systemInfoEagerVideoClaimed);
+    if (eagerVideo) systemInfoEagerVideoClaimed = true;
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:11px;min-width:0">
+      <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="font-size:1.35rem">${systemInfoFileIcon(file)}</span><div style="min-width:0;flex:1"><strong style="display:block;overflow-wrap:anywhere">${tce(name)}</strong><small class="muted">${size}${file.mimeType ? (size ? ' · ' : '')+tce(file.mimeType) : ''}</small></div>
+      ${url ? `<a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${systemInfoText('Buka','Open')}</a>` : ''}
+      ${download ? `<a class="btn btn-sm" href="${esc(download)}" target="_blank" rel="noopener">⬇</a>` : ''}</div>
+      ${video ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe data-system-info-player="${esc(String(file.fileId || file.id || preview))}" src="${esc(preview)}" title="${esc(name)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="${eagerVideo ? 'eager' : 'lazy'}" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0" onerror="this.style.background='#111'"></iframe></div>` : ''}
+      ${!url && !video ? `<small class="muted">${systemInfoText('Pautan fail belum diterima daripada server.','File link has not been returned by the server.')}</small>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+function systemInfoFilesForGuide(item) {
+  if (Array.isArray(item && item.files) && item.files.length) return item.files;
+  // Backward compatibility for guides saved using the previous single-video format.
+  if (item && (item.fileId || item.viewUrl || item.filename)) return [{
+    id:item.fileId || item.id, fileId:item.fileId || item.id,
+    filename:item.filename || item.title || 'Guide video', mimeType:item.mimeType || 'video/mp4',
+    size:item.size, viewUrl:item.viewUrl, previewUrl:item.previewUrl, downloadUrl:item.downloadUrl
+  }];
+  return [];
+}
+let systemInformationLoadPromise = null;
+async function loadSystemInformation(quiet, force = false) {
+  if (systemInformationLoadPromise) return systemInformationLoadPromise;
+  // Reuse a recent successful response unless the user explicitly refreshes
+  // or enters the guide page after the cache has expired.
+  if (!force && systemInformationLastLoadedAt && Date.now() - systemInformationLastLoadedAt < 2 * 60 * 1000) {
+    return systemInformationCache;
+  }
+  systemInformationLoading = true;
+  if (state.view === 'system-information' && !systemInformationCache.length) render();
+  systemInformationLoadPromise = (async () => {
+    try {
+      const res = await driveAPI('listSystemInformation', {}, 45000);
+      if (!res || !res.ok) throw new Error(res && res.error || 'Unable to load system information');
+      systemInformationCache = Array.isArray(res.items) ? res.items : [];
+      systemInformationLastLoadedAt = Date.now();
+      window._systemInfoInitialLoad = true;
+      if (state.view === 'system-information') render();
+      return systemInformationCache;
+    } catch (err) {
+      if (!quiet) toast(systemInfoText('Gagal memuatkan maklumat sistem: ', 'Unable to load system information: ') + (err.message || ''), 'bad');
+      console.warn('[System Usage Guides] automatic Drive load failed:', err);
+      return systemInformationCache || [];
+    } finally {
+      systemInformationLoading = false;
+      systemInformationLoadPromise = null;
+    }
+  })();
+  return systemInformationLoadPromise;
+}
+
+/**
+ * After a successful login, warm the browser cache with the shared Google
+ * Drive listings. Google Sheets records are loaded by loadState/pullFromServer;
+ * this function loads Drive guide/material metadata and links in the background.
+ * It deliberately does NOT download large file binaries (videos/PDFs/etc.) until
+ * a user opens or downloads them, which avoids slowing login and consuming data.
+ */
+async function preloadGoogleDriveDataAfterLogin(force = false) {
+  if (!state.user) return { ok: false, skipped: 'not-logged-in' };
+  if (postLoginDrivePreloadPromise) return postLoginDrivePreloadPromise;
+  if (!force && postLoginDrivePreloadAt && Date.now() - postLoginDrivePreloadAt < POST_LOGIN_DRIVE_CACHE_TTL_MS) {
+    return { ok: true, cached: true };
+  }
+  postLoginDrivePreloadPromise = (async () => {
+    const startedAt = Date.now();
+    const badge = document.getElementById('syncBadge');
+    if (badge) { badge.textContent = '↓'; badge.title = 'Loading Google Drive data…'; }
+    const jobs = [];
+    jobs.push(loadSystemInformation(true, force).then(items => ({ type: 'system-information', count: items.length })));
+
+    // Fetch Drive file listings for each module, with limited concurrency.
+    const moduleIds = (Array.isArray(DB && DB.modules) ? DB.modules : []).map(m => m && m.id).filter(Boolean);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < moduleIds.length) {
+        const mid = moduleIds[nextIndex++];
+        try {
+          await refreshModuleMaterialsFromDrive(mid, true, { persist: false });
+        } catch (e) { console.warn('[post-login preload] module Drive listing failed:', mid, e); }
+      }
+    };
+    const workerCount = Math.min(3, moduleIds.length);
+    for (let i = 0; i < workerCount; i++) jobs.push(worker());
+
+    const results = await Promise.allSettled(jobs);
+    const failed = results.filter(x => x.status === 'rejected').length;
+    postLoginDrivePreloadAt = Date.now();
+    if (badge) {
+      badge.textContent = failed ? '⚠' : '✓';
+      badge.title = `Google Sheets/Drive data loaded in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+    }
+    return { ok: failed === 0, failed, modules: moduleIds.length };
+  })();
+  try { return await postLoginDrivePreloadPromise; }
+  finally { postLoginDrivePreloadPromise = null; }
+}
+function systemInformationView() {
+  systemInfoEagerVideoClaimed = false;
+  const admin = isSystemInfoAdmin();
+  const items = systemInformationCache || [];
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB.','Admins can add, edit and delete guides. Maximum size is 100 MB per file. Files are sent directly to Google Drive.')}</p></div>` : ''}</div>`;
+  const cards = items.length ? `<div class="grid2">${items.map(item => {
+    const files = systemInfoFilesForGuide(item);
+    return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
+  }).join('')}</div>` : `<div class="card"><div class="empty">${systemInformationLoading ? '⏳ ' + systemInfoText('Sedang memuatkan panduan daripada Google Drive…','Loading guides from Google Drive…') : '🎬 ' + systemInfoText('Belum ada panduan penggunaan sistem.','No system usage guides have been added yet.')}</div></div>`;
+  if (state.view === 'system-information' && !systemInformationLoadPromise && (!systemInformationLastLoadedAt || Date.now() - systemInformationLastLoadedAt > 2 * 60 * 1000)) {
+    setTimeout(() => { if (state.user && state.view === 'system-information') loadSystemInformation(true, false); }, 0);
+  }
+  return header + cards;
+}
+function openSystemInformationModal(id) {
+  if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
+  if (id && !old) { toast(systemInfoText('Rekod tidak ditemui.','Record not found.'),'bad'); return; }
+  systemInfoSelectedFiles = [];
+  const existingFiles = systemInfoFilesForGuide(old || {});
+  const accept = 'video/*,application/pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp';
+  openModal(`<h2>📁 ${old ? systemInfoText('Kemaskini Panduan','Edit Guide') : systemInfoText('Tambah Panduan Baharu','Add New Guide')}</h2>
+    <form data-form="system-information-save" data-id="${old ? esc(old.id) : ''}">
+      <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
+      <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
+      ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Fail sedia ada akan dikekalkan apabila anda menambah fail baharu.','Existing files will be retained when you add new files.')}</small></div>` : ''}
+      <div class="field"><label>${systemInfoText('Tambah fail','Add files')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Anda boleh pilih beberapa fail serentak. Video, PDF, Word, PowerPoint, Excel, gambar dan fail umum disokong. Maksimum 100 MB bagi setiap fail. Fail dihantar terus ke Google Drive.','Select multiple files at once. Video, PDF, Word, PowerPoint, Excel, images and common files are supported. Maximum 100 MB per file. Files are uploaded directly to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
+      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
+    </form>`);
+  const input = document.getElementById('systemInfoFilesInput');
+  if (input) input.addEventListener('change', () => {
+    const chosen = Array.from(input.files || []);
+    const info = document.getElementById('systemInfoFileInfo');
+    systemInfoSelectedFiles = [];
+    for (const f of chosen) {
+      if (f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
+        toast(systemInfoText('Fail "'+f.name+'" melebihi had 100 MB.','File "'+f.name+'" exceeds the 100 MB limit.'),'bad');
+        input.value = ''; chosen.length = 0; break;
+      }
+      systemInfoSelectedFiles.push(f);
+    }
+    if (info) info.innerHTML = systemInfoSelectedFiles.map((f,i) => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
+  });
+}
+/**
+ * Direct (single-request) upload for System Information.
+ *
+ * IMPORTANT: The Google Apps Script deployment must expose the action
+ * `uploadSystemInformationFile` and return { ok:true, file:{...} }.
+ * This deliberately does NOT call the chunk upload actions.
+ */
+async function uploadSystemInfoFile(file, title, description, onProgress) {
+  const report = (percent, stage) => { if (onProgress) onProgress(percent, stage); };
+  report(0, systemInfoText('Menyediakan fail...','Preparing file...'));
+  // Same Base64 approach used by Upload Material. FileReader progress covers
+  // preparation only; browser fetch does not expose reliable request progress.
+  const base64 = await fileToBase64(file, pct => {
+    report(Math.min(45, Math.round(pct * 0.9)), systemInfoText('Membaca fail...','Reading file...'));
+  });
+  report(50, systemInfoText('Menghantar fail ke Google Drive...','Sending file to Google Drive...'));
+  const res = await driveAPI('uploadSystemInformationFile', {
+    payload: {
+      filename: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      base64,
+      title,
+      description,
+      uploadedBy: state.user && state.user.id,
+      uploadedByName: state.user && state.user.name
+    }
+  }, SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+  if (!res || !res.ok) {
+    const msg = res && res.error ? res.error : 'Direct upload failed';
+    if (/action|unsupported|unknown|not found/i.test(msg)) {
+      throw new Error('Backend Google Apps Script belum menyokong uploadSystemInformationFile. Apps Script perlu dikemas kini dahulu.');
+    }
+    throw new Error(msg);
+  }
+  report(95, systemInfoText('Mengesahkan fail di Google Drive...','Verifying file in Google Drive...'));
+  const uploaded = res.file || res.item || res;
+  const fileId = uploaded.fileId || uploaded.id;
+  if (!fileId) throw new Error('Upload berjaya dipanggil tetapi Google Drive tidak memulangkan fileId.');
+  const result = {
+    fileId,
+    id: uploaded.id || uploaded.fileId,
+    filename: uploaded.filename || uploaded.name || file.name,
+    mimeType: uploaded.mimeType || file.type || 'application/octet-stream',
+    size: Number(uploaded.size) || file.size,
+    viewUrl: uploaded.viewUrl || uploaded.webViewLink || '',
+    previewUrl: uploaded.previewUrl || (file.type && file.type.startsWith('video/') ? 'https://drive.google.com/file/d/' + fileId + '/preview' : ''),
+    downloadUrl: uploaded.downloadUrl || uploaded.webContentLink || ''
+  };
+  report(100, systemInfoText('Fail berjaya dimuat naik','File uploaded successfully'));
+  return result;
+}
+
+async function handleSaveSystemInformation(form) {
+  if (!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
+  const id=form.dataset.id || '';
+  const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
+  const selected = Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice() : [];
+  if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
+  if (!id && !selected.length) { toast(systemInfoText('Sila pilih sekurang-kurangnya satu fail.','Please select at least one file.'),'bad'); return; }
+  const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
+  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
+  const btn=form.querySelector('button[type="submit"]'); if(btn) btn.disabled=true;
+  const prog=document.getElementById('systemInfoUploadProgress');
+  const list=document.getElementById('systemInfoUploadProgressList');
+  const overallBar=document.getElementById('systemInfoOverallProgressBar');
+  const overallStatus=document.getElementById('systemInfoOverallProgressStatus');
+  try {
+    const files = systemInfoFilesForGuide(old || {}).map(f => ({
+      fileId:f.fileId || f.id, id:f.id || f.fileId, filename:f.filename || f.name,
+      mimeType:f.mimeType || '', size:Number(f.size)||0, viewUrl:f.viewUrl || f.webViewLink || '',
+      previewUrl:f.previewUrl || '', downloadUrl:f.downloadUrl || f.webContentLink || ''
+    }));
+    if (selected.length) {
+      if(prog) prog.style.display='block';
+      if(list) list.innerHTML = selected.map((f,i) => `<div style="border:1px solid var(--line);border-radius:8px;padding:8px"><div style="display:flex;justify-content:space-between;gap:8px"><span style="overflow-wrap:anywhere">${systemInfoFileIcon(f)} ${tce(f.name)}</span><strong id="systemInfoFilePct${i}">0%</strong></div><div class="progress" style="margin-top:6px"><span id="systemInfoFileBar${i}" style="width:0%"></span></div><small id="systemInfoFileStatus${i}" class="muted">${systemInfoText('Menunggu...','Waiting...')}</small></div>`).join('');
+      const progressByFile = selected.map(() => 0);
+      const uploadedByIndex = new Array(selected.length);
+      const totalBytes = selected.reduce((sum,f) => sum + Math.max(1, Number(f.size)||0), 0);
+      const updateOverall = () => {
+        const completedBytes = selected.reduce((sum,f,i) => sum + Math.max(1, Number(f.size)||0) * (progressByFile[i]/100), 0);
+        const value = Math.min(99, Math.round((completedBytes/totalBytes)*100));
+        if(overallBar)overallBar.style.width=value+'%';
+        if(overallStatus)overallStatus.textContent=value+'% · '+systemInfoText('Memuat naik fail...','Uploading files...');
+      };
+      let nextIndex = 0;
+      const worker = async () => {
+        while (true) {
+          const i = nextIndex++;
+          if (i >= selected.length) return;
+          const file = selected[i];
+          const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
+            progressByFile[i] = p;
+            const bar=document.getElementById('systemInfoFileBar'+i), pct=document.getElementById('systemInfoFilePct'+i), st=document.getElementById('systemInfoFileStatus'+i);
+            if(bar)bar.style.width=p+'%';
+            if(pct)pct.textContent=p+'%';
+            if(st)st.textContent=stage || (p===100?systemInfoText('Muat naik selesai','Upload complete'):p+'%');
+            updateOverall();
+          });
+          uploadedByIndex[i] = uploaded;
+          progressByFile[i] = 100;
+          updateOverall();
+        }
+      };
+      await Promise.all(Array.from({length:Math.min(SYSTEM_INFO_UPLOAD_CONCURRENCY,selected.length)}, () => worker()));
+      uploadedByIndex.forEach(f => { if(f) files.push(f); });
+    }
+    const payload={id:id || undefined,title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
+    // Backward compatibility: older Apps Script deployments require fileId even
+    // when the new files[] array is supplied. Send the first file as the legacy
+    // primary attachment as well; newer backends can store the complete array.
+    if (files.length) {
+      const primary = files[0];
+      payload.fileId = primary.fileId || primary.id;
+      payload.filename = primary.filename || '';
+      payload.mimeType = primary.mimeType || '';
+      payload.size = Number(primary.size) || 0;
+      payload.viewUrl = primary.viewUrl || '';
+      payload.previewUrl = primary.previewUrl || '';
+      payload.downloadUrl = primary.downloadUrl || '';
+    }
+    const saved=await driveAPI('saveSystemInformation',{payload},SYSTEM_INFO_UPLOAD_TIMEOUT_MS);
+    if(!saved || !saved.ok) throw new Error(saved && saved.error || 'Metadata save failed');
+    if(overallBar && selected.length) overallBar.style.width='100%';
+    if(overallStatus && selected.length) overallStatus.textContent=systemInfoText('100% — Semua fail dimuat naik dan rekod disimpan.','100% — All files uploaded and the guide was saved.');
+    systemInfoSelectedFiles=[]; closeModal(); window._systemInfoInitialLoad=false;
+    await loadSystemInformation(true, true); toast(systemInfoText('Panduan berjaya disimpan. Anda boleh tambah panduan lain.','Guide saved successfully. You can add another guide.')); render();
+  } catch(err) {
+    console.error(err); toast(systemInfoText('Gagal menyimpan panduan: ','Unable to save guide: ')+(err.message||''),'bad'); if(btn)btn.disabled=false;
+  }
+}
+async function deleteSystemInformation(id) {
+  if(!isSystemInfoAdmin()) { toast(t('msg_no_access'),'bad'); return; }
+  const ok=confirm(systemInfoText('Padam panduan ini? Semua fail yang dilampirkan juga akan dipadam jika disokong oleh server.','Delete this guide? All attached files will also be deleted if supported by the server.'));
+  if(!ok)return;
+  try { const res=await driveAPI('deleteSystemInformation',{id}); if(!res||!res.ok)throw new Error(res&&res.error||'Delete failed'); await loadSystemInformation(true, true); toast(systemInfoText('Panduan dipadam.','Guide deleted.')); render(); }
+  catch(err){toast(systemInfoText('Gagal memadam: ','Delete failed: ')+(err.message||''),'bad');}
 }
 
 /* =========================================================
@@ -4296,6 +4698,11 @@ async function handleLogin(form) {
     logAudit('Login', 'Sesi', u.id, u.name);
     try { history.replaceState({ view: 'dashboard', params: {}, cftp: true }, ''); lastPushedStateKey = stateKeyOf('dashboard', {}); } catch(e) {}
     render();
+    // Sheets state was fetched during boot; refresh it once after login while
+    // preserving local edits, then automatically warm Google Drive listings.
+    pullFromServer(false, { force: true, maxAttempts: 2 }).finally(() => {
+      preloadGoogleDriveDataAfterLogin(true).catch(err => console.warn('[post-login preload] failed:', err));
+    });
   };
   if (firstSyncDone || !firstSyncPromise) doLogin();
   else { if (btn) btn.textContent = '⏳ Sinkronisasi…'; Promise.race([firstSyncPromise, new Promise(r => setTimeout(r, 12000))]).then(doLogin); }
@@ -4983,7 +5390,7 @@ function renderMaterialsSection(m, canEdit) {
 /** Pull existing materials from Drive into the module record, so old Drive files
  * are shown even if they were not uploaded through this app or were never saved
  * in m.materials. */
-async function refreshModuleMaterialsFromDrive(mid, quiet = false) {
+async function refreshModuleMaterialsFromDrive(mid, quiet = false, options = {}) {
   const m = getModule(mid);
   if (!m) { if (!quiet) toast(t('msg_not_found'), 'bad'); return false; }
   try {
@@ -5009,7 +5416,13 @@ async function refreshModuleMaterialsFromDrive(mid, quiet = false) {
       }
     });
     m.materials = merged;
-    saveDB();
+    if (options.persist === false) {
+      // Keep the freshly fetched Drive listing in this browser's cache without
+      // generating a Google Sheets write for a read-only preload operation.
+      try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (storageError) { console.warn('Drive metadata cache write failed:', storageError); }
+    } else {
+      saveDB();
+    }
     if (!quiet) toast(currentLang === 'en' ? `Google Drive checked: ${res.files ? res.files.length : 0} file(s) found.` : `Google Drive disemak: ${res.files ? res.files.length : 0} fail ditemui.`, 'ok');
     if (state.view === 'module' && state.params && state.params.moduleId === mid) render();
     return true;
@@ -5145,9 +5558,15 @@ function moduleDetailView() {
 
 function participantTimetableView() {
   const me = state.user;
-  // VIP is a company-level view: show timetable entries for every programme/module.
-  // Participants still see only their own enrolled modules; trainers/facilitators see assigned modules.
-  const modules = (me.role === 'vip' ? sortModules(DB.modules) : (me.role === 'participant' ? participantModules(me.id) : myModules())).filter(m => m.published !== false);
+  // Admin sees every module (including drafts/unpublished); VIP sees all published
+  // programmes; other roles remain scoped to their own assigned/enrolled modules.
+  const modules = (me.role === 'admin'
+    ? sortModules(DB.modules)
+    : me.role === 'vip'
+      ? sortModules(DB.modules).filter(m => m.published !== false)
+      : me.role === 'participant'
+        ? participantModules(me.id)
+        : myModules().filter(m => m.published !== false));
   const mids = new Set(modules.map(m => m.id));
   const entries = DB.timetables.filter(e => mids.has(e.moduleId)).map(e => ({...e, itemType:'entry', module:getModule(e.moduleId)}));
   modules.forEach(m => { if (m.startDate || m.endDate) entries.push({id:'module-range-'+m.id,moduleId:m.id,module:m,itemType:'range',date:m.startDate||m.endDate,endDate:m.endDate||m.startDate,startTime:m.startTime||'',endTime:m.endTime||'',title:m.name}); });
@@ -5155,18 +5574,23 @@ function participantTimetableView() {
   const toMinutes = v => { if(!v) return null; const a=String(v).split(':'); return Number(a[0])*60+Number(a[1]||0); };
   const slots=[]; for(let mins=8*60; mins<22*60; mins+=60) slots.push({mins,end:mins+60,label:`${String(Math.floor(mins/60)).padStart(2,'0')}:00–${String(Math.floor(mins/60)+1).padStart(2,'0')}:00`});
   const dates=[...new Set(entries.map(x=>x.date||'undated'))];
-  const renderItem = x => `<button type="button" class="tt-participant-event" data-act="participant-timetable-detail" data-id="${esc(x.id)}" data-kind="${x.itemType}" style="display:block;width:100%;min-width:115px;text-align:left;border:1px solid #9fc8bb;border-radius:7px;background:#edf8f3;padding:7px;margin:2px 0;cursor:pointer;color:var(--text);font-size:12px"><strong>${esc(x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):(currentLang==='en'?'Module period':'Tempoh modul'))}</strong><div style="font-weight:700;margin-top:3px">${tce(x.title||x.module?.name||'')}</div><small>${tce(x.module?.name||moduleName(x.moduleId))}${x.endDate&&x.endDate!==x.date?'<br>'+fmtDate(x.date)+' – '+fmtDate(x.endDate):''}</small></button>`;
+  const isAdminTimetable = me.role === 'admin';
+  const renderItem = x => `<div style="min-width:115px;border:1px solid #9fc8bb;border-radius:7px;background:#edf8f3;padding:5px;margin:2px 0;color:var(--text);font-size:12px"><button type="button" class="tt-participant-event" data-act="participant-timetable-detail" data-id="${esc(x.id)}" data-kind="${x.itemType}" style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:3px;cursor:pointer;color:inherit;font-size:inherit"><strong>${esc(x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):(currentLang==='en'?'Module period':'Tempoh modul'))}</strong><div style="font-weight:700;margin-top:3px">${tce(x.title||x.module?.name||'')}</div><small>${tce(x.module?.name||moduleName(x.moduleId))}${x.endDate&&x.endDate!==x.date?'<br>'+fmtDate(x.date)+' – '+fmtDate(x.endDate):''}</small></button>${isAdminTimetable && x.itemType==='entry' ? `<div style="display:flex;gap:4px;margin-top:4px"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${esc(x.id)}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${esc(x.id)}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`;
   const renderDayTable = dateKey => {
     const items=entries.filter(x=>(x.date||'undated')===dateKey);
     const dayLabel=dateKey==='undated'?(currentLang==='en'?'Date not set':'Tarikh belum ditetapkan'):(()=>{const d=new Date(dateKey+'T12:00:00');const ms=currentLang==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];return ms[d.getDay()]+', '+fmtDate(dateKey);})();
     return `<div class="card" style="margin-top:14px"><div class="card-head"><h3>📅 ${dayLabel}</h3><span class="badge info">${items.length} ${currentLang==='en'?'sessions':'sesi'}</span></div><div class="table-wrap" style="overflow-x:auto"><table class="participant-day-grid" style="min-width:1850px;border-collapse:separate;border-spacing:0"><thead><tr>${slots.map(s=>`<th style="min-width:130px;text-align:center;white-space:nowrap">${s.label}</th>`).join('')}</tr></thead><tbody><tr>${slots.map(slot=>{const found=items.filter(x=>{const st=toMinutes(x.startTime);return st===null?slot.mins===480:(st>=slot.mins&&st<slot.end);});return `<td style="vertical-align:top;min-width:130px;height:95px;padding:4px">${found.length?found.map(renderItem).join(''):'<span class="muted" style="opacity:.35">—</span>'}</td>`;}).join('')}</tr></tbody></table></div></div>`;
   };
-  const title = me.role === 'vip'
-    ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
-    : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
-  const subtitle = me.role === 'vip'
-    ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
-    : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
+  const title = me.role === 'admin'
+    ? (currentLang === 'en' ? 'All Modules Timetable' : 'Jadual Waktu Semua Modul')
+    : me.role === 'vip'
+      ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
+      : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
+  const subtitle = me.role === 'admin'
+    ? (currentLang === 'en' ? 'System-wide timetable showing sessions and module periods for every module, including unpublished modules.' : 'Paparan keseluruhan sistem untuk sesi dan tempoh setiap modul, termasuk modul yang belum diterbitkan.')
+    : me.role === 'vip'
+      ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
+      : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
   return `<div class="card"><div class="card-head"><div><h2>🗓️ ${title}</h2><small class="muted">${subtitle}</small></div><span class="pill">${entries.length} ${currentLang==='en'?'sessions':'sesi'}</span></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No modules found.':'Tiada modul ditemui.'}</div>`}</div>`;
 }
 function showParticipantTimetableDetail(id, kind) {
@@ -7057,17 +7481,16 @@ function sameCompany(a, b) {
 function companyList() {
   if (!Array.isArray(DB.companies)) DB.companies = [];
   const names = DB.companies.map(c => typeof c === 'string' ? c : c && c.name).filter(Boolean);
-  // Legacy migration: preserve company names already used by VIP and participant accounts.
-  DB.users.forEach(u => { if (['vip','participant'].includes(u.role) && String(u.org || '').trim()) names.push(String(u.org).trim()); });
+  // Preserve company names used by every account role.
+  DB.users.forEach(u => { if (String(u.org || '').trim()) names.push(String(u.org).trim()); });
   return [...new Map(names.map(name => [normalizeCompanyName(name), String(name).trim()])).values()]
     .filter(Boolean).sort((a,b) => a.localeCompare(b));
 }
 function companiesView() {
   if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  // Import legacy organisation names into the registry so existing accounts remain manageable.
   if (!Array.isArray(DB.companies)) DB.companies = [];
   let migratedCompanies = false;
-  DB.users.filter(u => ['vip','participant'].includes(u.role) && String(u.org || '').trim()).forEach(u => {
+  DB.users.filter(u => String(u.org || '').trim()).forEach(u => {
     const name = String(u.org).trim().replace(/\s+/g,' ');
     if (!DB.companies.some(c => sameCompany(typeof c === 'string' ? c : c && c.name, name))) {
       DB.companies.push({id:uid('co'), name, createdAt:nowISO(), createdBy:state.user.id, migrated:true});
@@ -7076,22 +7499,24 @@ function companiesView() {
   });
   if (migratedCompanies) saveDB();
   const companies = companyList();
-  const participants = DB.users.filter(u => u.role === 'participant').sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const vips = DB.users.filter(u => u.role === 'vip').sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const options = (selected) => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
+  const allUsers = DB.users.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const options = selected => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
+  const rolePill = role => `<span class="badge info">${tce(roleLabel(role || ''))}</span>`;
   return `<div class="card">
     <div class="card-head"><h2>🏢 Daftar Syarikat</h2><span class="pill">${companies.length} syarikat</span></div>
-    <p class="muted">Daftarkan nama syarikat sekali sahaja. Gunakan nama yang sama untuk akaun VIP dan peserta supaya VIP hanya melihat peserta syarikatnya.</p>
+    <p class="muted">Daftarkan nama syarikat sekali sahaja. Semua akaun pengguna daripada setiap peranan boleh dipautkan kepada syarikat yang sama.</p>
     <form data-form="company" class="toolbar"><input class="input" style="max-width:420px" name="companyName" required maxlength="500" placeholder="Nama syarikat baharu" /><button class="btn btn-primary" type="submit">➕ Daftar Syarikat</button></form>
-    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>VIP</th><th>Peserta</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{const countP=participants.filter(p=>sameCompany(p.org,name)).length;const countV=vips.filter(v=>sameCompany(v.org,name)).length;const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;return `<tr><td><strong>${tce(name)}</strong></td><td>${countV}</td><td>${countP}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`}).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
+    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>Jumlah Pengguna</th><th>Peranan Pengguna</th><th>Nama Pengguna</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{
+      const members = allUsers.filter(u=>sameCompany(u.org,name));
+      const roles = [...new Set(members.map(u=>u.role).filter(Boolean))];
+      const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;
+      return `<tr><td><strong>${tce(name)}</strong></td><td><strong>${members.length}</strong></td><td>${roles.length?roles.map(rolePill).join(' '):'<span class="muted">—</span>'}</td><td>${members.length?members.map(u=>`<div class="company-member-line"><strong>${tce(u.name||u.username||'—')}</strong> <span class="muted">(${tce(roleLabel(u.role||''))})</span></div>`).join(''):'<span class="muted">Belum ada pengguna</span>'}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`;
+    }).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
   </div>
-  <div class="card"><div class="card-head"><h2>👥 Tetapkan Syarikat Peserta</h2><span class="pill">${participants.length} peserta</span></div>
-    <p class="muted">Pilih syarikat bagi setiap peserta. Perubahan ini menentukan senarai Spider Web yang akan dipaparkan kepada VIP.</p>
-    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>Nama Peserta</th><th>Username</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${participants.map(p=>`<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.username||'—')}</td><td>${p.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(p.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(p.id)}">${options(p.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(p.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun peserta.</div>`}
-  </div>
-  <div class="card"><div class="card-head"><h2>🔐 Tetapkan Syarikat Akaun VIP</h2><span class="pill">${vips.length} akaun VIP</span></div>
-    <p class="muted">Pastikan setiap akaun VIP dipautkan kepada syarikat yang betul. VIP akan melihat peserta yang ditetapkan kepada syarikat yang sama.</p>
-    ${vips.length ? `<div class="table-wrap"><table><thead><tr><th>Nama VIP</th><th>Username</th><th>Syarikat semasa</th><th>Syarikat baharu</th><th></th></tr></thead><tbody>${vips.map(v=>`<tr><td><strong>${tce(v.name)}</strong></td><td>${esc(v.username||'—')}</td><td>${tce(v.org||'—')}</td><td><select class="select" id="company-for-${esc(v.id)}">${options(v.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(v.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun VIP.</div>`}
+  <div class="card">
+    <div class="card-head"><h2>👥 Tetapkan Syarikat untuk Semua Pengguna</h2><span class="pill">${allUsers.length} pengguna</span></div>
+    <p class="muted">Senarai ini merangkumi semua peranan: Admin, Trainer, Facilitator, VIP dan Participant. Pilih syarikat yang berkaitan dan tekan Simpan.</p>
+    ${allUsers.length?`<div class="table-wrap"><table><thead><tr><th>Nama Pengguna</th><th>Username</th><th>Peranan</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${allUsers.map(u=>`<tr><td><strong>${tce(u.name||'—')}</strong></td><td>${esc(u.username||'—')}</td><td>${rolePill(u.role)}</td><td>${u.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(u.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(u.id)}">${options(u.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(u.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Tiada akaun pengguna.</div>`}
   </div>`;
 }
 function handleSaveCompany(form) {
@@ -7105,7 +7530,7 @@ function handleSaveCompany(form) {
 }
 function assignCompanyToUser(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
-  const user = DB.users.find(u=>u.id===id && ['participant','vip'].includes(u.role));
+  const user = DB.users.find(u=>u.id===id);
   const select = document.getElementById('company-for-' + id);
   if (!user || !select) return;
   const selected = String(select.value||'').trim();
@@ -7119,7 +7544,7 @@ function deleteCompany(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
   const company = (DB.companies||[]).find(c=>c && typeof c!=='string' && c.id===id);
   if (!company) return;
-  if (DB.users.some(u=>['vip','participant'].includes(u.role)&&sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh akaun VIP atau peserta.','warn'); return; }
+  if (DB.users.some(u=>sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh satu atau lebih akaun pengguna.','warn'); return; }
   if (!confirm(`Padam syarikat "${company.name}"?`)) return;
   DB.companies = DB.companies.filter(c=>!(c && typeof c!=='string' && c.id===id));
   saveDB(); logAudit('Padam Syarikat','Syarikat',id,company.name); toast('Syarikat dipadam.'); render();
@@ -7755,6 +8180,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'bank-picker') handleBankPickerSubmit(form);
   else if (k === 'enroll-bulk') handleBulkEnroll(form);
   else if (k === 'upload-material') handleUploadMaterial(form);
+  else if (k === 'system-information-save') handleSaveSystemInformation(form);
   else if (k === 'timetable') handleSaveTimetable(form);
   else if (k === 'manual-quiz-answers') handleManualQuizAnswers(form);
   else if (k === 'upload-certificate') handleUploadCertificate(form);
@@ -7785,6 +8211,10 @@ document.addEventListener('click', async (e) => {
       saveDB(); logAudit(act==='verify-attendance'?'Verify Attendance':'Reject Attendance','Kehadiran',`${date}:${pid}`,`${userName(pid)} — ${date}`); render(); break;
     }
     case 'manual-sync': manualSyncNow(); break;
+    case 'system-info-add': openSystemInformationModal(); break;
+    case 'system-info-edit': openSystemInformationModal(tgt.dataset.id); break;
+    case 'system-info-delete': deleteSystemInformation(tgt.dataset.id); break;
+    case 'system-info-refresh': loadSystemInformation(false, true); break;
     case 'sync-all-now': syncAllNow(); break;
     case 'print-all-modules': printAllModulesPDF(); break;
     case 'print-system-book': printSystemBookPDF(); break;
@@ -7837,7 +8267,7 @@ document.addEventListener('click', async (e) => {
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
     case 'logout': handleLogoutClick(); break;
-    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); break;
+    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
@@ -8168,7 +8598,15 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
+let pullInFlightPromise = null;
 async function pullFromServer(showToast, options = {}) {
+  if (pullInFlightPromise) return pullInFlightPromise;
+  pullInFlightPromise = pullFromServerInternal(showToast, options);
+  try { return await pullInFlightPromise; }
+  finally { pullInFlightPromise = null; }
+}
+
+async function pullFromServerInternal(showToast, options = {}) {
   if (!state.user && !options.allowLoggedOut) return { ok: false, skipped: 'not-logged-in' };
   if (document.hidden && !options.force) return { ok: false, skipped: 'hidden' };
   if (document.querySelector('.modal-backdrop') && !options.force) return { ok: false, skipped: 'modal-open' };
@@ -8191,6 +8629,7 @@ async function pullFromServer(showToast, options = {}) {
       lastSyncedSnapshot = cloneDB(serverState);
       try {
         localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        localStorage.setItem('cftpmy_cache_refreshed_at', nowISO());
         if (hasLocalChanges) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(localChanges));
         else localStorage.removeItem('cftpmy_pending_diff');
       } catch (storageError) { console.warn('Local cache update failed:', storageError); }
@@ -8213,7 +8652,8 @@ async function pullFromServer(showToast, options = {}) {
   return { ok: false };
 }
 
-setInterval(() => pullFromServer(false), 30000);
+// Refresh shared data more frequently so localStorage cache stays close to the latest server state.
+setInterval(() => pullFromServer(false), 10000);
 
 // Refresh when network connectivity returns; keep local edits if a save is pending.
 window.addEventListener('online', () => { if (state.user) pullFromServer(true, { force: true, maxAttempts: 4 }); });
