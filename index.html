@@ -560,6 +560,29 @@ html, body {
 @media(max-width:900px){.admin-shell{flex-direction:column}.admin-shell>.sidebar{width:100%;min-width:0;height:auto;min-height:0;position:relative;top:auto;align-self:stretch;flex:0 0 auto;padding:12px;overflow:visible}.admin-shell .nav{display:flex;flex-direction:column;gap:6px;overflow:visible}.admin-shell .nav-item{min-height:44px;white-space:normal}.admin-shell .sidebar-foot{display:flex!important;flex-direction:column}.admin-shell>.main{width:100%}.admin-shell #view{padding:18px 14px 28px}}
 @media(max-width:560px){.admin-shell>.sidebar{padding:10px}.admin-shell .nav{gap:5px}.admin-shell .nav-item{padding:10px 11px;font-size:.84rem;min-height:42px}.admin-shell .sidebar-foot{flex-wrap:nowrap}.admin-shell .sidebar-foot .userchip{flex-basis:auto}.admin-shell .sidebar-foot>button{width:100%!important}.admin-shell #view{padding:14px 10px 24px}.admin-shell .topbar{align-items:flex-start;gap:8px}.admin-shell .topbar .tb-right{flex-wrap:wrap;justify-content:flex-end}}
 
+
+/* ALL-ROLE WORKSPACE NAVIGATION — vertical tabs with independent scrolling */
+.shell:not(.admin-shell){display:flex;flex-direction:row;align-items:stretch;min-height:100vh;width:100%;max-width:100%}
+.shell:not(.admin-shell)>.sidebar{width:258px;min-width:258px;max-width:258px;height:100vh;min-height:100vh;position:sticky;top:0;align-self:flex-start;flex:0 0 258px;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.shell:not(.admin-shell) .nav{width:100%;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;align-items:stretch;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:3px 2px 10px;scrollbar-width:thin}
+.shell:not(.admin-shell) .nav-item{width:100%;min-width:0;flex:0 0 auto;white-space:normal;overflow-wrap:anywhere;justify-content:flex-start}
+.shell:not(.admin-shell) .sidebar-foot{flex:0 0 auto;margin-top:auto}
+.shell:not(.admin-shell)>.main{flex:1 1 auto;width:calc(100% - 258px);min-width:0}
+.company-member-line{padding:3px 0;border-bottom:1px dashed var(--line);font-size:.8rem}
+.company-member-line:last-child{border-bottom:0}
+@media(max-width:900px){
+.shell:not(.admin-shell){flex-direction:column}
+.shell:not(.admin-shell)>.sidebar{width:100%;min-width:0;max-width:100%;height:auto;min-height:0;max-height:48vh;position:relative;top:auto;align-self:stretch;flex:0 0 auto;overflow-x:hidden;overflow-y:auto;padding:12px}
+.shell:not(.admin-shell) .nav{flex:1 1 auto;max-height:31vh;min-height:90px;flex-direction:column;overflow-x:hidden;overflow-y:auto}
+.shell:not(.admin-shell) .nav-item{width:100%;white-space:normal}
+.shell:not(.admin-shell) .sidebar-foot{display:flex;flex-direction:column}
+.shell:not(.admin-shell)>.main{width:100%}
+}
+@media(max-width:560px){
+.shell:not(.admin-shell)>.sidebar{max-height:44vh;padding:10px}
+.shell:not(.admin-shell) .nav{max-height:28vh;min-height:80px}
+}
+
 </style>
 </head>
 <body>
@@ -2665,64 +2688,70 @@ async function performMergedSave(maxAttempts = 8) {
     const dbAtStart = cloneDB(DB);
     try {
       const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
+      if (isDiffEmpty(localDiff)) return { ok:true, skipped:true };
 
       let serverState = null;
       try {
         const loadRes = await driveAPI('loadState');
         if (loadRes && loadRes.ok && loadRes.state) serverState = loadRes.state;
-      } catch (loadErr) { console.warn('loadState failed during save:', loadErr); }
+      } catch (loadErr) {
+        console.warn('loadState failed during incremental save:', loadErr);
+      }
 
+      // Merge against the latest server state, but transmit only changed IDs.
       const base = serverState || lastSyncedSnapshot || dbAtStart;
       const merged = applyDiff(base, localDiff);
+      const savedBy = state.user ? state.user.id : 'system';
 
-      merged._rev = ((typeof base._rev === 'number') ? base._rev : 0) + 1;
-      merged._syncId = uid('sync');
-      merged._syncTs = nowISO();
-      merged._savedBy = state.user ? state.user.id : 'system';
-
-      const saveRes = await driveAPI('saveState', { state: merged });
-      if (!saveRes || !saveRes.ok) throw new Error((saveRes && saveRes.error) || 'Save failed');
-
-      await sleep(150 + Math.floor(Math.random() * 200));
-
-      let verified = false;
-      try {
-        const verify = await driveAPI('loadState');
-        if (verify && verify.ok && verify.state) {
-          if (verify.state._syncId === merged._syncId) verified = true;
-          else {
-            const backoff = Math.min(4000, 200 * Math.pow(2, attempt)) + Math.random() * 300;
-            await sleep(backoff);
-            continue;
-          }
-        } else verified = true;
-      } catch (verifyErr) { verified = true; }
-
-      if (verified) {
-        const editsDuringSave = computeDiff(dbAtStart, DB);
-        DB = applyDiff(merged, editsDuringSave);
-        lastSyncedSnapshot = cloneDB(merged);
-        try {
-          localStorage.setItem(DB_KEY, JSON.stringify(DB));
-          localStorage.removeItem('cftpmy_pending_diff');
-        } catch(e) {}
-        pendingSaveSince = 0;
-        updateBeforeUnload();
-        if (!isDiffEmpty(editsDuringSave)) savePending = true;
-        return { ok: true };
+      const saveRes = await driveAPI('saveDelta', {
+        diff: localDiff,
+        savedBy: savedBy
+      });
+      if (!saveRes || !saveRes.ok) {
+        throw new Error((saveRes && saveRes.error) || 'Incremental save failed');
       }
+
+      merged._rev = Number(saveRes._rev) || Number(base._rev) || 0;
+      merged._syncId = saveRes._syncId || uid('sync');
+      merged._syncTs = saveRes._syncTs || nowISO();
+      merged._savedBy = savedBy;
+
+      // Keep edits made while the network request was running.
+      const editsDuringSave = computeDiff(dbAtStart, DB);
+      DB = applyDiff(merged, editsDuringSave);
+      lastSyncedSnapshot = cloneDB(merged);
+
+      const stillPending = computeDiff(lastSyncedSnapshot, DB);
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        if (!isDiffEmpty(stillPending)) {
+          localStorage.setItem('cftpmy_pending_diff', JSON.stringify(stillPending));
+        } else {
+          localStorage.removeItem('cftpmy_pending_diff');
+        }
+      } catch(e) {}
+
+      pendingSaveSince = isDiffEmpty(stillPending) ? 0 : Date.now();
+      updateBeforeUnload();
+      if (!isDiffEmpty(stillPending)) savePending = true;
+      return { ok:true, stats:saveRes.stats || {}, _rev:merged._rev, _syncId:merged._syncId };
     } catch (err) {
-      console.warn(`[save] attempt ${attempt + 1} failed:`, err);
+      console.warn(`[incremental save] attempt ${attempt + 1} failed:`, err);
       if (attempt === maxAttempts - 1) {
         const b = document.getElementById('syncBadge');
-        if (b) { b.textContent = '⚠'; b.style.background = '#fdecea'; b.style.color = '#c0392b'; b.title = 'Save failed: ' + err.message; }
-        return { ok: false, error: err.message };
+        if (b) {
+          b.textContent = '⚠';
+          b.style.background = '#fdecea';
+          b.style.color = '#c0392b';
+          b.title = 'Save failed: ' + err.message;
+        }
+        return { ok:false, error:err.message };
       }
       const backoff = Math.min(6000, 300 * Math.pow(2, attempt)) + Math.random() * 500;
       await sleep(backoff);
     }
   }
-  return { ok: false, error: 'Max retries exceeded' };
+  return { ok:false, error:'Max retries exceeded' };
 }
 
 async function forceSaveNow() {
@@ -2866,7 +2895,7 @@ async function serverPullInBackground() {
         DB = newDB;
         migrateDB();
         lastSyncedSnapshot = cloneDB(serverState);
-        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); localStorage.setItem('cftpmy_cache_refreshed_at', nowISO()); } catch(e) {}
         const sessionUserRestored = restoreActiveSessionUser();
         if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
         if (hasPending || sessionUserRestored) scheduleServerSave();
@@ -4180,7 +4209,11 @@ function render() {
 }
 function viewContent() {
   const originalDB = DB;
-  DB = applyGlobalModuleFilter(originalDB, window.globalModuleFilter || 'all');
+  // Admin timetable is a system-wide view: do not let the global module filter
+  // hide schedules belonging to other modules.
+  DB = (state.user && state.user.role === 'admin' && state.view === 'participant-timetable')
+    ? originalDB
+    : applyGlobalModuleFilter(originalDB, window.globalModuleFilter || 'all');
   try {
   switch (state.view) {
     case 'dashboard': return dashboardView();
@@ -5145,9 +5178,15 @@ function moduleDetailView() {
 
 function participantTimetableView() {
   const me = state.user;
-  // VIP is a company-level view: show timetable entries for every programme/module.
-  // Participants still see only their own enrolled modules; trainers/facilitators see assigned modules.
-  const modules = (me.role === 'vip' ? sortModules(DB.modules) : (me.role === 'participant' ? participantModules(me.id) : myModules())).filter(m => m.published !== false);
+  // Admin sees every module (including drafts/unpublished); VIP sees all published
+  // programmes; other roles remain scoped to their own assigned/enrolled modules.
+  const modules = (me.role === 'admin'
+    ? sortModules(DB.modules)
+    : me.role === 'vip'
+      ? sortModules(DB.modules).filter(m => m.published !== false)
+      : me.role === 'participant'
+        ? participantModules(me.id)
+        : myModules().filter(m => m.published !== false));
   const mids = new Set(modules.map(m => m.id));
   const entries = DB.timetables.filter(e => mids.has(e.moduleId)).map(e => ({...e, itemType:'entry', module:getModule(e.moduleId)}));
   modules.forEach(m => { if (m.startDate || m.endDate) entries.push({id:'module-range-'+m.id,moduleId:m.id,module:m,itemType:'range',date:m.startDate||m.endDate,endDate:m.endDate||m.startDate,startTime:m.startTime||'',endTime:m.endTime||'',title:m.name}); });
@@ -5155,18 +5194,23 @@ function participantTimetableView() {
   const toMinutes = v => { if(!v) return null; const a=String(v).split(':'); return Number(a[0])*60+Number(a[1]||0); };
   const slots=[]; for(let mins=8*60; mins<22*60; mins+=60) slots.push({mins,end:mins+60,label:`${String(Math.floor(mins/60)).padStart(2,'0')}:00–${String(Math.floor(mins/60)+1).padStart(2,'0')}:00`});
   const dates=[...new Set(entries.map(x=>x.date||'undated'))];
-  const renderItem = x => `<button type="button" class="tt-participant-event" data-act="participant-timetable-detail" data-id="${esc(x.id)}" data-kind="${x.itemType}" style="display:block;width:100%;min-width:115px;text-align:left;border:1px solid #9fc8bb;border-radius:7px;background:#edf8f3;padding:7px;margin:2px 0;cursor:pointer;color:var(--text);font-size:12px"><strong>${esc(x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):(currentLang==='en'?'Module period':'Tempoh modul'))}</strong><div style="font-weight:700;margin-top:3px">${tce(x.title||x.module?.name||'')}</div><small>${tce(x.module?.name||moduleName(x.moduleId))}${x.endDate&&x.endDate!==x.date?'<br>'+fmtDate(x.date)+' – '+fmtDate(x.endDate):''}</small></button>`;
+  const isAdminTimetable = me.role === 'admin';
+  const renderItem = x => `<div style="min-width:115px;border:1px solid #9fc8bb;border-radius:7px;background:#edf8f3;padding:5px;margin:2px 0;color:var(--text);font-size:12px"><button type="button" class="tt-participant-event" data-act="participant-timetable-detail" data-id="${esc(x.id)}" data-kind="${x.itemType}" style="display:block;width:100%;text-align:left;border:0;background:transparent;padding:3px;cursor:pointer;color:inherit;font-size:inherit"><strong>${esc(x.startTime?fmtTime12(x.startTime)+' — '+fmtTime12(x.endTime||x.startTime):(currentLang==='en'?'Module period':'Tempoh modul'))}</strong><div style="font-weight:700;margin-top:3px">${tce(x.title||x.module?.name||'')}</div><small>${tce(x.module?.name||moduleName(x.moduleId))}${x.endDate&&x.endDate!==x.date?'<br>'+fmtDate(x.date)+' – '+fmtDate(x.endDate):''}</small></button>${isAdminTimetable && x.itemType==='entry' ? `<div style="display:flex;gap:4px;margin-top:4px"><button class="btn btn-sm" data-act="edit-timetable" data-tid="${esc(x.id)}" title="${t('btn_edit')}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-timetable" data-tid="${esc(x.id)}" title="${t('btn_delete')}">🗑️</button></div>` : ''}</div>`;
   const renderDayTable = dateKey => {
     const items=entries.filter(x=>(x.date||'undated')===dateKey);
     const dayLabel=dateKey==='undated'?(currentLang==='en'?'Date not set':'Tarikh belum ditetapkan'):(()=>{const d=new Date(dateKey+'T12:00:00');const ms=currentLang==='en'?['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];return ms[d.getDay()]+', '+fmtDate(dateKey);})();
     return `<div class="card" style="margin-top:14px"><div class="card-head"><h3>📅 ${dayLabel}</h3><span class="badge info">${items.length} ${currentLang==='en'?'sessions':'sesi'}</span></div><div class="table-wrap" style="overflow-x:auto"><table class="participant-day-grid" style="min-width:1850px;border-collapse:separate;border-spacing:0"><thead><tr>${slots.map(s=>`<th style="min-width:130px;text-align:center;white-space:nowrap">${s.label}</th>`).join('')}</tr></thead><tbody><tr>${slots.map(slot=>{const found=items.filter(x=>{const st=toMinutes(x.startTime);return st===null?slot.mins===480:(st>=slot.mins&&st<slot.end);});return `<td style="vertical-align:top;min-width:130px;height:95px;padding:4px">${found.length?found.map(renderItem).join(''):'<span class="muted" style="opacity:.35">—</span>'}</td>`;}).join('')}</tr></tbody></table></div></div>`;
   };
-  const title = me.role === 'vip'
-    ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
-    : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
-  const subtitle = me.role === 'vip'
-    ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
-    : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
+  const title = me.role === 'admin'
+    ? (currentLang === 'en' ? 'All Modules Timetable' : 'Jadual Waktu Semua Modul')
+    : me.role === 'vip'
+      ? (currentLang === 'en' ? 'All Programmes Timetable' : 'Jadual Waktu Semua Program')
+      : (currentLang === 'en' ? 'Participant Timetable' : 'Jadual Waktu Peserta');
+  const subtitle = me.role === 'admin'
+    ? (currentLang === 'en' ? 'System-wide timetable showing sessions and module periods for every module, including unpublished modules.' : 'Paparan keseluruhan sistem untuk sesi dan tempoh setiap modul, termasuk modul yang belum diterbitkan.')
+    : me.role === 'vip'
+      ? (currentLang === 'en' ? 'Company-wide timetable across all published modules. The layout matches the other timetable views.' : 'Jadual keseluruhan syarikat merentas semua modul yang diterbitkan. Susun atur sama seperti paparan jadual lain.')
+      : (currentLang === 'en' ? 'Each date is displayed in a separate horizontal timetable. Click a session for details.' : 'Setiap tarikh dipaparkan dalam jadual mendatar yang berasingan. Tekan sesi untuk melihat butiran.');
   return `<div class="card"><div class="card-head"><div><h2>🗓️ ${title}</h2><small class="muted">${subtitle}</small></div><span class="pill">${entries.length} ${currentLang==='en'?'sessions':'sesi'}</span></div>${modules.length?(dates.length?dates.map(renderDayTable).join(''):`<div class="empty">${currentLang==='en'?'No timetable entries have been added yet.':'Belum ada entri jadual.'}</div>`):`<div class="empty">${currentLang==='en'?'No modules found.':'Tiada modul ditemui.'}</div>`}</div>`;
 }
 function showParticipantTimetableDetail(id, kind) {
@@ -7057,17 +7101,16 @@ function sameCompany(a, b) {
 function companyList() {
   if (!Array.isArray(DB.companies)) DB.companies = [];
   const names = DB.companies.map(c => typeof c === 'string' ? c : c && c.name).filter(Boolean);
-  // Legacy migration: preserve company names already used by VIP and participant accounts.
-  DB.users.forEach(u => { if (['vip','participant'].includes(u.role) && String(u.org || '').trim()) names.push(String(u.org).trim()); });
+  // Preserve company names used by every account role.
+  DB.users.forEach(u => { if (String(u.org || '').trim()) names.push(String(u.org).trim()); });
   return [...new Map(names.map(name => [normalizeCompanyName(name), String(name).trim()])).values()]
     .filter(Boolean).sort((a,b) => a.localeCompare(b));
 }
 function companiesView() {
   if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  // Import legacy organisation names into the registry so existing accounts remain manageable.
   if (!Array.isArray(DB.companies)) DB.companies = [];
   let migratedCompanies = false;
-  DB.users.filter(u => ['vip','participant'].includes(u.role) && String(u.org || '').trim()).forEach(u => {
+  DB.users.filter(u => String(u.org || '').trim()).forEach(u => {
     const name = String(u.org).trim().replace(/\s+/g,' ');
     if (!DB.companies.some(c => sameCompany(typeof c === 'string' ? c : c && c.name, name))) {
       DB.companies.push({id:uid('co'), name, createdAt:nowISO(), createdBy:state.user.id, migrated:true});
@@ -7076,22 +7119,24 @@ function companiesView() {
   });
   if (migratedCompanies) saveDB();
   const companies = companyList();
-  const participants = DB.users.filter(u => u.role === 'participant').sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const vips = DB.users.filter(u => u.role === 'vip').sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  const options = (selected) => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
+  const allUsers = DB.users.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const options = selected => `<option value="">— Tiada syarikat —</option>${companies.map(name => `<option value="${esc(name)}" ${sameCompany(name,selected)?'selected':''}>${tce(name)}</option>`).join('')}`;
+  const rolePill = role => `<span class="badge info">${tce(roleLabel(role || ''))}</span>`;
   return `<div class="card">
     <div class="card-head"><h2>🏢 Daftar Syarikat</h2><span class="pill">${companies.length} syarikat</span></div>
-    <p class="muted">Daftarkan nama syarikat sekali sahaja. Gunakan nama yang sama untuk akaun VIP dan peserta supaya VIP hanya melihat peserta syarikatnya.</p>
+    <p class="muted">Daftarkan nama syarikat sekali sahaja. Semua akaun pengguna daripada setiap peranan boleh dipautkan kepada syarikat yang sama.</p>
     <form data-form="company" class="toolbar"><input class="input" style="max-width:420px" name="companyName" required maxlength="500" placeholder="Nama syarikat baharu" /><button class="btn btn-primary" type="submit">➕ Daftar Syarikat</button></form>
-    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>VIP</th><th>Peserta</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{const countP=participants.filter(p=>sameCompany(p.org,name)).length;const countV=vips.filter(v=>sameCompany(v.org,name)).length;const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;return `<tr><td><strong>${tce(name)}</strong></td><td>${countV}</td><td>${countP}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`}).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
+    ${companies.length ? `<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Nama Syarikat</th><th>Jumlah Pengguna</th><th>Peranan Pengguna</th><th>Nama Pengguna</th><th>Tindakan</th></tr></thead><tbody>${companies.map(name=>{
+      const members = allUsers.filter(u=>sameCompany(u.org,name));
+      const roles = [...new Set(members.map(u=>u.role).filter(Boolean))];
+      const id=DB.companies.find(c=>sameCompany(typeof c==='string'?c:c.name,name)&&typeof c!=='string')?.id;
+      return `<tr><td><strong>${tce(name)}</strong></td><td><strong>${members.length}</strong></td><td>${roles.length?roles.map(rolePill).join(' '):'<span class="muted">—</span>'}</td><td>${members.length?members.map(u=>`<div class="company-member-line"><strong>${tce(u.name||u.username||'—')}</strong> <span class="muted">(${tce(roleLabel(u.role||''))})</span></div>`).join(''):'<span class="muted">Belum ada pengguna</span>'}</td><td>${id?`<button class="btn btn-sm btn-danger" data-act="delete-company" data-id="${esc(id)}">Padam</button>`:'<span class="muted">Syarikat sedia ada</span>'}</td></tr>`;
+    }).join('')}</tbody></table></div>` : `<div class="empty">Belum ada syarikat didaftarkan.</div>`}
   </div>
-  <div class="card"><div class="card-head"><h2>👥 Tetapkan Syarikat Peserta</h2><span class="pill">${participants.length} peserta</span></div>
-    <p class="muted">Pilih syarikat bagi setiap peserta. Perubahan ini menentukan senarai Spider Web yang akan dipaparkan kepada VIP.</p>
-    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>Nama Peserta</th><th>Username</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${participants.map(p=>`<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.username||'—')}</td><td>${p.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(p.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(p.id)}">${options(p.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(p.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun peserta.</div>`}
-  </div>
-  <div class="card"><div class="card-head"><h2>🔐 Tetapkan Syarikat Akaun VIP</h2><span class="pill">${vips.length} akaun VIP</span></div>
-    <p class="muted">Pastikan setiap akaun VIP dipautkan kepada syarikat yang betul. VIP akan melihat peserta yang ditetapkan kepada syarikat yang sama.</p>
-    ${vips.length ? `<div class="table-wrap"><table><thead><tr><th>Nama VIP</th><th>Username</th><th>Syarikat semasa</th><th>Syarikat baharu</th><th></th></tr></thead><tbody>${vips.map(v=>`<tr><td><strong>${tce(v.name)}</strong></td><td>${esc(v.username||'—')}</td><td>${tce(v.org||'—')}</td><td><select class="select" id="company-for-${esc(v.id)}">${options(v.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(v.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">Tiada akaun VIP.</div>`}
+  <div class="card">
+    <div class="card-head"><h2>👥 Tetapkan Syarikat untuk Semua Pengguna</h2><span class="pill">${allUsers.length} pengguna</span></div>
+    <p class="muted">Senarai ini merangkumi semua peranan: Admin, Trainer, Facilitator, VIP dan Participant. Pilih syarikat yang berkaitan dan tekan Simpan.</p>
+    ${allUsers.length?`<div class="table-wrap"><table><thead><tr><th>Nama Pengguna</th><th>Username</th><th>Peranan</th><th>Status</th><th>Syarikat</th><th></th></tr></thead><tbody>${allUsers.map(u=>`<tr><td><strong>${tce(u.name||'—')}</strong></td><td>${esc(u.username||'—')}</td><td>${rolePill(u.role)}</td><td>${u.status==='approved'?'<span class="badge ok">Diluluskan</span>':`<span class="badge warn">${esc(u.status||'—')}</span>`}</td><td><select class="select" id="company-for-${esc(u.id)}">${options(u.org)}</select></td><td><button class="btn btn-sm btn-primary" data-act="assign-company" data-id="${esc(u.id)}">Simpan</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Tiada akaun pengguna.</div>`}
   </div>`;
 }
 function handleSaveCompany(form) {
@@ -7105,7 +7150,7 @@ function handleSaveCompany(form) {
 }
 function assignCompanyToUser(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
-  const user = DB.users.find(u=>u.id===id && ['participant','vip'].includes(u.role));
+  const user = DB.users.find(u=>u.id===id);
   const select = document.getElementById('company-for-' + id);
   if (!user || !select) return;
   const selected = String(select.value||'').trim();
@@ -7119,7 +7164,7 @@ function deleteCompany(id) {
   if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
   const company = (DB.companies||[]).find(c=>c && typeof c!=='string' && c.id===id);
   if (!company) return;
-  if (DB.users.some(u=>['vip','participant'].includes(u.role)&&sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh akaun VIP atau peserta.','warn'); return; }
+  if (DB.users.some(u=>sameCompany(u.org,company.name))) { toast('Tidak boleh padam: syarikat masih digunakan oleh satu atau lebih akaun pengguna.','warn'); return; }
   if (!confirm(`Padam syarikat "${company.name}"?`)) return;
   DB.companies = DB.companies.filter(c=>!(c && typeof c!=='string' && c.id===id));
   saveDB(); logAudit('Padam Syarikat','Syarikat',id,company.name); toast('Syarikat dipadam.'); render();
@@ -8168,7 +8213,15 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
+let pullInFlightPromise = null;
 async function pullFromServer(showToast, options = {}) {
+  if (pullInFlightPromise) return pullInFlightPromise;
+  pullInFlightPromise = pullFromServerInternal(showToast, options);
+  try { return await pullInFlightPromise; }
+  finally { pullInFlightPromise = null; }
+}
+
+async function pullFromServerInternal(showToast, options = {}) {
   if (!state.user && !options.allowLoggedOut) return { ok: false, skipped: 'not-logged-in' };
   if (document.hidden && !options.force) return { ok: false, skipped: 'hidden' };
   if (document.querySelector('.modal-backdrop') && !options.force) return { ok: false, skipped: 'modal-open' };
@@ -8191,6 +8244,7 @@ async function pullFromServer(showToast, options = {}) {
       lastSyncedSnapshot = cloneDB(serverState);
       try {
         localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        localStorage.setItem('cftpmy_cache_refreshed_at', nowISO());
         if (hasLocalChanges) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(localChanges));
         else localStorage.removeItem('cftpmy_pending_diff');
       } catch (storageError) { console.warn('Local cache update failed:', storageError); }
@@ -8213,7 +8267,8 @@ async function pullFromServer(showToast, options = {}) {
   return { ok: false };
 }
 
-setInterval(() => pullFromServer(false), 30000);
+// Refresh shared data more frequently so localStorage cache stays close to the latest server state.
+setInterval(() => pullFromServer(false), 10000);
 
 // Refresh when network connectivity returns; keep local edits if a save is pending.
 window.addEventListener('online', () => { if (state.user) pullFromServer(true, { force: true, maxAttempts: 4 }); });
