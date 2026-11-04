@@ -4286,8 +4286,8 @@ function viewContent() {
    NOTE: Apps Script must support the System Information list/save/delete actions and v4.7.0 chunk-upload actions.
    ========================================================= */
 // System Information uses the v4.7.0 chunked upload API.
-// Keep each chunk below Apps Script request limits and allow large files up to 100 MB.
-const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
+// Keep each chunk below Apps Script request limits and allow large files up to 150 MB.
+const SYSTEM_INFO_MAX_FILE_BYTES = 150 * 1024 * 1024;
 const SYSTEM_INFO_CHUNK_BYTES = 5 * 1024 * 1024;
 const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
 let systemInformationCache = [];
@@ -4514,7 +4514,7 @@ function systemInformationView() {
   systemInfoEagerVideoClaimed = false;
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
-  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 30 MB per file, using the same Google Drive upload method as Module Materials.')}</p></div>` : ''}</div>`;
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 150 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 150 MB per file using chunked upload to Google Drive.')}</p></div>` : ''}</div>`;
   const pendingCards = systemInfoPendingUploads.length ? `<div class="grid2" style="margin-bottom:14px">${systemInfoPendingUploads.map(job => `<div class="card" id="sysupload-card-${esc(job.id)}" style="min-width:0;border:1px dashed var(--primary,#0b7658)"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">⏳ ${tce(job.title)}</h3><small class="muted" id="sysupload-status-${esc(job.id)}">${systemInfoText('Sedang diproses','Processing in background')} · ${tce(job.status || systemInfoText('Menyediakan muat naik...','Preparing upload...'))}</small></div><span class="pill" id="sysupload-pct-${esc(job.id)}">${Math.round(job.progress || 0)}%</span></div>${job.description ? `<p>${tce(job.description)}</p>` : ''}<div class="progress"><span id="sysupload-bar-${esc(job.id)}" style="width:${Math.max(0,Math.min(100,job.progress||0))}%"></span></div><small class="muted">${tce(job.filename || '')}</small></div>`).join('')}</div>` : '';
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
@@ -4539,7 +4539,7 @@ function openSystemInformationModal(id) {
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
       ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 100 MB bagi setiap fail menggunakan muat naik berperingkat ke Google Drive.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 100 MB per file using reliable chunked upload to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 150 MB bagi setiap fail menggunakan muat naik berperingkat ke Google Drive.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 150 MB per file using reliable chunked upload to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
@@ -4550,7 +4550,7 @@ function openSystemInformationModal(id) {
     systemInfoSelectedFiles = [];
     const f = chosen[0];
     if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
-      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 100 MB.','File \"'+f.name+'\" exceeds the 100 MB limit.'),'bad');
+      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 150 MB.','File \"'+f.name+'\" exceeds the 150 MB limit.'),'bad');
       input.value = '';
     } else if (f) {
       systemInfoSelectedFiles.push(f);
@@ -4561,7 +4561,7 @@ function openSystemInformationModal(id) {
 /**
  * Upload System Information using the same Google Drive upload pattern as Module Materials.
  * Files are stored in a dedicated "System Information [system-information]" folder.
- * Uses the v4.7.0 chunked upload API so files up to 100 MB do not need one oversized POST request.
+ * Uses the v4.7.0 chunked upload API so files up to 150 MB do not need one oversized POST request.
  */
 async function uploadSystemInfoFile(file, title, description, onProgress) {
   const report = (pct, stage) => { if (onProgress) onProgress(pct, stage); };
@@ -4642,7 +4642,7 @@ async function handleSaveSystemInformation(form) {
   if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
   if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
-  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
+  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 150 MB.','Each file must not exceed 150 MB.'),'bad'); return; }
 
   // Close the form immediately; upload and metadata save continue in background.
   const jobId = uid('sysupload');
