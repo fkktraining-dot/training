@@ -3876,7 +3876,7 @@ function renderParticipantQuizTab(act, pid) {
     ${retestBanner}
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(act.title)}</h1><p class="muted" style="margin:0">${tce(moduleName(act.moduleId))} · ${act.quiz.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('quiz_timed_body', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div>
-    <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${savedDraft[qi] === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
   const quizForm = document.getElementById('standalone-quiz-form');
   quizForm.addEventListener('change', () => {
@@ -4260,6 +4260,17 @@ function scanTabNotifications() {
   _tabNotificationSnapshot = snap;
 }
 function render() {
+  // Do not rebuild the application DOM while a participant is answering a
+  // standalone quiz. Replacing the form would interrupt the attempt and can
+  // discard answers that have not yet been submitted.
+  if (isStandaloneQuizAttemptActive()) return;
+
+  // IMPORTANT: Do not rebuild the application DOM while a System Usage Guide
+  // video iframe is open. Replacing #app/#view interrupts the cross-origin
+  // player and resets Google Drive/YouTube playback to the beginning.
+  // The next normal render will run after the user leaves the video page.
+  if (isSystemInfoVideoSessionActive()) return;
+
   scanTabNotifications();
   stopQuizTimer();
   if (checkStandaloneFinal()) return;
@@ -8847,6 +8858,18 @@ window.addEventListener('focus', async () => {
   await pullFromServer(false);
 });
 
+// Participant quiz protection.
+// The participant quiz runs in its own tab (#quiz=...). While its answer form is
+// open, defer background/manual pulls so refreshed server data cannot rebuild
+// the form, reset its timer, or overwrite the in-progress attempt.
+function isStandaloneQuizAttemptActive() {
+  return !!(
+    location.hash.startsWith('#quiz=') &&
+    state && state.user && state.user.role === 'participant' &&
+    document.getElementById('standalone-quiz-form')
+  );
+}
+
 // System Usage Guides playback protection.
 // Google Drive preview runs in a cross-origin iframe, so the parent page cannot
 // reliably inspect its internal play/pause/ended state. While a guide video
@@ -8877,6 +8900,9 @@ async function pullFromServer(showToast, options = {}) {
 }
 
 async function pullFromServerInternal(showToast, options = {}) {
+  if (isStandaloneQuizAttemptActive()) {
+    return { ok: false, skipped: 'participant-quiz-in-progress' };
+  }
   if (isSystemInfoVideoSessionActive()) {
     return { ok: false, skipped: 'system-information-video-open' };
   }
@@ -8889,6 +8915,20 @@ async function pullFromServerInternal(showToast, options = {}) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await driveAPI('loadState');
+
+      // A pull may have started just before a participant opened the quiz.
+      // Discard that response while the quiz form is active.
+      if (isStandaloneQuizAttemptActive()) {
+        return { ok: false, skipped: 'participant-quiz-in-progress' };
+      }
+
+      // A refresh may have started just before the user pressed Play.
+      // Re-check after the network request so an in-flight response cannot
+      // replace the current UI/database and interrupt the video session.
+      if (isSystemInfoVideoSessionActive()) {
+        return { ok: false, skipped: 'system-information-video-open' };
+      }
+
       if (!res || !res.ok || !res.state || !Array.isArray(res.state.users)) {
         throw new Error((res && res.error) || 'Server returned incomplete data');
       }
