@@ -3422,7 +3422,17 @@ function handleLogoutClick() {
   const modal = showSyncModal({ title: t('sync_upload_title'), desc: t('sync_upload_desc'), onSkip: () => { modal.close(); doLogout(); } });
   forceSaveNow().then(res => {
     if (res.ok) { modal.done(true); setTimeout(() => { modal.close(); doLogout(); }, 900); }
-    else { modal.done(false, (res.error || '') + ' — ' + t('msg_invalid_login')); setTimeout(() => { modal.close(); doLogout(); }, 2600); }
+    else {
+      modal.done(false, (res.error || '') + (currentLang === 'en'
+        ? ' — Your session is still active. Close this message and retry saving before logging out.'
+        : ' — Sesi anda masih aktif. Tutup mesej ini dan cuba simpan semula sebelum log keluar.'));
+      const box = document.getElementById('syncActions');
+      if (box) {
+        box.innerHTML = `<button class="btn" id="syncStayBtn">${currentLang === 'en' ? 'Stay logged in' : 'Kekal log masuk'}</button><button class="btn btn-primary" id="syncLogoutAnywayBtn">${currentLang === 'en' ? 'Log out anyway' : 'Log keluar juga'}</button>`;
+        document.getElementById('syncStayBtn')?.addEventListener('click', () => modal.close(), { once: true });
+        document.getElementById('syncLogoutAnywayBtn')?.addEventListener('click', () => { modal.close(); doLogout(); }, { once: true });
+      }
+    }
   });
 }
 
@@ -3576,7 +3586,15 @@ function renderStandaloneFinal(feid) {
   const app = $('#app');
   const fe = getFinalExam(feid);
   if (!fe) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_exam_not_found')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
-  if (!state.user) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_session_expired')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
+  if (!state.user) {
+    const savedSessionId = localStorage.getItem(SESSION_KEY);
+    if (savedSessionId && !firstSyncDone) {
+      app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>⏳ ${currentLang === 'en' ? 'Restoring your session' : 'Memulihkan sesi anda'}</h2><p class="muted">${currentLang === 'en' ? 'Please wait while your account is verified. Your quiz answers will be preserved.' : 'Sila tunggu sementara akaun anda disahkan. Jawapan kuiz akan dikekalkan.'}</p></div></div>`;
+      return;
+    }
+    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_session_expired')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`;
+    return;
+  }
   if (!fe.published) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_not_published')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
   const viewer = state.user;
   if (viewer.role === 'participant') {
@@ -3634,7 +3652,7 @@ function renderFinalTheoryTab(fe, pid) {
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${allQ.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}</div>
-    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
   document.getElementById('standalone-final-form').addEventListener('submit', (e) => { e.preventDefault(); const form = e.target; const answers = allQ.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; }); submitFinalAttempt(fe, pid, answers, false); });
   if (hasTimer) startFinalTimer(fe, pid, remainingMs);
@@ -3781,6 +3799,7 @@ async function submitQuizAttempt(act, pid, answers, isAuto) {
     await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
   }
   try { window.opener && window.opener.postMessage({ type:'quiz-submitted', activityId: act.id }, '*'); } catch(e) {}
+  clearQuizDraft(act.id, pid);
   try { localStorage.removeItem(startKeyFor(act.id, pid)); } catch(e) {}
 }
 
@@ -3793,6 +3812,26 @@ function autoSubmitQuiz(act, pid) {
   const answers = act.quiz.map((q, qi) => { if (!form) return -1; const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
   submitQuizAttempt(act, pid, answers, true);
 }
+function quizDraftKey(activityId, participantId) {
+  return `cftpmy_quizdraft_${activityId}_${participantId}`;
+}
+function readQuizDraft(activityId, participantId) {
+  try {
+    const raw = sessionStorage.getItem(quizDraftKey(activityId, participantId));
+    return raw ? JSON.parse(raw) : {};
+  } catch (_) { return {}; }
+}
+function saveQuizDraft(activityId, participantId, answers) {
+  try {
+    sessionStorage.setItem(quizDraftKey(activityId, participantId), JSON.stringify(answers || {}));
+  } catch (err) {
+    console.warn('[quiz draft] Could not save draft:', err);
+  }
+}
+function clearQuizDraft(activityId, participantId) {
+  try { sessionStorage.removeItem(quizDraftKey(activityId, participantId)); } catch (_) {}
+}
+
 function renderParticipantQuizTab(act, pid) {
   stopQuizTimer();
   const app = $('#app');
@@ -3832,13 +3871,29 @@ function renderParticipantQuizTab(act, pid) {
     remainingMs = durationMs - (now - startedAt);
     if (remainingMs <= 0) { autoSubmitQuiz(act, pid); return; }
   }
+  const savedDraft = readQuizDraft(act.id, pid);
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     ${retestBanner}
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(act.title)}</h1><p class="muted" style="margin:0">${tce(moduleName(act.moduleId))} · ${act.quiz.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('quiz_timed_body', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div>
     <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
-  document.getElementById('standalone-quiz-form').addEventListener('submit', (e) => { e.preventDefault(); handleStandaloneQuizSubmit(act, pid, e.target); });
+  const quizForm = document.getElementById('standalone-quiz-form');
+  quizForm.addEventListener('change', () => {
+    const draft = {};
+    act.quiz.forEach((q, qi) => {
+      const selected = quizForm.querySelector(`input[name="q${qi}"]:checked`);
+      if (selected) draft[qi] = Number(selected.value);
+    });
+    saveQuizDraft(act.id, pid, draft);
+  });
+  quizForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const submitBtn = quizForm.querySelector('button[type="submit"]');
+    if (submitBtn && submitBtn.disabled) return;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
+    handleStandaloneQuizSubmit(act, pid, quizForm);
+  });
   if (hasTimer) startQuizTimer(act, pid, remainingMs);
 }
 
@@ -8754,10 +8809,21 @@ document.addEventListener('input', (e) => {
 window.addEventListener('storage', (e) => {
   if (e.key === DB_KEY) {
     try {
-      DB = JSON.parse(e.newValue);
+      const incomingDB = JSON.parse(e.newValue);
+      if (!incomingDB || typeof incomingDB !== 'object') return;
+      DB = incomingDB;
+      // A shared-cache update from another tab must never rebuild an in-progress
+      // quiz form: rebuilding it used to clear selected answers and look like a refresh.
+      if (location.hash.startsWith('#quiz=') && document.getElementById('standalone-quiz-form')) {
+        restoreActiveSessionUser();
+        return;
+      }
       if (checkStandaloneFinal()) { const feid = location.hash.substring(7).split('&')[0].split('#')[0]; renderStandaloneFinal(feid); }
       else if (checkStandaloneQuiz()) { const aid = location.hash.substring(6).split('&')[0].split('#')[0]; renderStandaloneQuiz(aid); }
-      else render();
+      else {
+        restoreActiveSessionUser();
+        render();
+      }
     } catch(err) {}
   }
 });
