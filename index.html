@@ -4594,22 +4594,25 @@ function openSystemInformationModal(id) {
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
       ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 150 MB bagi setiap fail menggunakan muat naik berperingkat ke Google Drive.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 150 MB per file using reliable chunked upload to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu atau lebih fail; setiap fail maksimum 150 MB. Untuk panduan lain, tekan “Tambah Panduan” sekali lagi. Muat naik berperingkat ke Google Drive.','Upload one or more files; each file can be up to 150 MB. To add another guide, select “Add Guide” again. Uploads use chunked transfer to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
   const input = document.getElementById('systemInfoFilesInput');
   if (input) input.addEventListener('change', () => {
-    const chosen = Array.from(input.files || []).slice(0, 1);
+    const chosen = Array.from(input.files || []);
     const info = document.getElementById('systemInfoFileInfo');
     systemInfoSelectedFiles = [];
-    const f = chosen[0];
-    if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
-      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 150 MB.','File \"'+f.name+'\" exceeds the 150 MB limit.'),'bad');
+    const oversized = chosen.filter(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
+    if (oversized.length) {
+      toast(systemInfoText(
+        oversized.length + ' fail melebihi had 150 MB setiap fail.',
+        oversized.length + ' file(s) exceed the 150 MB per-file limit.'
+      ), 'bad');
       input.value = '';
-    } else if (f) {
-      systemInfoSelectedFiles.push(f);
+      chosen.length = 0;
     }
+    systemInfoSelectedFiles = chosen.filter(f => f && f.size <= SYSTEM_INFO_MAX_FILE_BYTES);
     if (info) info.innerHTML = systemInfoSelectedFiles.map(f => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
   });
 }
@@ -4692,10 +4695,9 @@ async function handleSaveSystemInformation(form) {
   const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
   const id=form.dataset.id || '';
   const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
-  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice(0, 1) : []);
+  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice() : []);
   if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
-  if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
-  if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
+  if (!id && !selected.length) { toast(systemInfoText('Sila pilih sekurang-kurangnya satu video atau fail panduan.','Please select at least one guide video or file.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
   if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 150 MB.','Each file must not exceed 150 MB.'),'bad'); return; }
 
@@ -4728,11 +4730,14 @@ async function handleSaveSystemInformation(form) {
       previewUrl:f.previewUrl || '', downloadUrl:f.downloadUrl || f.webContentLink || ''
     }));
     if (selected.length) {
-      const file = selected[0];
-      const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
-        setJobProgress(Math.min(95,Math.round(p*0.95)), stage || (p+'%'));
-      });
-      files.push(uploaded);
+      for (let i = 0; i < selected.length; i++) {
+        const file = selected[i];
+        const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
+          const overall = ((i + p / 100) / selected.length) * 95;
+          setJobProgress(Math.min(95, Math.round(overall)), (i + 1) + '/' + selected.length + ' · ' + (stage || (p + '%')));
+        });
+        files.push(uploaded);
+      }
     }
     const payload={id:id || uid('sgi'),title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
     if (files.length) {
