@@ -410,7 +410,6 @@ h1,h2,h3,h4{letter-spacing:-.018em}h1{font-size:1.16rem}h2{font-size:1.08rem}h3{
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 
-.system-info-video-shell{isolation:isolate}.system-info-video-shell button{min-height:42px;padding:9px 18px}.system-info-video-shell iframe{background:#000}
 /* MOBILE FULL-WIDTH LAYOUT FIX — appended override */
 html, body {
   width: 100%;
@@ -3422,17 +3421,7 @@ function handleLogoutClick() {
   const modal = showSyncModal({ title: t('sync_upload_title'), desc: t('sync_upload_desc'), onSkip: () => { modal.close(); doLogout(); } });
   forceSaveNow().then(res => {
     if (res.ok) { modal.done(true); setTimeout(() => { modal.close(); doLogout(); }, 900); }
-    else {
-      modal.done(false, (res.error || '') + (currentLang === 'en'
-        ? ' — Your session is still active. Close this message and retry saving before logging out.'
-        : ' — Sesi anda masih aktif. Tutup mesej ini dan cuba simpan semula sebelum log keluar.'));
-      const box = document.getElementById('syncActions');
-      if (box) {
-        box.innerHTML = `<button class="btn" id="syncStayBtn">${currentLang === 'en' ? 'Stay logged in' : 'Kekal log masuk'}</button><button class="btn btn-primary" id="syncLogoutAnywayBtn">${currentLang === 'en' ? 'Log out anyway' : 'Log keluar juga'}</button>`;
-        document.getElementById('syncStayBtn')?.addEventListener('click', () => modal.close(), { once: true });
-        document.getElementById('syncLogoutAnywayBtn')?.addEventListener('click', () => { modal.close(); doLogout(); }, { once: true });
-      }
-    }
+    else { modal.done(false, (res.error || '') + ' — ' + t('msg_invalid_login')); setTimeout(() => { modal.close(); doLogout(); }, 2600); }
   });
 }
 
@@ -3586,15 +3575,7 @@ function renderStandaloneFinal(feid) {
   const app = $('#app');
   const fe = getFinalExam(feid);
   if (!fe) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_exam_not_found')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
-  if (!state.user) {
-    const savedSessionId = localStorage.getItem(SESSION_KEY);
-    if (savedSessionId && !firstSyncDone) {
-      app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>⏳ ${currentLang === 'en' ? 'Restoring your session' : 'Memulihkan sesi anda'}</h2><p class="muted">${currentLang === 'en' ? 'Please wait while your account is verified. Your quiz answers will be preserved.' : 'Sila tunggu sementara akaun anda disahkan. Jawapan kuiz akan dikekalkan.'}</p></div></div>`;
-      return;
-    }
-    app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_session_expired')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`;
-    return;
-  }
+  if (!state.user) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_session_expired')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
   if (!fe.published) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('fe_not_published')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
   const viewer = state.user;
   if (viewer.role === 'participant') {
@@ -3652,7 +3633,7 @@ function renderFinalTheoryTab(fe, pid) {
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${allQ.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}</div>
-    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
   document.getElementById('standalone-final-form').addEventListener('submit', (e) => { e.preventDefault(); const form = e.target; const answers = allQ.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; }); submitFinalAttempt(fe, pid, answers, false); });
   if (hasTimer) startFinalTimer(fe, pid, remainingMs);
@@ -3799,7 +3780,6 @@ async function submitQuizAttempt(act, pid, answers, isAuto) {
     await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
   }
   try { window.opener && window.opener.postMessage({ type:'quiz-submitted', activityId: act.id }, '*'); } catch(e) {}
-  clearQuizDraft(act.id, pid);
   try { localStorage.removeItem(startKeyFor(act.id, pid)); } catch(e) {}
 }
 
@@ -3812,26 +3792,6 @@ function autoSubmitQuiz(act, pid) {
   const answers = act.quiz.map((q, qi) => { if (!form) return -1; const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
   submitQuizAttempt(act, pid, answers, true);
 }
-function quizDraftKey(activityId, participantId) {
-  return `cftpmy_quizdraft_${activityId}_${participantId}`;
-}
-function readQuizDraft(activityId, participantId) {
-  try {
-    const raw = sessionStorage.getItem(quizDraftKey(activityId, participantId));
-    return raw ? JSON.parse(raw) : {};
-  } catch (_) { return {}; }
-}
-function saveQuizDraft(activityId, participantId, answers) {
-  try {
-    sessionStorage.setItem(quizDraftKey(activityId, participantId), JSON.stringify(answers || {}));
-  } catch (err) {
-    console.warn('[quiz draft] Could not save draft:', err);
-  }
-}
-function clearQuizDraft(activityId, participantId) {
-  try { sessionStorage.removeItem(quizDraftKey(activityId, participantId)); } catch (_) {}
-}
-
 function renderParticipantQuizTab(act, pid) {
   stopQuizTimer();
   const app = $('#app');
@@ -3871,29 +3831,13 @@ function renderParticipantQuizTab(act, pid) {
     remainingMs = durationMs - (now - startedAt);
     if (remainingMs <= 0) { autoSubmitQuiz(act, pid); return; }
   }
-  const savedDraft = readQuizDraft(act.id, pid);
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     ${retestBanner}
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(act.title)}</h1><p class="muted" style="margin:0">${tce(moduleName(act.moduleId))} · ${act.quiz.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('quiz_timed_body', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div>
-    <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${savedDraft[qi] === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
-  const quizForm = document.getElementById('standalone-quiz-form');
-  quizForm.addEventListener('change', () => {
-    const draft = {};
-    act.quiz.forEach((q, qi) => {
-      const selected = quizForm.querySelector(`input[name="q${qi}"]:checked`);
-      if (selected) draft[qi] = Number(selected.value);
-    });
-    saveQuizDraft(act.id, pid, draft);
-  });
-  quizForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const submitBtn = quizForm.querySelector('button[type="submit"]');
-    if (submitBtn && submitBtn.disabled) return;
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
-    handleStandaloneQuizSubmit(act, pid, quizForm);
-  });
+  document.getElementById('standalone-quiz-form').addEventListener('submit', (e) => { e.preventDefault(); handleStandaloneQuizSubmit(act, pid, e.target); });
   if (hasTimer) startQuizTimer(act, pid, remainingMs);
 }
 
@@ -4260,17 +4204,6 @@ function scanTabNotifications() {
   _tabNotificationSnapshot = snap;
 }
 function render() {
-  // Do not rebuild the application DOM while a participant is answering a
-  // standalone quiz. Replacing the form would interrupt the attempt and can
-  // discard answers that have not yet been submitted.
-  if (isStandaloneQuizAttemptActive()) return;
-
-  // IMPORTANT: Do not rebuild the application DOM while a System Usage Guide
-  // video iframe is open. Replacing #app/#view interrupts the cross-origin
-  // player and resets Google Drive/YouTube playback to the beginning.
-  // The next normal render will run after the user leaves the video page.
-  if (isSystemInfoVideoSessionActive()) return;
-
   scanTabNotifications();
   stopQuizTimer();
   if (checkStandaloneFinal()) return;
@@ -4352,8 +4285,8 @@ function viewContent() {
    NOTE: Apps Script must support the System Information list/save/delete actions and v4.7.0 chunk-upload actions.
    ========================================================= */
 // System Information uses the v4.7.0 chunked upload API.
-// Keep each chunk below Apps Script request limits and allow large files up to 150 MB.
-const SYSTEM_INFO_MAX_FILE_BYTES = 150 * 1024 * 1024;
+// Keep each chunk below Apps Script request limits and allow large files up to 100 MB.
+const SYSTEM_INFO_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const SYSTEM_INFO_CHUNK_BYTES = 5 * 1024 * 1024;
 const SYSTEM_INFO_UPLOAD_TIMEOUT_MS = 180000;
 let systemInformationCache = [];
@@ -4430,22 +4363,7 @@ function systemInfoNormalizeFiles(item) {
     return file;
   });
 }
-// Video previews are NOT embedded during tab rendering.
-// An iframe is created only after the user explicitly presses Play.
-function systemInfoVideoPlaceholder(src, title, key, provider = 'drive') {
-  if (!src) return '';
-  return `<div class="system-info-video-shell" data-system-info-video-shell
-      data-video-src="${esc(src)}" data-video-title="${esc(title || 'System usage guide')}"
-      data-video-key="${esc(key || src)}" data-video-provider="${esc(provider)}"
-      style="margin-top:10px;position:relative;aspect-ratio:16/9;min-height:150px;background:linear-gradient(135deg,#10241e,#263d35);border-radius:9px;overflow:hidden;display:grid;place-items:center">
-    <div style="text-align:center;padding:18px;color:#fff">
-      <div style="font-size:2.2rem;line-height:1;margin-bottom:10px">🎬</div>
-      <strong style="display:block;margin-bottom:10px;overflow-wrap:anywhere">${tce(title || systemInfoText('Video panduan','Guide video'))}</strong>
-      <button type="button" class="btn btn-primary" data-act="system-info-play">▶ ${systemInfoText('Mainkan video','Play video')}</button>
-      <small style="display:block;color:rgba(255,255,255,.72);margin-top:8px">${systemInfoText('Video hanya dimuatkan apabila anda menekan Play.','Video loads only when you press Play.')}</small>
-    </div>
-  </div>`;
-}
+let systemInfoEagerVideoClaimed = false;
 function systemInfoFileList(files, compact) {
   const list = Array.isArray(files) ? files : [];
   if (!list.length) return `<div class="empty">${systemInfoText('Tiada fail dilampirkan.','No files attached.')}</div>`;
@@ -4463,11 +4381,13 @@ function systemInfoFileList(files, compact) {
     }
     const size = file.size ? formatFileSize(Number(file.size)) : '';
     const video = kind === 'video' && !!preview;
+    const eagerVideo = !!(video && !compact && !systemInfoEagerVideoClaimed);
+    if (eagerVideo) systemInfoEagerVideoClaimed = true;
     return `<div style="border:1px solid var(--line);border-radius:10px;padding:11px;min-width:0">
       <div style="display:flex;align-items:center;gap:9px;min-width:0"><span style="font-size:1.35rem">${systemInfoFileIcon(file)}</span><div style="min-width:0;flex:1"><strong style="display:block;overflow-wrap:anywhere">${tce(name)}</strong><small class="muted">${size}${file.mimeType ? (size ? ' · ' : '')+tce(file.mimeType) : ''}</small></div>
       ${url ? `<a class="btn btn-sm" href="${esc(url)}" target="_blank" rel="noopener">${systemInfoText('Buka','Open')}</a>` : ''}
       ${download ? `<a class="btn btn-sm" href="${esc(download)}" target="_blank" rel="noopener">⬇</a>` : ''}</div>
-      ${video ? systemInfoVideoPlaceholder(preview, name, driveId || preview, 'drive') : ''}
+      ${video ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe data-system-info-player="${esc(String(driveId || preview))}" src="${esc(preview)}" title="${esc(name)}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="${eagerVideo ? 'eager' : 'lazy'}" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>` : ''}
       ${!url && !video ? `<small class="muted">${systemInfoText('Pautan fail belum diterima daripada server.','File link has not been returned by the server.')}</small>` : ''}
     </div>`;
   }).join('')}</div>`;
@@ -4580,12 +4500,12 @@ function systemInformationView() {
   systemInfoEagerVideoClaimed = false;
   const admin = isSystemInfoAdmin();
   const items = systemInformationCache || [];
-  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 150 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 150 MB per file using chunked upload to Google Drive.')}</p></div>` : ''}</div>`;
+  const header = `<div class="card"><div class="card-head"><div><h2>🎬 ${systemInfoText('Panduan Penggunaan Sistem','System Usage Guides')}</h2><small class="muted">${systemInfoText('Panduan penggunaan dan bahan rujukan untuk fasilitator dan trainer CFTP.','Usage guides and reference materials for CFTP facilitators and trainers.')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Muat semula','Refresh')}</button>${admin ? `<button class="btn btn-primary btn-sm" data-act="system-info-add">＋ ${systemInfoText('Tambah Panduan','Add Guide')}</button>` : ''}</div></div>${admin ? `<div class="info-box"><strong>${systemInfoText('Akses Admin','Admin access')}</strong><p style="margin:5px 0 0">${systemInfoText('Admin boleh menambah, mengemaskini dan memadam panduan. Setiap fail maksimum 100 MB dengan chunked upload.','Admins can add, edit and delete guides. Maximum size is 30 MB per file, using the same Google Drive upload method as Module Materials.')}</p></div>` : ''}</div>`;
   const pendingCards = systemInfoPendingUploads.length ? `<div class="grid2" style="margin-bottom:14px">${systemInfoPendingUploads.map(job => `<div class="card" id="sysupload-card-${esc(job.id)}" style="min-width:0;border:1px dashed var(--primary,#0b7658)"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">⏳ ${tce(job.title)}</h3><small class="muted" id="sysupload-status-${esc(job.id)}">${systemInfoText('Sedang diproses','Processing in background')} · ${tce(job.status || systemInfoText('Menyediakan muat naik...','Preparing upload...'))}</small></div><span class="pill" id="sysupload-pct-${esc(job.id)}">${Math.round(job.progress || 0)}%</span></div>${job.description ? `<p>${tce(job.description)}</p>` : ''}<div class="progress"><span id="sysupload-bar-${esc(job.id)}" style="width:${Math.max(0,Math.min(100,job.progress||0))}%"></span></div><small class="muted">${tce(job.filename || '')}</small></div>`).join('')}</div>` : '';
   const cards = items.length ? `<div class="grid2">${items.map(item => {
     const files = systemInfoFilesForGuide(item);
     const youtubePreview = systemInfoYouTubePreview(item);
-    const previewBlock = youtubePreview ? systemInfoVideoPlaceholder(youtubePreview, item.title || 'System usage guide', youtubePreview, 'youtube') : '';
+    const previewBlock = youtubePreview ? `<div style="margin-top:10px;position:relative;padding-top:56.25%;background:#111;border-radius:9px;overflow:hidden"><iframe src="${esc(youtubePreview)}" title="${esc(item.title || 'System usage guide')}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>` : '';
     return `<div class="card" style="min-width:0"><div class="card-head"><div style="min-width:0"><h3 style="margin:0">${tce(item.title || 'Untitled')}</h3><small class="muted">${item.updatedAt ? fmtDate(item.updatedAt) : ''}</small></div>${admin ? `<div class="toolbar"><button class="btn btn-sm" data-act="system-info-edit" data-id="${esc(item.id)}">✏️</button><button class="btn btn-sm btn-danger" data-act="system-info-delete" data-id="${esc(item.id)}">🗑️</button></div>` : ''}</div>${item.description ? `<p>${tce(item.description)}</p>` : ''}${previewBlock}<div style="margin-top:12px"><strong>${systemInfoText('Fail dilampirkan','Attached files')} (${files.length})</strong></div><div style="margin-top:9px">${systemInfoFileList(files, false)}</div><div class="muted" style="font-size:.78rem;margin-top:8px">${item.uploadedByName ? tce(item.uploadedByName) : ''}</div></div>`;
   }).join('')}</div>` : `<div class="card"><div class="empty">${systemInformationLoading ? '⏳ ' + systemInfoText('Sedang memuatkan panduan daripada Google Drive…','Loading guides from Google Drive…') : systemInformationError ? '⚠️ ' + systemInfoText('Gagal mendapatkan kandungan daripada backend: ','Could not retrieve guide content from the backend: ') + tce(systemInformationError) : '🎬 ' + systemInfoText('Backend berjaya dihubungi tetapi tiada rekod panduan dikembalikan. Semak tab SystemInformation dalam Google Sheets.','The backend responded but returned no guide records. Check the SystemInformation tab in Google Sheets.')}</div>${systemInformationError ? `<div style="padding:0 16px 16px"><button class="btn btn-primary btn-sm" data-act="system-info-refresh">🔄 ${systemInfoText('Cuba semula','Retry')}</button><small class="muted" style="display:block;margin-top:8px">${systemInfoText('Jika ralat menyatakan Unknown action, deploy versi Apps Script v4.7.0 yang mengandungi listSystemInformation.','If the error says Unknown action, deploy Apps Script v4.7.0 with listSystemInformation enabled.')}</small></div>` : ''}</div>`;
   if (state.view === 'system-information' && !systemInformationLoadPromise && (!systemInformationLastLoadedAt || Date.now() - systemInformationLastLoadedAt > 2 * 60 * 1000)) {
@@ -4605,32 +4525,29 @@ function openSystemInformationModal(id) {
       <div class="field"><label>${systemInfoText('Tajuk Panduan','Guide Title')} *</label><input class="input" name="title" required maxlength="180" value="${esc(old?.title || '')}" placeholder="${systemInfoText('Contoh: Cara menggunakan modul latihan','Example: How to use the training module')}"></div>
       <div class="field"><label>${systemInfoText('Penerangan','Description')}</label><textarea class="input" name="description" rows="4" placeholder="${systemInfoText('Terangkan kandungan panduan ini...','Describe what this guide covers...')}">${esc(old?.description || '')}</textarea></div>
       ${existingFiles.length ? `<div class="field"><label>${systemInfoText('Fail sedia ada','Existing files')}</label>${systemInfoFileList(existingFiles, true)}<small class="muted">${systemInfoText('Jika anda memilih fail baharu, fail lampiran panduan ini akan digantikan. Untuk video berbeza, gunakan “Tambah Panduan” supaya setiap video mempunyai penerangan sendiri.','Selecting a new file replaces this guide’s attachment. To add a different video, use “Add Guide” so each video has its own description.')}</small></div>` : ''}
-      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" multiple ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu atau lebih fail; setiap fail maksimum 150 MB. Untuk panduan lain, tekan “Tambah Panduan” sekali lagi. Muat naik berperingkat ke Google Drive.','Upload one or more files; each file can be up to 150 MB. To add another guide, select “Add Guide” again. Uploads use chunked transfer to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
+      <div class="field"><label>${systemInfoText('Video / fail panduan','Guide video / file')} ${old ? '' : '*'}</label><input class="input" type="file" id="systemInfoFilesInput" accept="${accept}" ${old ? '' : 'required'}><small class="muted">${systemInfoText('Muat naik satu video atau satu fail sahaja untuk setiap panduan. Masukkan penerangan khusus di atas, kemudian simpan. Untuk video atau panduan lain, tekan “Tambah Panduan” sekali lagi. Maksimum 100 MB bagi setiap fail menggunakan muat naik berperingkat ke Google Drive.','Upload only one video or file for each guide. Enter its own description above, then save. To add another video or guide, select “Add Guide” again. Maximum 100 MB per file using reliable chunked upload to Google Drive.')}</small><div id="systemInfoFileInfo" style="display:grid;gap:6px;margin-top:9px"></div></div>
       <div id="systemInfoUploadProgress" style="display:none;margin:14px 0"><strong>${systemInfoText('Kemajuan muat naik','Upload progress')}</strong><div id="systemInfoUploadProgressList" style="display:grid;gap:9px;margin-top:9px"></div><div class="progress" style="margin-top:10px"><span id="systemInfoOverallProgressBar" style="width:0%"></span></div><small id="systemInfoOverallProgressStatus" class="muted">0%</small></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${old ? systemInfoText('Simpan Perubahan','Save Changes') : systemInfoText('Simpan Panduan','Save Guide')}</button></div>
     </form>`);
   const input = document.getElementById('systemInfoFilesInput');
   if (input) input.addEventListener('change', () => {
-    const chosen = Array.from(input.files || []);
+    const chosen = Array.from(input.files || []).slice(0, 1);
     const info = document.getElementById('systemInfoFileInfo');
     systemInfoSelectedFiles = [];
-    const oversized = chosen.filter(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
-    if (oversized.length) {
-      toast(systemInfoText(
-        oversized.length + ' fail melebihi had 150 MB setiap fail.',
-        oversized.length + ' file(s) exceed the 150 MB per-file limit.'
-      ), 'bad');
+    const f = chosen[0];
+    if (f && f.size > SYSTEM_INFO_MAX_FILE_BYTES) {
+      toast(systemInfoText('Fail \"'+f.name+'\" melebihi had 100 MB.','File \"'+f.name+'\" exceeds the 100 MB limit.'),'bad');
       input.value = '';
-      chosen.length = 0;
+    } else if (f) {
+      systemInfoSelectedFiles.push(f);
     }
-    systemInfoSelectedFiles = chosen.filter(f => f && f.size <= SYSTEM_INFO_MAX_FILE_BYTES);
     if (info) info.innerHTML = systemInfoSelectedFiles.map(f => `<div style="display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px"><span>${systemInfoFileIcon(f)}</span><span style="flex:1;overflow-wrap:anywhere">${tce(f.name)}</span><small class="muted">${formatFileSize(f.size)}</small></div>`).join('');
   });
 }
 /**
  * Upload System Information using the same Google Drive upload pattern as Module Materials.
  * Files are stored in a dedicated "System Information [system-information]" folder.
- * Uses the v4.7.0 chunked upload API so files up to 150 MB do not need one oversized POST request.
+ * Uses the v4.7.0 chunked upload API so files up to 100 MB do not need one oversized POST request.
  */
 async function uploadSystemInfoFile(file, title, description, onProgress) {
   const report = (pct, stage) => { if (onProgress) onProgress(pct, stage); };
@@ -4706,11 +4623,12 @@ async function handleSaveSystemInformation(form) {
   const title=(form.title.value || '').trim(), description=(form.description.value || '').trim();
   const id=form.dataset.id || '';
   const old = id ? (systemInformationCache || []).find(x => String(x.id) === String(id)) : null;
-  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice() : []);
+  const selected = (Array.isArray(systemInfoSelectedFiles) ? systemInfoSelectedFiles.slice(0, 1) : []);
   if (!title) { toast(systemInfoText('Tajuk diperlukan.','Title is required.'),'bad'); return; }
-  if (!id && !selected.length) { toast(systemInfoText('Sila pilih sekurang-kurangnya satu video atau fail panduan.','Please select at least one guide video or file.'),'bad'); return; }
+  if (!id && !selected.length) { toast(systemInfoText('Sila pilih satu video atau fail panduan.','Please select one guide video or file.'),'bad'); return; }
+  if (selected.length > 1) { toast(systemInfoText('Satu fail sahaja dibenarkan bagi setiap panduan.','Only one file is allowed per guide.'),'bad'); return; }
   const invalid = selected.find(f => !f || f.size > SYSTEM_INFO_MAX_FILE_BYTES);
-  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 150 MB.','Each file must not exceed 150 MB.'),'bad'); return; }
+  if (invalid) { toast(systemInfoText('Setiap fail mestilah tidak melebihi 100 MB.','Each file must not exceed 100 MB.'),'bad'); return; }
 
   // Close the form immediately; upload and metadata save continue in background.
   const jobId = uid('sysupload');
@@ -4741,14 +4659,11 @@ async function handleSaveSystemInformation(form) {
       previewUrl:f.previewUrl || '', downloadUrl:f.downloadUrl || f.webContentLink || ''
     }));
     if (selected.length) {
-      for (let i = 0; i < selected.length; i++) {
-        const file = selected[i];
-        const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
-          const overall = ((i + p / 100) / selected.length) * 95;
-          setJobProgress(Math.min(95, Math.round(overall)), (i + 1) + '/' + selected.length + ' · ' + (stage || (p + '%')));
-        });
-        files.push(uploaded);
-      }
+      const file = selected[0];
+      const uploaded = await uploadSystemInfoFile(file, title, description, (p, stage) => {
+        setJobProgress(Math.min(95,Math.round(p*0.95)), stage || (p+'%'));
+      });
+      files.push(uploaded);
     }
     const payload={id:id || uid('sgi'),title,description,files,uploadedBy:state.user.id,uploadedByName:state.user.name};
     if (files.length) {
@@ -6441,8 +6356,6 @@ function openModuleForm(mod) {
   const selectedTrainers = moduleTrainerIds(m);
   const selectedFacilitators = moduleFacilitatorIds(m);
   const facOptions = allFacilitators();
-  const moduleEnrollParticipants = isEdit ? allParticipants() : [];
-  const moduleEnrolledIds = isEdit ? new Set(DB.enrollments.filter(e => e.moduleId === m.id).map(e => e.participantId)) : new Set();
   const multiGroup = (name, label, users, selected, required) => `<div class="field"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:7px"><label style="margin:0">${label}${required ? ' *' : ''} <small class="muted">(${currentLang === 'en' ? 'select any number' : 'boleh pilih lebih daripada 3'})</small></label><div class="toolbar"><button type="button" class="btn btn-sm" data-act="select-all-assignees" data-group="${name}">☑️ ${currentLang === 'en' ? 'Select all' : 'Pilih semua'}</button><button type="button" class="btn btn-sm" data-act="clear-assignees" data-group="${name}">${currentLang === 'en' ? 'Clear' : 'Kosongkan'}</button></div></div><div class="multi-assignee-list" data-group="${name}" style="border:1px solid var(--line);border-radius:9px;padding:9px;max-height:220px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px">${users.map(u => `<label style="display:flex;align-items:center;gap:7px;font-size:.85rem;padding:5px;border-radius:6px;background:var(--surface-2,#f7faf9)"><input type="checkbox" name="${name}" value="${esc(u.id)}" ${selected.includes(u.id) ? 'checked' : ''} /> <span>${tce(u.name)}</span></label>`).join('') || `<span class="muted">${t('msg_no_data')}</span>`}</div></div>`;
   openModal(`<h2>${isEdit ? t('form_edit') + ' ' + t('lbl_module') : t('form_new') + ' ' + t('lbl_module')}</h2>
     <form data-form="module" data-id="${isEdit ? m.id : ''}">
@@ -6457,18 +6370,11 @@ function openModuleForm(mod) {
       </div>
       ${multiGroup('trainerIds', '👤 ' + t('lbl_trainer'), allTrainers(), selectedTrainers, true)}
       ${multiGroup('facilitatorIds', '🧑‍🏫 ' + t('lbl_facilitator'), facOptions, selectedFacilitators, false)}
-      ${isEdit ? `<div class="field"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:7px"><label style="margin:0">👥 ${currentLang === 'en' ? 'Participants to Enrol' : 'Peserta untuk Didaftarkan'} <small class="muted">(${currentLang === 'en' ? 'existing enrolments remain enrolled' : 'peserta sedia berdaftar kekal berdaftar'})</small></label><div class="toolbar"><button type="button" class="btn btn-sm" data-act="module-enroll-select-all">☑️ ${currentLang === 'en' ? 'Select all participants' : 'Pilih semua peserta'}</button><button type="button" class="btn btn-sm" data-act="module-enroll-clear-all">${currentLang === 'en' ? 'Clear' : 'Kosongkan'}</button></div></div><div class="picker-list" id="moduleEnrollPicker" style="max-height:260px">${moduleEnrollParticipants.length ? moduleEnrollParticipants.map(p => `<label class="picker-item"><input type="checkbox" name="module-enroll-pid" value="${esc(p.id)}" ${moduleEnrolledIds.has(p.id) ? 'checked' : ''} /><div><strong>${tce(p.name)}</strong><br><small class="muted">${esc(p.email || '')}${p.org ? ' · ' + tce(p.org) : ''}${moduleEnrolledIds.has(p.id) ? ` · <span class="badge ok">✓ ${currentLang === 'en' ? 'Enrolled' : 'Berdaftar'}</span>` : ''}</small></div></label>`).join('') : `<div class="empty">${currentLang === 'en' ? 'No approved participants found.' : 'Tiada peserta diluluskan ditemui.'}</div>`}</div></div>` : ''}
       <div class="info-box" style="font-size:.82rem"><p style="margin:0">💡 ${t('pa_facilitator_note')}</p></div>
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
   const modal = document.querySelector('#modalRoot form[data-form="module"]');
   if (modal) {
-    modal.querySelectorAll('[data-act="module-enroll-select-all"]').forEach(btn => btn.addEventListener('click', () => {
-      modal.querySelectorAll('input[name="module-enroll-pid"]').forEach(box => { box.checked = true; });
-    }));
-    modal.querySelectorAll('[data-act="module-enroll-clear-all"]').forEach(btn => btn.addEventListener('click', () => {
-      modal.querySelectorAll('input[name="module-enroll-pid"]').forEach(box => { box.checked = false; });
-    }));
     modal.querySelectorAll('[data-act="select-all-assignees"]').forEach(btn => btn.addEventListener('click', () => {
       const groupName = btn.dataset.group;
       const boxes = [...modal.querySelectorAll(`input[name="${groupName}"]`)];
@@ -6499,7 +6405,6 @@ function handleSaveModule(form) {
   const id = form.dataset.id;
   const trainerIds = [...form.querySelectorAll('input[name="trainerIds"]:checked')].map(x => x.value);
   const facilitatorIds = [...form.querySelectorAll('input[name="facilitatorIds"]:checked')].map(x => x.value);
-  const selectedEnrollIds = id ? [...form.querySelectorAll('input[name="module-enroll-pid"]:checked')].map(x => x.value) : [];
   const data = {
     name: form.name.value.trim(), description: form.description.value.trim(),
     trainerIds, facilitatorIds, trainerId: trainerIds[0] || null, facilitatorId: facilitatorIds[0] || null,
@@ -6512,16 +6417,7 @@ function handleSaveModule(form) {
     const m = getModule(id); const oldTrainerIds = moduleTrainerIds(m);
     Object.assign(m, data);
     DB.activities.filter(a => a.moduleId === id).forEach(a => { a.module = data.name; a.trainerId = data.trainerId; });
-    let enrolledAdded = 0;
-    selectedEnrollIds.forEach(pid => {
-      if (!isEnrolled(id, pid)) {
-        DB.enrollments.push({ id: uid('en'), moduleId: id, participantId: pid, enrolledBy: state.user.id, enrolledAt: nowISO(), status: 'Aktif' });
-        enrolledAdded++;
-      }
-    });
-    saveDB(); logAudit('Update Module', 'Modul', id, data.name);
-    if (enrolledAdded) logAudit('Bulk Enrol from Module Edit', 'Enrolment', id, `${enrolledAdded} participants`);
-    toast(enrolledAdded ? `${t('msg_updated')} · ${enrolledAdded} ${currentLang === 'en' ? 'participant(s) enrolled.' : 'peserta didaftarkan.'}` : t('msg_updated'));
+    saveDB(); logAudit('Update Module', 'Modul', id, data.name); toast(t('msg_updated'));
   } else {
     const nm = Object.assign({ id: uid('mod'), createdBy: state.user.id, createdAt: nowISO(), materials: [] }, data);
     DB.modules.push(nm); saveDB(); logAudit('Create Module', 'Modul', nm.id, nm.name); toast(t('msg_created_module'));
@@ -7614,116 +7510,12 @@ function handleSavePractical(form) {
 /* =========================================================
    USERS / AUDIT / REPORTS
    ========================================================= */
-function downloadUserRegistrationTemplate() {
-  if (!ensureXLSX()) return;
-  const headers = ['Name','Username','Email','Password','Role','Status','IC No.','Organisation','Phone'];
-  const example = ['Example User','example_user','example@example.com','ChangeMe123!','participant','approved','','Example Organisation',''];
-  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
-  ws['!cols'] = [{wch:28},{wch:22},{wch:32},{wch:22},{wch:18},{wch:16},{wch:20},{wch:36},{wch:20}];
-  ws['!autofilter'] = { ref: `A1:I2` };
-  ws['!freeze'] = { ySplit: 1 };
-  const ref = XLSX.utils.aoa_to_sheet([
-    ['FIELD','INSTRUCTION'],
-    ['Name','Required. Full name of the user.'],
-    ['Username','Required. Minimum 3 characters; letters, numbers and underscore only.'],
-    ['Email','Required and must be unique.'],
-    ['Password','Required for new users; minimum 8 characters.'],
-    ['Role','Use exactly: participant, trainer, facilitator, vip, admin.'],
-    ['Status','Use exactly: approved, pending, or rejected. Blank defaults to approved.'],
-    ['IC No.','Optional.'],
-    ['Organisation','Optional except VIP users, where it is required.'],
-    ['Phone','Optional.'],
-    ['Upload','Save as .xlsx and upload through Users. Duplicate username/email rows are skipped.']
-  ]);
-  ref['!cols'] = [{wch:24},{wch:95}];
-  const roles = XLSX.utils.aoa_to_sheet([['Valid Roles'],['participant'],['trainer'],['facilitator'],['vip'],['admin']]);
-  roles['!cols'] = [{wch:20}];
-  const statuses = XLSX.utils.aoa_to_sheet([['Valid Status'],['approved'],['pending'],['rejected']]);
-  statuses['!cols'] = [{wch:20}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Users');
-  XLSX.utils.book_append_sheet(wb, ref, 'Instructions');
-  XLSX.utils.book_append_sheet(wb, roles, 'Roles');
-  XLSX.utils.book_append_sheet(wb, statuses, 'Statuses');
-  XLSX.writeFile(wb, 'User_Registration_Template.xlsx');
-  toast(currentLang === 'en' ? 'User registration template downloaded.' : 'Template pendaftaran pengguna dimuat turun.');
-}
-
-async function importUserRegistrationExcel(file) {
-  if (!ensureXLSX()) return;
-  const wb = await readExcelFile(file);
-  const ws = wb.Sheets['Users'] || wb.Sheets[wb.SheetNames[0]];
-  if (!ws) throw new Error('Users sheet not found. Download a fresh template.');
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
-  if (!rows.length) { toast(currentLang === 'en' ? 'The uploaded file is empty.' : 'Fail yang dimuat naik kosong.', 'bad'); return; }
-  const headers = rows[0].map(v => String(v || '').trim());
-  const idx = name => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
-  const iName = idx('Name'), iUsername = idx('Username'), iEmail = idx('Email'), iPassword = idx('Password'), iRole = idx('Role'), iStatus = idx('Status'), iIc = idx('IC No.'), iOrg = idx('Organisation'), iPhone = idx('Phone');
-  if ([iName,iUsername,iEmail,iPassword,iRole].some(i => i < 0)) throw new Error('Required columns are missing. Download a fresh user registration template.');
-  const validRoles = new Set(['participant','trainer','facilitator','vip','admin']);
-  const validStatuses = new Set(['approved','pending','rejected']);
-  const existingUsernames = new Set(DB.users.map(u => String(u.username || '').trim().toLowerCase()));
-  const existingEmails = new Set(DB.users.map(u => String(u.email || '').trim().toLowerCase()));
-  const seenUsernames = new Set(), seenEmails = new Set();
-  let imported = 0, skipped = 0;
-  const errors = [];
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r] || [];
-    if (row.every(v => String(v || '').trim() === '')) continue;
-    const name = String(row[iName] || '').trim();
-    const username = String(row[iUsername] || '').trim();
-    const email = String(row[iEmail] || '').trim().toLowerCase();
-    const password = String(row[iPassword] || '');
-    const role = String(row[iRole] || '').trim().toLowerCase();
-    const statusRaw = String(iStatus >= 0 ? (row[iStatus] || '') : '').trim().toLowerCase();
-    const status = statusRaw || 'approved';
-    const ic = String(iIc >= 0 ? (row[iIc] || '') : '').trim();
-    const org = String(iOrg >= 0 ? (row[iOrg] || '') : '').trim();
-    const phone = String(iPhone >= 0 ? (row[iPhone] || '') : '').trim();
-    const line = r + 1;
-    if (!name || !username || !email || !password || !role) { errors.push(`Row ${line}: Name, Username, Email, Password and Role are required.`); skipped++; continue; }
-    if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { errors.push(`Row ${line}: invalid username "${username}".`); skipped++; continue; }
-    if (password.length < 8) { errors.push(`Row ${line}: password must be at least 8 characters.`); skipped++; continue; }
-    if (!validRoles.has(role)) { errors.push(`Row ${line}: invalid role "${role}".`); skipped++; continue; }
-    if (!validStatuses.has(status)) { errors.push(`Row ${line}: invalid status "${status}".`); skipped++; continue; }
-    if (role === 'vip' && !org) { errors.push(`Row ${line}: Organisation is required for VIP users.`); skipped++; continue; }
-    if (org.length > 500) { errors.push(`Row ${line}: Organisation must not exceed 500 characters.`); skipped++; continue; }
-    if (existingUsernames.has(username.toLowerCase()) || seenUsernames.has(username.toLowerCase())) { errors.push(`Row ${line}: duplicate username "${username}".`); skipped++; continue; }
-    if (existingEmails.has(email) || seenEmails.has(email)) { errors.push(`Row ${line}: duplicate email "${email}".`); skipped++; continue; }
-    const nu = { id: uid('u'), name, username, email, password, role, ic, org, phone, status, createdAt: nowISO(), mustChangePassword: true };
-    DB.users.push(nu);
-    seenUsernames.add(username.toLowerCase());
-    seenEmails.add(email);
-    existingUsernames.add(username.toLowerCase());
-    existingEmails.add(email);
-    if (org && !companyList().some(company => sameCompany(company, org))) {
-      if (!Array.isArray(DB.companies)) DB.companies = [];
-      DB.companies.push({ id: uid('co'), name: org, createdAt: nowISO(), createdBy: state.user.id });
-    }
-    imported++;
-  }
-  if (!imported && errors.length) {
-    toast((currentLang === 'en' ? 'No users imported. ' : 'Tiada pengguna diimport. ') + errors.slice(0,2).join(' | '), 'bad');
-    return;
-  }
-  if (imported) {
-    saveDB();
-    logAudit('Import Users', 'Pengguna', 'bulk', `${imported} users imported`);
-    render();
-  }
-  const detail = errors.length ? ` ${currentLang === 'en' ? `${errors.length} row(s) skipped.` : `${errors.length} baris dilangkau.`}` : '';
-  toast(`✅ ${imported} ${currentLang === 'en' ? 'user(s) imported.' : 'pengguna diimport.'}${detail}`, errors.length ? 'warn' : undefined);
-  if (errors.length) console.warn('User registration import skipped rows:', errors);
-}
-
 function usersView() {
-  const roleFilter = state.params.userRoleFilter || 'all';
-  const allUsers = DB.users.slice().sort((a,b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
-  const users = roleFilter === 'all' ? allUsers : allUsers.filter(u => u.role === roleFilter);
-  const pending = allUsers.filter(u => u.status === 'pending');
+  const users = DB.users.slice().sort((a,b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name));
+  const pending = users.filter(u => u.status === 'pending');
   const statusBadge = (st) => { if (st === 'pending') return `<span class="badge warn">⏳ ${t('usr_status_pending')}</span>`; if (st === 'rejected') return `<span class="badge bad">⛔ ${t('usr_status_rejected')}</span>`; return `<span class="badge ok">✓ ${t('usr_status_approved')}</span>`; };
   return `${pending.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>⏳ ${t('usr_pending_title')} (${pending.length})</h2></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_org')}</th><th>${t('lbl_date')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${pending.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td>${tce(u.org || '—')}</td><td>${fmtDate(u.createdAt)}</td><td><div class="toolbar"><button class="btn btn-sm btn-primary" data-act="approve-user" data-id="${u.id}">✅ ${t('usr_approve')}</button><button class="btn btn-sm btn-danger" data-act="reject-user" data-id="${u.id}">✖ ${t('usr_reject')}</button></div></td></tr>`).join('')}</tbody></table></div></div>` : ''}
-  <div class="card"><div class="card-head"><div><h2>${t('usr_title')}</h2><small class="muted">${users.length} / ${allUsers.length} ${currentLang === 'en' ? 'users shown' : 'pengguna dipaparkan'}</small></div><div class="toolbar"><select class="select" data-change="user-role-filter" style="min-width:180px"><option value="all" ${roleFilter === 'all' ? 'selected' : ''}>${currentLang === 'en' ? 'All Roles' : 'Semua Peranan'}</option>${['participant','trainer','facilitator','vip','admin'].map(r => `<option value="${r}" ${roleFilter === r ? 'selected' : ''}>${roleLabel(r)}</option>`).join('')}</select><button class="btn btn-sm" data-act="user-template-download">📥 ${currentLang === 'en' ? 'Download Template' : 'Muat Turun Template'}</button><button class="btn btn-sm" data-act="user-template-upload">📤 ${currentLang === 'en' ? 'Upload Users' : 'Upload Pengguna'}</button><button class="btn btn-primary" data-act="new-user">➕</button></div></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_role')}</th><th>${t('usr_status')}</th><th>${t('lbl_org')}</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td><span class="badge ${u.role === 'admin' ? 'info' : u.role === 'trainer' ? 'ok' : u.role === 'facilitator' ? 'warn' : u.role === 'vip' ? 'info' : 'draft'}">${roleLabel(u.role)}</span></td><td>${statusBadge(u.status)}</td><td>${tce(u.org || '—')}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="edit-user" data-id="${u.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-user" data-id="${u.id}" ${u.id === state.user.id ? 'disabled' : ''}>🗑️</button></div></td></tr>`).join('')}</tbody></table></div></div>`;
+  <div class="card"><div class="card-head"><h2>${t('usr_title')}</h2><button class="btn btn-primary" data-act="new-user">➕</button></div><div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('username')}</th><th>${t('lbl_email')}</th><th>${t('lbl_role')}</th><th>${t('usr_status')}</th><th>${t('lbl_org')}</th><th></th></tr></thead><tbody>${users.map(u => `<tr><td><strong>${tce(u.name)}</strong></td><td><code style="background:#eaf3f0;padding:1px 6px;border-radius:5px;font-size:.8rem">${esc(u.username||'—')}</code></td><td>${esc(u.email)}</td><td><span class="badge ${u.role === 'admin' ? 'info' : u.role === 'trainer' ? 'ok' : u.role === 'facilitator' ? 'warn' : u.role === 'vip' ? 'info' : 'draft'}">${roleLabel(u.role)}</span></td><td>${statusBadge(u.status)}</td><td>${tce(u.org || '—')}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="edit-user" data-id="${u.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-user" data-id="${u.id}" ${u.id === state.user.id ? 'disabled' : ''}>🗑️</button></div></td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function approveUser(id) {
   const u = DB.users.find(x => x.id === id); if (!u) return;
@@ -8266,253 +8058,7 @@ function printActivityQuiz(aid) {
   if (!act || !Array.isArray(act.quiz) || !act.quiz.length) { toast(currentLang==='en'?'No saved questions to print.':'Tiada soalan disimpan untuk dicetak.','warn'); return; }
   const mod = getModule(act.moduleId);
   const body = `<div style="font-family:Arial,sans-serif;color:#17251f"><h1 style="color:#0b6b53">${tce(act.title)}</h1><p><strong>${tce(mod?.name||'')}</strong> · ${fmtDate(act.date||'')} · ${act.quiz.length} ${currentLang==='en'?'questions':'soalan'}</p><p>${currentLang==='en'?'Participant name:':'Nama peserta:'} ____________________ &nbsp; ${currentLang==='en'?'Date:':'Tarikh:'} ______________</p><hr>${act.quiz.map((q,i)=>`<div style="margin:0 0 18px;page-break-inside:avoid"><p><strong>${i+1}. ${tce(q.q)}</strong></p>${(q.options||[]).map((o,j)=>`<p style="margin:5px 0">${'ABCD'[j]}. ${tce(o)}</p>`).join('')}</div>`).join('')}<p style="margin-top:28px;font-size:11px;color:#657b74">${currentLang==='en'?'Printed from the local training system. Works offline when this page and saved data are available.':'Dicetak daripada sistem latihan setempat. Boleh digunakan offline apabila halaman dan data tersimpan tersedia.'}</p></div>`;
-  printHTML(`<html><head><meta charset="utf-8"><title>${esc(act.title)}</title><style>@page{size:A4;margin:18mm}body{font-size:12pt;line-height:1.5}h1{font-size:20pt}hr{border:0;border-top:2px solid #dce9e3}
-
-/* =========================================================
-   RESPONSIVE DEVICE UX — MOBILE / TABLET / DESKTOP v2
-   Additive override: preserves existing features and behaviour.
-   ========================================================= */
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body { width:100%; min-width:0; overflow-x:hidden; }
-*, *::before, *::after { box-sizing:border-box; }
-img, video, canvas, svg, iframe { max-width:100%; }
-button, input, select, textarea { max-width:100%; }
-button, .btn, .nav-item, input[type="checkbox"], input[type="radio"], select { touch-action:manipulation; }
-
-/* Prevent accidental horizontal overflow from long labels, URLs and filenames. */
-.card, .stat, .module-card, .spider-module, .fac-module-row, .fac-submission-row,
-.fe-mod-submit-card, .approval-card, .q, .bank-item, .material-item,
-.modal, .modal-backdrop, #view, .topbar, .main, .sidebar {
-  min-width:0;
-}
-.card, .module-card, .spider-module, .modal { overflow-wrap:anywhere; }
-
-/* Toolbars and action groups should wrap instead of pushing the page wider. */
-.toolbar, .card-head, .modal-actions, .bank-item-head, .material-item,
-.fac-module-row, .fac-submission-row, .fe-mc-row, .pending-quiz-card,
-.status-card .sc-actions { min-width:0; flex-wrap:wrap; }
-.toolbar .btn, .card-head .btn, .modal-actions .btn { max-width:100%; }
-
-/* Tables stay readable: narrow devices get horizontal scrolling rather than page overflow. */
-.table-wrap {
-  width:100%;
-  max-width:100%;
-  overflow-x:auto;
-  overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;
-  scrollbar-width:thin;
-}
-.table-wrap table { min-width:max-content; }
-.table-wrap th, .table-wrap td { overflow-wrap:anywhere; }
-
-/* Forms: comfortable touch targets and no oversized desktop controls. */
-.input, .select, .textarea, .login-input {
-  max-width:100%;
-  min-width:0;
-}
-@media (max-width:900px) {
-  .btn, button.btn { min-height:42px; }
-  .btn-sm { min-height:38px; }
-  .input, .select { min-height:42px; }
-  .textarea { min-height:100px; }
-  .field { min-width:0; }
-  .grid2, .grid-2, .status-panel { grid-template-columns:minmax(0,1fr) !important; }
-  .module-grid { grid-template-columns:minmax(0,1fr) !important; }
-  .grid-4 { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
-
-  /* Compact mobile navigation: horizontally scrollable, keeping all menu items accessible. */
-  .admin-shell, .shell:not(.admin-shell) {
-    width:100% !important;
-    max-width:100% !important;
-    min-width:0 !important;
-  }
-  .admin-shell>.sidebar, .shell:not(.admin-shell)>.sidebar {
-    width:100% !important;
-    min-width:0 !important;
-    max-width:100% !important;
-    height:auto !important;
-    min-height:0 !important;
-    max-height:none !important;
-    position:relative !important;
-    top:auto !important;
-    padding:10px 12px !important;
-    overflow:visible !important;
-    flex:0 0 auto !important;
-  }
-  .admin-shell .sidebar .brand, .shell:not(.admin-shell) .sidebar .brand {
-    min-width:0;
-    padding:2px 4px 9px !important;
-  }
-  .admin-shell .nav, .shell:not(.admin-shell) .nav {
-    display:flex !important;
-    flex-direction:row !important;
-    align-items:stretch !important;
-    width:100% !important;
-    max-width:100% !important;
-    max-height:none !important;
-    min-height:0 !important;
-    overflow-x:auto !important;
-    overflow-y:hidden !important;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-width:thin;
-    gap:6px !important;
-    padding:3px 2px 6px !important;
-    margin:0 !important;
-    flex:none !important;
-  }
-  .admin-shell .nav-item, .shell:not(.admin-shell) .nav-item {
-    flex:0 0 auto !important;
-    width:auto !important;
-    max-width:78vw;
-    min-height:44px !important;
-    padding:10px 12px !important;
-    white-space:nowrap !important;
-    overflow-wrap:normal !important;
-    justify-content:center !important;
-  }
-  .admin-shell .sidebar-foot, .shell:not(.admin-shell) .sidebar-foot {
-    width:100% !important;
-    max-width:100% !important;
-    margin:4px 0 0 !important;
-    padding:7px 2px 0 !important;
-    display:flex !important;
-    flex-direction:row !important;
-    align-items:center !important;
-    gap:7px !important;
-    flex-wrap:wrap !important;
-  }
-  .admin-shell .sidebar-foot .userchip, .shell:not(.admin-shell) .sidebar-foot .userchip {
-    flex:1 1 180px;
-    min-width:0;
-    margin:0 !important;
-  }
-  .admin-shell .sidebar-foot>button, .shell:not(.admin-shell) .sidebar-foot>button {
-    width:auto !important;
-    min-height:42px;
-  }
-  .admin-shell>.main, .shell:not(.admin-shell)>.main {
-    width:100% !important;
-    max-width:100% !important;
-    min-width:0 !important;
-  }
-
-  .topbar {
-    width:100% !important;
-    min-width:0 !important;
-    padding:10px 12px !important;
-    gap:8px !important;
-    flex-wrap:wrap !important;
-  }
-  .topbar h1 {
-    min-width:0;
-    flex:1 1 180px;
-    overflow-wrap:anywhere;
-  }
-  .topbar .tb-right {
-    min-width:0;
-    max-width:100%;
-    flex-wrap:wrap;
-    justify-content:flex-end;
-  }
-  #view, .admin-shell #view {
-    width:100% !important;
-    max-width:none !important;
-    min-width:0 !important;
-    padding:16px 14px 30px !important;
-  }
-
-  /* Full-screen-friendly dialogs on tablets and phones. */
-  .modal-backdrop {
-    padding:10px !important;
-    align-items:flex-start !important;
-    overflow-y:auto !important;
-  }
-  .modal, .modal.modal-lg, .modal.modal-xl {
-    width:100% !important;
-    max-width:100% !important;
-    max-height:calc(100dvh - 20px) !important;
-    margin:0 !important;
-    padding:18px !important;
-    border-radius:14px !important;
-  }
-  .modal-actions {
-    position:sticky;
-    bottom:-18px;
-    background:#fff;
-    padding:12px 0 2px !important;
-    z-index:2;
-  }
-  .modal-actions .btn { flex:1 1 140px; }
-
-  /* Prevent common two-column content from becoming cramped. */
-  .meta-grid, .status-panel, .overall-spider-summary { min-width:0; }
-  .overall-spider-summary { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .overall-spider-summary>div { min-width:0; }
-  .spider-layout { grid-template-columns:minmax(0,1fr) !important; }
-  .spider-chart-wrap, .spider-data { width:100%; min-width:0; }
-  .spider-svg, .overall-spider-chart svg { width:100% !important; height:auto !important; max-width:100% !important; }
-
-  /* Long names / email / URLs remain visible without forcing a wider viewport. */
-  .material-item .mat-name { white-space:normal !important; overflow:visible !important; text-overflow:clip !important; overflow-wrap:anywhere; }
-  pre, code { max-width:100%; overflow-x:auto; }
-  iframe { width:100%; max-width:100%; }
-}
-
-@media (max-width:600px) {
-  body { font-size:13px; }
-  .grid, .grid-4, .grid2, .grid-2, .status-panel { grid-template-columns:minmax(0,1fr) !important; }
-  .overall-spider-summary { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
-  .card { padding:13px !important; margin-bottom:13px !important; }
-  .card-head { align-items:flex-start !important; }
-  .card-head h2, .card-head h3 { font-size:1rem; }
-  .toolbar { width:100%; }
-  .toolbar .btn { flex:1 1 auto; }
-  .btn, button.btn { min-height:44px; }
-  .btn-sm { min-height:40px; }
-  .input, .select { min-height:44px; }
-  .modal { padding:15px !important; border-radius:12px !important; }
-  .modal-actions { bottom:-15px; }
-  .modal-actions .btn { flex:1 1 100%; }
-  .picker-toolbar .input, .picker-toolbar .select { min-width:0 !important; flex:1 1 100%; }
-  .picker-list { max-height:55vh; }
-  .picker-item { padding:11px 10px; }
-  .fe-mc-row { align-items:stretch; }
-  .fe-mc-row .select { min-width:0 !important; width:100%; }
-  .fe-mc-row .input { width:100%; }
-  .login-right { padding:10px 10px 28px !important; }
-  .login-card { width:100%; padding:22px 16px !important; border-radius:14px !important; }
-  .login-card-brand { gap:11px; margin-bottom:24px; }
-  .login-card-brand .logo-square { width:48px; height:48px; }
-  .login-card-brand h2 { font-size:16px; }
-  .login-input { min-height:46px; font-size:16px; } /* avoids iOS zoom */
-  .login-btn { min-height:48px; }
-  .topbar .tb-right { width:100%; justify-content:flex-start; }
-  .topbar .tb-right .btn, .topbar .tb-right button { flex:1 1 auto; }
-}
-
-@media (max-width:430px) {
-  #view, .admin-shell #view { padding:12px 9px 24px !important; }
-  .admin-shell>.sidebar, .shell:not(.admin-shell)>.sidebar { padding:8px 9px !important; }
-  .admin-shell .nav-item, .shell:not(.admin-shell) .nav-item { padding:9px 10px !important; font-size:.8rem; }
-  .topbar { padding:9px !important; }
-  .card { padding:11px !important; }
-  .overall-spider-summary { grid-template-columns:1fr 1fr !important; gap:7px; }
-  .overall-spider-summary>div { padding:8px !important; }
-  .table-wrap th, .table-wrap td { padding:8px 9px; }
-}
-
-@media (orientation:landscape) and (max-width:900px) {
-  .admin-shell>.sidebar, .shell:not(.admin-shell)>.sidebar { padding:7px 10px !important; }
-  .admin-shell .sidebar .brand, .shell:not(.admin-shell) .sidebar .brand { padding-bottom:6px !important; }
-  .admin-shell .sidebar-foot, .shell:not(.admin-shell) .sidebar-foot { display:none !important; }
-  #view, .admin-shell #view { padding-top:12px !important; }
-}
-
-@media (min-width:901px) {
-  /* Desktop: retain the full navigation workspace while constraining content width. */
-  #view { width:100%; }
-}
-</style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
+  printHTML(`<html><head><meta charset="utf-8"><title>${esc(act.title)}</title><style>@page{size:A4;margin:18mm}body{font-size:12pt;line-height:1.5}h1{font-size:20pt}hr{border:0;border-top:2px solid #dce9e3}</style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);
 }
 
 function printHTML(html) {
@@ -8812,26 +8358,6 @@ document.addEventListener('click', async (e) => {
     case 'system-info-add': openSystemInformationModal(); break;
     case 'system-info-edit': openSystemInformationModal(tgt.dataset.id); break;
     case 'system-info-delete': deleteSystemInformation(tgt.dataset.id); break;
-    case 'system-info-play': {
-      const shell = tgt.closest('[data-system-info-video-shell]');
-      if (!shell || shell.querySelector('iframe[data-system-info-player]')) break;
-      const src = shell.dataset.videoSrc || '';
-      if (!src) break;
-      const provider = shell.dataset.videoProvider || 'drive';
-      const frame = document.createElement('iframe');
-      frame.setAttribute('data-system-info-player', shell.dataset.videoKey || src);
-      frame.src = provider === 'youtube' && !/[?&]autoplay=/.test(src)
-        ? src + (src.includes('?') ? '&' : '?') + 'autoplay=1'
-        : src;
-      frame.title = shell.dataset.videoTitle || 'System usage guide';
-      frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
-      frame.allowFullscreen = true;
-      frame.referrerPolicy = 'strict-origin-when-cross-origin';
-      frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0';
-      shell.innerHTML = '';
-      shell.appendChild(frame);
-      break;
-    }
     case 'system-info-refresh': loadSystemInformation(false, true); break;
     case 'sync-all-now': syncAllNow(); break;
     case 'print-all-modules': printAllModulesPDF(); break;
@@ -9100,16 +8626,11 @@ document.addEventListener('click', async (e) => {
     case 'excel-practical-upload': { const aid=tgt.dataset.aid; pickExcelFile('.xlsx,.xls', (f) => importPracticalMarksExcel(f, aid)); break; }
     case 'excel-timetable-download': downloadTimetableTemplate(tgt.dataset.mid); break;
     case 'excel-timetable-upload': { const mid = tgt.dataset.mid; pickExcelFile('.xlsx,.xls', (f) => importTimetableExcel(f, mid)); break; }
-    case 'user-template-download': downloadUserRegistrationTemplate(); break;
-    case 'user-template-upload': pickExcelFile('.xlsx,.xls', (f) => importUserRegistrationExcel(f)); break;
-    case 'module-enroll-select-all': { const form = tgt.closest('form[data-form="module"]'); if (form) form.querySelectorAll('input[name="module-enroll-pid"]').forEach(x => x.checked = true); break; }
-    case 'module-enroll-clear-all': { const form = tgt.closest('form[data-form="module"]'); if (form) form.querySelectorAll('input[name="module-enroll-pid"]').forEach(x => x.checked = false); break; }
   }
 });
 
 document.addEventListener('change', (e) => {
   const tgt = e.target.closest('[data-change]');
-  if (tgt && tgt.dataset.change === 'user-role-filter') { state.params.userRoleFilter = tgt.value || 'all'; render(); return; }
   if (tgt && tgt.dataset.change === 'bank-category') { state.params.bankCategory = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'bank-diff') { state.params.bankDiff = tgt.value; render(); return; }
   if (tgt && tgt.dataset.change === 'grading-activity') { state.params.gradingActivity = tgt.value; render(); return; }
@@ -9199,21 +8720,10 @@ document.addEventListener('input', (e) => {
 window.addEventListener('storage', (e) => {
   if (e.key === DB_KEY) {
     try {
-      const incomingDB = JSON.parse(e.newValue);
-      if (!incomingDB || typeof incomingDB !== 'object') return;
-      DB = incomingDB;
-      // A shared-cache update from another tab must never rebuild an in-progress
-      // quiz form: rebuilding it used to clear selected answers and look like a refresh.
-      if (location.hash.startsWith('#quiz=') && document.getElementById('standalone-quiz-form')) {
-        restoreActiveSessionUser();
-        return;
-      }
+      DB = JSON.parse(e.newValue);
       if (checkStandaloneFinal()) { const feid = location.hash.substring(7).split('&')[0].split('#')[0]; renderStandaloneFinal(feid); }
       else if (checkStandaloneQuiz()) { const aid = location.hash.substring(6).split('&')[0].split('#')[0]; renderStandaloneQuiz(aid); }
-      else {
-        restoreActiveSessionUser();
-        render();
-      }
+      else render();
     } catch(err) {}
   }
 });
@@ -9231,18 +8741,6 @@ window.addEventListener('focus', async () => {
   if (saveInFlight || saveTimer) return;
   await pullFromServer(false);
 });
-
-// Participant quiz protection.
-// The participant quiz runs in its own tab (#quiz=...). While its answer form is
-// open, defer background/manual pulls so refreshed server data cannot rebuild
-// the form, reset its timer, or overwrite the in-progress attempt.
-function isStandaloneQuizAttemptActive() {
-  return !!(
-    location.hash.startsWith('#quiz=') &&
-    state && state.user && state.user.role === 'participant' &&
-    document.getElementById('standalone-quiz-form')
-  );
-}
 
 // System Usage Guides playback protection.
 // Google Drive preview runs in a cross-origin iframe, so the parent page cannot
@@ -9274,9 +8772,6 @@ async function pullFromServer(showToast, options = {}) {
 }
 
 async function pullFromServerInternal(showToast, options = {}) {
-  if (isStandaloneQuizAttemptActive()) {
-    return { ok: false, skipped: 'participant-quiz-in-progress' };
-  }
   if (isSystemInfoVideoSessionActive()) {
     return { ok: false, skipped: 'system-information-video-open' };
   }
@@ -9289,20 +8784,6 @@ async function pullFromServerInternal(showToast, options = {}) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await driveAPI('loadState');
-
-      // A pull may have started just before a participant opened the quiz.
-      // Discard that response while the quiz form is active.
-      if (isStandaloneQuizAttemptActive()) {
-        return { ok: false, skipped: 'participant-quiz-in-progress' };
-      }
-
-      // A refresh may have started just before the user pressed Play.
-      // Re-check after the network request so an in-flight response cannot
-      // replace the current UI/database and interrupt the video session.
-      if (isSystemInfoVideoSessionActive()) {
-        return { ok: false, skipped: 'system-information-video-open' };
-      }
-
       if (!res || !res.ok || !res.state || !Array.isArray(res.state.users)) {
         throw new Error((res && res.error) || 'Server returned incomplete data');
       }
