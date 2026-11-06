@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://docs.google.com" crossorigin>
 <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
 <title>Chemical Fundamentals Training Programme Malaysia</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.afull.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --brand:#0b6b53; --brand-2:#12a37f; --brand-3:#e6f4ef;
@@ -6979,119 +6979,44 @@ function openUploadMaterialModal(mid) {
     if (nameInp && !nameInp.value) nameInp.placeholder = file.name;
   });
 }
-let materialUploadInProgress = false;
-const MODULE_MATERIAL_UPLOAD_TIMEOUT_MS = 180000; // 3 minutes; applies only to Upload Module Material.
-
 async function handleUploadMaterial(form) {
-  // Prevent accidental double submission while the file is being processed.
-  if (materialUploadInProgress) {
-    toast(currentLang === 'en' ? 'An upload is already in progress. Please wait.' : 'Muat naik sedang berjalan. Sila tunggu.', 'bad');
-    return;
-  }
-
-  const mid = form && form.dataset ? form.dataset.mid : '';
+  const mid = form.dataset.mid;
   const file = state.pendingFile;
   if (!file) { toast(t('mat_upload_no_file'), 'bad'); return; }
-  if (file.size > MAX_FILE_SIZE) {
-    toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE)), 'bad');
-    return;
-  }
+  if (file.size > MAX_FILE_SIZE) { toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE)), 'bad'); return; }
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
-
   const progressEl = document.getElementById('uploadProgress');
   const progressBar = document.getElementById('uploadProgressBar');
-  const submitBtn = form.querySelector('button[type="submit"]');
-  const originalButtonText = submitBtn ? submitBtn.textContent : '';
-  const description = (form.description ? form.description.value : '').trim();
-  const displayName = (form.displayName && form.displayName.value || '').trim() || file.name;
-
-  materialUploadInProgress = true;
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Uploading…' : 'Sedang memuat naik…'; }
   if (progressEl) progressEl.style.display = 'block';
   if (progressBar) progressBar.style.width = '0%';
   startUploadMonitor(file.name, file.size);
-
   try {
-    // Phase 1: read the selected file. This does not contact the server yet.
     const base64 = await fileToBase64(file, pct => {
       if (progressBar) progressBar.style.width = pct + '%';
       updateTransferMonitor('upload', pct, `${file.name} · ${t('transfer_preparing')}`, true, false);
     });
-    if (!base64) throw new Error('The selected file could not be read. Please select it again.');
-
-    // Phase 2: send to Apps Script. A longer timeout is scoped to this upload only;
-    // other Drive/API operations retain their existing timeout settings.
     if (progressBar) progressBar.style.width = '50%';
     updateTransferMonitor('upload', 50, `${file.name} · ${t('transfer_sending')}`, true, true);
-    const res = await driveAPI('uploadModuleMaterial', {
-      payload: {
-        moduleId: mid,
-        moduleName: m.name,
-        filename: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        base64,
-        description
-      }
-    }, MODULE_MATERIAL_UPLOAD_TIMEOUT_MS);
-
-    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed. The server did not confirm the upload.');
-    const uploadedFile = res.file || res.data && res.data.file;
-    const uploadedFileId = uploadedFile && (uploadedFile.id || uploadedFile.fileId);
-    if (!uploadedFileId) throw new Error('The server response did not contain a Google Drive file ID. Please check Google Drive before retrying.');
-
+    const res = await driveAPI('uploadModuleMaterial', { payload: { moduleId: mid, moduleName: m.name, filename: file.name, mimeType: file.type || 'application/octet-stream', base64, description: (form.description ? form.description.value : '').trim() } });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
     if (progressBar) progressBar.style.width = '90%';
     updateTransferMonitor('upload', 95, `${file.name} · ${t('transfer_verifying')}`, true, true);
-
-    const mat = {
-      id: uid('mat'),
-      fileId: uploadedFileId,
-      name: displayName,
-      originalName: file.name,
-      type: fileTypeFromName(file.name),
-      mime: uploadedFile.mimeType || file.type || 'application/octet-stream',
-      size: Number(uploadedFile.size) || file.size,
-      downloadUrl: uploadedFile.downloadUrl || uploadedFile.webContentLink || '',
-      viewUrl: uploadedFile.viewUrl || uploadedFile.webViewLink || '',
-      previewUrl: uploadedFile.previewUrl || '',
-      folderId: uploadedFile.folderId || '',
-      folderUrl: uploadedFile.folderUrl || '',
-      description,
-      uploadedBy: state.user.id,
-      uploadedAt: nowISO()
-    };
-
+    const displayName = (form.displayName.value || '').trim() || file.name;
+    const mat = { id: uid('mat'), fileId: res.file.id, name: displayName, originalName: file.name, type: fileTypeFromName(file.name), mime: res.file.mimeType, size: res.file.size, downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl, folderId: res.file.folderId, folderUrl: res.file.folderUrl, description: (form.description ? form.description.value : '').trim(), uploadedBy: state.user.id, uploadedAt: nowISO() };
     if (!Array.isArray(m.materials)) m.materials = [];
-    // Avoid adding the same Drive file twice if the handler is invoked again.
-    if (!m.materials.some(item => String(item.fileId || '') === String(uploadedFileId))) {
-      m.materials.push(mat);
-    }
+    m.materials.push(mat);
     m.updatedAt = nowISO();
     saveDB();
     logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
-
     if (progressBar) progressBar.style.width = '100%';
-    state.pendingFile = null;
+    state.pendingFile = null; closeModal(); toast('✅ ' + t('mat_upload_success')); render();
     finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
-    closeModal();
-    toast('✅ ' + t('mat_upload_success'));
-    render();
   } catch (err) {
-    console.error('Upload Module Material error:', err);
-    const message = err && err.name === 'AbortError'
-      ? (currentLang === 'en'
-          ? 'Upload timed out after 3 minutes. Please check Google Drive before retrying to avoid uploading the same file twice.'
-          : 'Masa muat naik melebihi 3 minit. Sila semak Google Drive sebelum cuba semula bagi mengelakkan fail berganda.')
-      : (err && err.message ? err.message : t('mat_upload_fail'));
-    finishUploadMonitor(false, `${file.name} · ${message}`);
+    console.error('Upload error:', err);
+    finishUploadMonitor(false, `${file.name} · ${err.message || t('transfer_failed')}`);
     if (progressEl) progressEl.style.display = 'none';
-    toast('❌ ' + message, 'bad');
-  } finally {
-    materialUploadInProgress = false;
-    if (submitBtn && document.contains(submitBtn)) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalButtonText;
-    }
+    toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
 }
 function viewMaterial(mid, matid) {
