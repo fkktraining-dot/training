@@ -411,6 +411,17 @@ h1,h2,h3,h4{letter-spacing:-.018em}h1{font-size:1.16rem}h2{font-size:1.08rem}h3{
 
 
 .system-info-video-shell{isolation:isolate}.system-info-video-shell button{min-height:42px;padding:9px 18px}.system-info-video-shell iframe{background:#000}
+
+/* SAFE ADD-ON: multi-file module uploader and clickable change notices */
+#uploadFileInput{cursor:pointer}
+#uploadQueueStatus{padding:8px 10px;border-radius:8px;background:#f4f9f7;border:1px solid var(--line);min-height:20px}
+#materialUploadProgress{display:none;margin:8px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f4f9f7}
+#materialUploadProgress.active{display:block}
+#materialUploadProgress .transfer-item{display:block!important}
+#transferMonitor{z-index:30}
+#view .card button[data-act="open-audit-notification"]{background:#fff;border-color:var(--line);box-shadow:none}
+#view .card button[data-act="open-audit-notification"]:hover{background:#f2fbf7;border-color:var(--brand-2)}
+
 /* MOBILE FULL-WIDTH LAYOUT FIX — appended override */
 html, body {
   width: 100%;
@@ -3450,11 +3461,14 @@ function doLogout() {
 
 
 function updateTransferMonitor(kind, pct, detail, active, indeterminate) {
-  const root = document.getElementById('transferMonitor');
-  const item = document.getElementById(kind === 'upload' ? 'transferUpload' : 'transferDownload');
-  const bar = document.getElementById(kind === 'upload' ? 'transferUploadBar' : 'transferDownloadBar');
-  const pctEl = document.getElementById(kind === 'upload' ? 'transferUploadPct' : 'transferDownloadPct');
-  const detailEl = document.getElementById(kind === 'upload' ? 'transferUploadDetail' : 'transferDownloadDetail');
+  // Material uploads are displayed at the bottom of the Module Materials card.
+  // Downloads retain the original sticky top monitor.
+  const isUpload = kind === 'upload';
+  const root = document.getElementById(isUpload ? 'materialUploadProgress' : 'transferMonitor');
+  const item = document.getElementById(isUpload ? 'materialUploadProgressItem' : 'transferDownload');
+  const bar = document.getElementById(isUpload ? 'materialUploadProgressBar' : 'transferDownloadBar');
+  const pctEl = document.getElementById(isUpload ? 'materialUploadProgressPct' : 'transferDownloadPct');
+  const detailEl = document.getElementById(isUpload ? 'materialUploadProgressDetail' : 'transferDownloadDetail');
   if (!root || !item || !bar) return;
   item.style.display = active ? 'block' : 'none';
   if (pctEl) pctEl.textContent = (pct == null ? '—' : Math.max(0, Math.min(100, Math.round(pct))) + '%');
@@ -3465,19 +3479,16 @@ function updateTransferMonitor(kind, pct, detail, active, indeterminate) {
 }
 function startUploadMonitor(filename, size) {
   updateTransferMonitor('upload', 0, `${filename || ''} · ${formatFileSize(size || 0)} · ${t('transfer_preparing')}`, true, false);
-  const label = document.getElementById('transferUploadLabel');
-  if (label) label.textContent = '⬆️ ' + t('transfer_upload');
 }
 function finishUploadMonitor(success, detail) {
   updateTransferMonitor('upload', success ? 100 : null, detail || (success ? t('transfer_complete') : t('transfer_failed')), true, false);
-  const pct = document.getElementById('transferUploadPct');
+  const pct = document.getElementById('materialUploadProgressPct');
   if (pct) pct.textContent = success ? '100%' : '!';
   setTimeout(() => {
-    const item = document.getElementById('transferUpload');
+    const item = document.getElementById('materialUploadProgressItem');
+    const root = document.getElementById('materialUploadProgress');
     if (item) item.style.display = 'none';
-    const root = document.getElementById('transferMonitor');
-    const down = document.getElementById('transferDownload');
-    if (root && (!down || down.style.display === 'none')) root.classList.remove('active');
+    if (root) root.classList.remove('active');
   }, success ? 3500 : 6000);
 }
 
@@ -4259,6 +4270,40 @@ function scanTabNotifications() {
   }
   _tabNotificationSnapshot = snap;
 }
+function auditNotificationTab(entry) {
+  const entity = String(entry && entry.entity || '').toLowerCase();
+  const action = String(entry && entry.action || '').toLowerCase();
+  if (entity.includes('modul')) return 'modules';
+  if (entity.includes('aktiviti') || entity.includes('penilaian')) return 'activities';
+  if (entity.includes('pengguna')) return 'users';
+  if (entity.includes('syarikat')) return 'companies';
+  if (entity.includes('kehadiran')) return 'attendance';
+  if (entity.includes('rubrik')) return 'rubrik';
+  if (entity.includes('soalan')) return 'bank';
+  if (entity.includes('sijil')) return 'sijil';
+  if (entity.includes('jadual')) return 'participant-timetable';
+  if (entity.includes('peperiksaan')) return 'final';
+  if (action.includes('profile')) return 'profile';
+  return 'audit';
+}
+function renderTabChangeNotifications(view) {
+  if (!state.user || !DB || !Array.isArray(DB.audit)) return '';
+  const entries = DB.audit.slice()
+    .filter(entry => auditNotificationTab(entry) === (view === 'module' ? 'modules' : view))
+    .sort((a,b) => new Date(b.at || 0) - new Date(a.at || 0))
+    .slice(0, 5);
+  if (!entries.length) return '';
+  const heading = currentLang === 'en' ? 'Recent changes & notifications' : 'Makluman perubahan terkini';
+  return `<section class="card" style="border-left:4px solid var(--brand-2);padding:14px 17px">
+    <div class="card-head" style="margin-bottom:8px"><h2 style="font-size:.92rem">🔔 ${heading}</h2><small class="muted">${currentLang === 'en' ? 'Select a notification to open the related record.' : 'Tekan makluman untuk membuka rekod berkaitan.'}</small></div>
+    <div style="display:grid;gap:7px">${entries.map(entry => {
+      const destination = auditNotificationTab(entry);
+      return `<button type="button" class="btn" data-act="open-audit-notification" data-entity="${esc(entry.entity || '')}" data-entityid="${esc(entry.entityId || '')}" data-notifytab="${esc(destination)}" style="width:100%;justify-content:flex-start;text-align:left;white-space:normal;min-height:48px">
+        <span style="font-size:1.1rem">📌</span><span style="flex:1;min-width:0"><strong style="display:block">${tce(entry.action || (currentLang === 'en' ? 'Updated' : 'Dikemaskini'))}</strong><small class="muted" style="display:block;overflow-wrap:anywhere">${tce(entry.details || entry.entity || '')} · ${fmtDateTime(entry.at)}</small></span><span>›</span>
+      </button>`;
+    }).join('')}</div>
+  </section>`;
+}
 function render() {
   // Do not rebuild the application DOM while a participant is answering a
   // standalone quiz. Replacing the form would interrupt the attempt and can
@@ -4292,7 +4337,7 @@ function render() {
   app.innerHTML = shell();
   const v = $('#view');
   if (v) {
-    v.innerHTML = viewContent();
+    v.innerHTML = renderTabChangeNotifications(state.view) + viewContent();
     // Move the original iframe nodes into the newly rendered cards. Moving the
     // same DOM node keeps the embedded player's current position and buffering
     // state. Navigating away and opening the guide again creates a fresh player.
@@ -4833,17 +4878,51 @@ function profileView() {
   </div>`;
 }
 function handleSaveProfile(form) {
-  const u = state.user; if (!u) return;
-  const name = form.name.value.trim(), username = form.username.value.trim(), email = form.email.value.trim().toLowerCase();
-  const ic = form.ic.value.trim(), org = form.org.value.trim(), phone = form.phone ? form.phone.value.trim() : '';
+  const activeUser = state.user;
+  if (!activeUser || !Array.isArray(DB?.users)) return;
+
+  // Always update the canonical DB.users record. Compare IDs as strings so
+  // numeric/string representations of the same account are treated equally.
+  const userId = String(activeUser.id ?? '');
+  const userRecord = DB.users.find(x => String(x?.id ?? '') === userId);
+  if (!userRecord) {
+    toast(currentLang === 'en' ? 'Unable to locate your account record. Please refresh and try again.' : 'Rekod akaun tidak ditemui. Sila muat semula sistem dan cuba lagi.', 'bad');
+    return;
+  }
+
+  const name = String(form.name?.value || '').trim();
+  const username = String(form.username?.value || '').trim();
+  const email = String(form.email?.value || '').trim().toLowerCase();
+  const ic = String(form.ic?.value || '').trim();
+  const org = String(form.org?.value || '').trim();
+  const phone = form.phone ? String(form.phone.value || '').trim() : '';
   if (!name || !username || !email) { toast(t('msg_required'), 'bad'); return; }
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
-  const dupU = DB.users.find(x => x.id !== u.id && String(x.username||'').toLowerCase() === username.toLowerCase());
+
+  // Exclude the current account by normalized ID; this allows users to save
+  // their profile without being told their unchanged username is already used.
+  const normalizedUsername = username.toLowerCase();
+  const originalUsername = String(activeUser.username || userRecord.username || '').trim().toLowerCase();
+  // If the username has not changed, do not reject the profile save because
+  // of a duplicate/stale copy elsewhere in the local user list. This does not
+  // permit changing to another user's username.
+  const usernameUnchanged = normalizedUsername === originalUsername;
+  const dupU = usernameUnchanged ? null : DB.users.find(x => {
+    const otherId = String(x?.id ?? '');
+    const isSameAccount = otherId && userId && otherId === userId;
+    return !isSameAccount && String(x?.username || '').trim().toLowerCase() === normalizedUsername;
+  });
   if (dupU) { toast(t('username_taken'), 'bad'); return; }
-  const dupE = DB.users.find(x => x.id !== u.id && x.email.toLowerCase() === email);
+
+  const dupE = DB.users.find(x => String(x?.id ?? '') !== userId && String(x?.email || '').trim().toLowerCase() === email);
   if (dupE) { toast(t('msg_email_taken'), 'bad'); return; }
-  u.name = name; u.username = username; u.email = email; u.ic = ic; u.org = org; u.phone = phone;
-  saveDB(); logAudit('Update Profile', 'Pengguna', u.id, name); toast('✅ ' + t('profile_updated')); render();
+
+  Object.assign(userRecord, { name, username, email, ic, org, phone });
+  state.user = userRecord;
+  saveDB();
+  logAudit('Update Profile', 'Pengguna', userRecord.id, name);
+  toast('✅ ' + t('profile_updated'));
+  render();
 }
 async function handleChangePassword(form) {
   const activeUser = state.user;
@@ -5614,7 +5693,7 @@ function renderMaterialsSection(m, canEdit) {
   const mats = m.materials || [];
   const refreshLabel = currentLang === 'en' ? '🔄 Check Google Drive' : '🔄 Semak Google Drive';
   const emptyText = canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer');
-  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}</div>`;
+  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}<section id="materialUploadProgress" class="material-upload-progress" aria-live="polite" style="margin-top:12px"><div id="materialUploadProgressItem" class="transfer-item" style="display:none"><div class="transfer-head"><span>⬆️ ${currentLang === 'en' ? 'Upload status' : 'Status muat naik'}</span><span id="materialUploadProgressPct">0%</span></div><div class="transfer-track"><div id="materialUploadProgressBar" class="transfer-fill"></div></div><div id="materialUploadProgressDetail" class="transfer-sub"></div></div></section></div>`;
 }
 
 /** Pull existing materials from Drive into the module record, so old Drive files
@@ -6958,25 +7037,36 @@ function openUploadMaterialModal(mid) {
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
   state.pendingFile = null;
+  state.pendingFiles = [];
   openModal(`<h2>📎 ${t('mat_upload_modal')}</h2><p class="muted">${tce(m.name)}</p>
     <div class="info-box"><h4>${t('mat_upload_format')}</h4><p style="margin:0">${t('mat_upload_format_value')}</p><p style="margin:6px 0 0"><strong>${t('mat_upload_limit')}</strong></p><p style="margin:6px 0 0;font-size:.8rem">${t('mat_drive_note')}</p></div>
-    <form data-form="upload-material" data-mid="${mid}">
-      <div class="field"><label>${t('mat_upload_file')} *</label><input type="file" class="input" name="file" id="uploadFileInput" required /><div id="fileInfo" style="margin-top:6px"></div></div>
-      <div class="field"><label>${t('mat_upload_display_name')}</label><input class="input" name="displayName" id="uploadDisplayName" placeholder="${t('mat_upload_placeholder')}" /></div>
+    <form data-form="upload-material" data-mid="${esc(mid)}">
+      <div class="field"><label>${t('mat_upload_file')} *</label>
+        <input type="file" class="input" name="files" id="uploadFileInput" multiple required />
+        <div id="fileInfo" style="margin-top:6px"></div>
+        <small class="muted">${currentLang === 'en' ? 'Select multiple files, or upload one file at a time. After each upload, select more files here.' : 'Pilih beberapa fail sekali gus, atau muat naik satu demi satu. Selepas selesai, pilih fail lain di sini.'}</small>
+      </div>
+      <div class="field"><label>${t('mat_upload_display_name')}</label><input class="input" name="displayName" id="uploadDisplayName" placeholder="${t('mat_upload_placeholder')}" /><small class="muted">${currentLang === 'en' ? 'Used only when uploading a single file. Multiple files keep their original names.' : 'Digunakan jika memuat naik satu fail sahaja. Untuk banyak fail, nama asal dikekalkan.'}</small></div>
       <div class="field"><label>${t('mat_upload_desc')}</label><input class="input" name="description" /></div>
-      <div id="uploadProgress" style="display:none;margin-top:8px"><div class="progress"><span id="uploadProgressBar" style="width:0%"></span></div><small class="muted" style="display:block;margin-top:4px">${t('mat_uploading')}</small></div>
-      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('mat_upload_btn')}</button></div>
+      <div id="uploadQueueStatus" class="muted" style="font-size:.8rem;margin:8px 0" aria-live="polite"></div>
+      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary" id="uploadMaterialSubmit">${currentLang === 'en' ? '⬆️ Upload selected files' : '⬆️ Muat naik fail dipilih'}</button></div>
     </form>`);
   const inp = document.getElementById('uploadFileInput');
   if (inp) inp.addEventListener('change', (e) => {
-    const file = e.target.files[0]; const info = document.getElementById('fileInfo');
-    if (!file) { if (info) info.innerHTML = ''; state.pendingFile = null; return; }
-    const type = fileTypeFromName(file.name);
-    if (file.size > MAX_FILE_SIZE) { if (info) info.innerHTML = `<div class="file-preview" style="border-color:#e8c4bf;background:#fdecea"><strong>⚠️ ${t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE))}</strong></div>`; state.pendingFile = null; e.target.value = ''; return; }
-    if (info) info.innerHTML = `<div class="file-preview">${fileIcon(type)} <strong>${esc(file.name)}</strong> · ${fileTypeLabel(type)} · ${formatFileSize(file.size)}</div>`;
-    state.pendingFile = file;
-    const nameInp = document.getElementById('uploadDisplayName');
-    if (nameInp && !nameInp.value) nameInp.placeholder = file.name;
+    const files = Array.from(e.target.files || []);
+    const info = document.getElementById('fileInfo');
+    const invalid = files.find(file => file.size > MAX_FILE_SIZE);
+    if (invalid) {
+      if (info) info.innerHTML = `<div class="file-preview" style="border-color:#e8c4bf;background:#fdecea"><strong>⚠️ ${t('mat_upload_too_big', formatFileSize(invalid.size), formatFileSize(MAX_FILE_SIZE))}: ${esc(invalid.name)}</strong></div>`;
+      state.pendingFiles = [];
+      e.target.value = '';
+      return;
+    }
+    state.pendingFiles = files;
+    state.pendingFile = files[0] || null; // Keep compatibility with older code paths.
+    if (info) info.innerHTML = files.length
+      ? `<div class="file-preview"><strong>${files.length} ${currentLang === 'en' ? 'file(s) selected' : 'fail dipilih'}</strong><ul style="margin:6px 0 0;padding-left:20px">${files.map(f => `<li>${esc(f.name)} · ${formatFileSize(f.size)}</li>`).join('')}</ul></div>`
+      : '';
   });
 }
 /**
@@ -7066,73 +7156,100 @@ async function uploadModuleMaterialInChunks(file, moduleId, moduleName, descript
 
 async function handleUploadMaterial(form) {
   const mid = form.dataset.mid;
-  const file = state.pendingFile;
-  if (!file) { toast(t('mat_upload_no_file'), 'bad'); return; }
-  if (file.size > MAX_FILE_SIZE) { toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_FILE_SIZE)), 'bad'); return; }
+  const files = Array.from((form.querySelector('#uploadFileInput') || {}).files || state.pendingFiles || []);
+  if (!files.length) { toast(t('mat_upload_no_file'), 'bad'); return; }
+  const invalid = files.find(file => file.size > MAX_FILE_SIZE);
+  if (invalid) { toast(t('mat_upload_too_big', formatFileSize(invalid.size), formatFileSize(MAX_FILE_SIZE)), 'bad'); return; }
   const m = getModule(mid);
   if (!m) { toast(t('msg_not_found'), 'bad'); return; }
-  const progressEl = document.getElementById('uploadProgress');
-  const progressBar = document.getElementById('uploadProgressBar');
-  if (progressEl) progressEl.style.display = 'block';
-  if (progressBar) progressBar.style.width = '0%';
-  startUploadMonitor(file.name, file.size);
+
+  const input = form.querySelector('#uploadFileInput');
+  const submit = form.querySelector('#uploadMaterialSubmit');
+  const info = form.querySelector('#fileInfo');
+  const queueStatus = form.querySelector('#uploadQueueStatus');
+  const description = (form.description ? form.description.value : '').trim();
+  const customDisplayName = (form.displayName ? form.displayName.value : '').trim();
+  let completedCount = 0, failed = [];
+
+  if (submit) { submit.disabled = true; submit.textContent = currentLang === 'en' ? 'Uploading…' : 'Sedang memuat naik…'; }
+  if (input) input.disabled = true;
+
+  // Hide the selected-file preview immediately after submit. Progress is shown
+  // below the material list in the Module Materials card, outside this modal.
+  if (info) info.innerHTML = '';
+  if (queueStatus) queueStatus.textContent = currentLang === 'en'
+    ? `Preparing ${files.length} file(s)…`
+    : `Menyediakan ${files.length} fail…`;
+
+  // Close the upload dialog so the user can see progress at the bottom of
+  // the Module Materials card while files are being transferred.
+  closeModal();
 
   try {
-    const description = (form.description ? form.description.value : '').trim();
-    const uploadedFile = await uploadModuleMaterialInChunks(
-      file,
-      mid,
-      m.name,
-      description,
-      (percent, stage) => {
-        if (progressBar) progressBar.style.width = percent + '%';
-        updateTransferMonitor(
-          'upload',
-          percent,
-          `${file.name} · ${stage}`,
-          true,
-          percent >= 50
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
+      if (queueStatus) queueStatus.textContent = currentLang === 'en'
+        ? `Uploading ${index + 1} of ${files.length}: ${file.name}`
+        : `Memuat naik ${index + 1} daripada ${files.length}: ${file.name}`;
+      startUploadMonitor(file.name, file.size);
+
+      try {
+        const uploadedFile = await uploadModuleMaterialInChunks(
+          file, mid, m.name, description,
+          (percent, stage) => updateTransferMonitor(
+            'upload', percent, `${index + 1}/${files.length} · ${file.name} · ${stage}`, true, percent >= 50
+          )
         );
+
+        const mat = {
+          id: uid('mat'),
+          fileId: uploadedFile.id || uploadedFile.fileId,
+          name: files.length === 1 && customDisplayName ? customDisplayName : file.name,
+          originalName: file.name,
+          type: fileTypeFromName(file.name),
+          mime: uploadedFile.mimeType || file.type || 'application/octet-stream',
+          size: uploadedFile.size || file.size,
+          downloadUrl: uploadedFile.downloadUrl,
+          viewUrl: uploadedFile.viewUrl,
+          previewUrl: uploadedFile.previewUrl,
+          folderId: uploadedFile.folderId,
+          folderUrl: uploadedFile.folderUrl,
+          description,
+          uploadedBy: state.user.id,
+          uploadedAt: nowISO()
+        };
+        if (!mat.fileId) throw new Error('Upload completed but Google Drive did not return a file ID.');
+        if (!Array.isArray(m.materials)) m.materials = [];
+        m.materials.push(mat);
+        m.updatedAt = nowISO();
+        saveDB();
+        logAudit('Upload Material', 'Modul', mid, `${file.name} (${formatFileSize(file.size)})`);
+        completedCount++;
+        finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
+      } catch (err) {
+        failed.push({ name: file.name, error: err && err.message ? err.message : String(err) });
+        finishUploadMonitor(false, `${file.name} · ${err.message || t('transfer_failed')}`);
       }
-    );
+    }
 
-    const displayName = (form.displayName.value || '').trim() || file.name;
-    const mat = {
-      id: uid('mat'),
-      fileId: uploadedFile.id || uploadedFile.fileId,
-      name: displayName,
-      originalName: file.name,
-      type: fileTypeFromName(file.name),
-      mime: uploadedFile.mimeType || file.type || 'application/octet-stream',
-      size: uploadedFile.size || file.size,
-      downloadUrl: uploadedFile.downloadUrl,
-      viewUrl: uploadedFile.viewUrl,
-      previewUrl: uploadedFile.previewUrl,
-      folderId: uploadedFile.folderId,
-      folderUrl: uploadedFile.folderUrl,
-      description,
-      uploadedBy: state.user.id,
-      uploadedAt: nowISO()
-    };
-
-    if (!mat.fileId) throw new Error('Upload completed but Google Drive did not return a file ID.');
-    if (!Array.isArray(m.materials)) m.materials = [];
-    m.materials.push(mat);
-    m.updatedAt = nowISO();
-    saveDB();
-    logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
-
-    if (progressBar) progressBar.style.width = '100%';
     state.pendingFile = null;
-    closeModal();
-    toast('✅ ' + t('mat_upload_success'));
+    state.pendingFiles = [];
+    if (input) { input.value = ''; input.disabled = false; }
+    if (info) info.innerHTML = '';
+    if (queueStatus) {
+      queueStatus.innerHTML = `<strong>${currentLang === 'en' ? 'Completed' : 'Selesai'}: ${completedCount}/${files.length}</strong>` +
+        (failed.length ? `<ul style="margin:5px 0 0;padding-left:20px;color:var(--bad)">${failed.map(x => `<li>${esc(x.name)}: ${esc(x.error)}</li>`).join('')}</ul>` :
+        `<div class="muted">${currentLang === 'en' ? 'You can select more files above to continue.' : 'Anda boleh pilih fail lain di atas untuk meneruskan.'}</div>`);
+    }
+    if (submit) { submit.disabled = false; submit.textContent = currentLang === 'en' ? '⬆️ Upload selected files' : '⬆️ Muat naik fail dipilih'; }
     render();
-    finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
-  } catch (err) {
-    console.error('Upload error:', err);
-    finishUploadMonitor(false, `${file.name} · ${err.message || t('transfer_failed')}`);
-    if (progressEl) progressEl.style.display = 'none';
-    toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
+    // The module page is refreshed after the batch; users can open Upload Material
+    // again to select another batch of files.
+    if (completedCount) toast(`✅ ${completedCount} ${currentLang === 'en' ? 'file(s) uploaded successfully.' : 'fail berjaya dimuat naik.'}`);
+    if (failed.length) toast(`⚠️ ${failed.length} ${currentLang === 'en' ? 'file(s) failed. See the upload status.' : 'fail gagal. Lihat status muat naik.'}`, 'warn');
+  } finally {
+    if (submit) { submit.disabled = false; submit.textContent = currentLang === 'en' ? '⬆️ Upload selected files' : '⬆️ Muat naik fail dipilih'; }
+    if (input) input.disabled = false;
   }
 }
 function viewMaterial(mid, matid) {
@@ -8633,6 +8750,38 @@ document.addEventListener('click', async (e) => {
     case 'switch-login': state.loginMode = 'login'; render(); break;
     case 'logout': handleLogoutClick(); break;
     case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); break;
+    case 'open-audit-notification': {
+      const entity = String(tgt.dataset.entity || '').toLowerCase();
+      const entityId = String(tgt.dataset.entityid || '');
+      const tab = tgt.dataset.notifytab || 'audit';
+      markTabRead(tab);
+      if (entity.includes('modul')) {
+        const module = getModule(entityId);
+        if (module) { state.params = { moduleId: module.id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(module.id, true); }
+        else { state.view = 'modules'; state.params = {}; render(); }
+      } else if (entity.includes('aktiviti') || entity.includes('penilaian')) {
+        const activityId = entityId.split(':')[0];
+        if (getActivity(activityId)) { state.params = { activityId }; state.view = 'activity'; render(); }
+        else { state.view = tab; state.params = {}; render(); }
+      } else if (entity.includes('pengguna')) {
+        state.view = 'users'; state.params = {}; render();
+      } else if (entity.includes('sijil')) {
+        state.view = 'sijil'; state.params = {}; render();
+      } else if (entity.includes('kehadiran')) {
+        state.view = 'attendance'; state.params = {}; render();
+      } else if (entity.includes('rubrik')) {
+        state.view = 'rubrik'; state.params = {}; render();
+      } else if (entity.includes('soalan')) {
+        state.view = 'bank'; state.params = {}; render();
+      } else if (entity.includes('jadual')) {
+        state.view = 'participant-timetable'; state.params = {}; render();
+      } else if (entity.includes('peperiksaan')) {
+        state.view = 'final'; state.params = {}; render();
+      } else {
+        state.view = tab; state.params = {}; render();
+      }
+      break;
+    }
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
