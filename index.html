@@ -6979,6 +6979,91 @@ function openUploadMaterialModal(mid) {
     if (nameInp && !nameInp.value) nameInp.placeholder = file.name;
   });
 }
+/**
+ * Upload Module Material through the backend's existing chunked-upload API.
+ * Each request carries only one small chunk; the selected file is never sent
+ * as one oversized Base64 JSON request.
+ */
+async function uploadModuleMaterialInChunks(file, moduleId, moduleName, description, onProgress) {
+  let uploadId = '';
+  const report = (percent, stage) => {
+    if (typeof onProgress === 'function') onProgress(percent, stage);
+  };
+
+  try {
+    report(2, t('transfer_preparing'));
+    const begin = await driveAPI('beginModuleMaterialUpload', {
+      payload: {
+        moduleId,
+        moduleName,
+        filename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        description
+      }
+    }, 180000);
+
+    if (!begin || !begin.ok || !begin.uploadId) {
+      throw new Error((begin && begin.error) || 'Could not start the material upload.');
+    }
+
+    uploadId = begin.uploadId;
+    const chunkSize = Math.max(
+      256 * 1024,
+      Math.min(2 * 1024 * 1024, Number(begin.chunkSize) || (2 * 1024 * 1024))
+    );
+    const total = Math.ceil(file.size / chunkSize);
+
+    for (let index = 0; index < total; index++) {
+      const chunkStart = index * chunkSize;
+      const chunkEnd = Math.min(file.size, chunkStart + chunkSize);
+      const chunk = file.slice(chunkStart, chunkEnd, file.type || 'application/octet-stream');
+      const base64 = await fileToBase64(chunk);
+      let result = null;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          result = await driveAPI('uploadModuleMaterialChunk', {
+            uploadId,
+            index,
+            base64
+          }, 180000);
+
+          if (result && result.ok) break;
+          throw new Error((result && result.error) || ('Upload part ' + (index + 1) + ' failed.'));
+        } catch (error) {
+          lastError = error;
+          if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+        }
+      }
+
+      if (!result || !result.ok) throw lastError || new Error('Upload part ' + (index + 1) + ' failed.');
+
+      const percent = 5 + Math.round(((index + 1) / total) * 85);
+      report(percent, 'Uploading part ' + (index + 1) + '/' + total);
+    }
+
+    report(93, 'Finalising file in Google Drive');
+    const completed = await driveAPI('completeModuleMaterialUpload', { uploadId }, 180000);
+    if (!completed || !completed.ok || !completed.file) {
+      throw new Error((completed && completed.error) || 'Could not complete the material upload.');
+    }
+
+    report(100, 'Done');
+    return completed.file;
+  } catch (error) {
+    if (uploadId) {
+      try {
+        await driveAPI('cancelModuleMaterialUpload', { uploadId }, 30000);
+      } catch (cleanupError) {
+        console.warn('Could not clean up incomplete material upload:', cleanupError);
+      }
+    }
+    throw error;
+  }
+}
+
 async function handleUploadMaterial(form) {
   const mid = form.dataset.mid;
   const file = state.pendingFile;
@@ -6991,26 +7076,57 @@ async function handleUploadMaterial(form) {
   if (progressEl) progressEl.style.display = 'block';
   if (progressBar) progressBar.style.width = '0%';
   startUploadMonitor(file.name, file.size);
+
   try {
-    const base64 = await fileToBase64(file, pct => {
-      if (progressBar) progressBar.style.width = pct + '%';
-      updateTransferMonitor('upload', pct, `${file.name} · ${t('transfer_preparing')}`, true, false);
-    });
-    if (progressBar) progressBar.style.width = '50%';
-    updateTransferMonitor('upload', 50, `${file.name} · ${t('transfer_sending')}`, true, true);
-    const res = await driveAPI('uploadModuleMaterial', { payload: { moduleId: mid, moduleName: m.name, filename: file.name, mimeType: file.type || 'application/octet-stream', base64, description: (form.description ? form.description.value : '').trim() } });
-    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
-    if (progressBar) progressBar.style.width = '90%';
-    updateTransferMonitor('upload', 95, `${file.name} · ${t('transfer_verifying')}`, true, true);
+    const description = (form.description ? form.description.value : '').trim();
+    const uploadedFile = await uploadModuleMaterialInChunks(
+      file,
+      mid,
+      m.name,
+      description,
+      (percent, stage) => {
+        if (progressBar) progressBar.style.width = percent + '%';
+        updateTransferMonitor(
+          'upload',
+          percent,
+          `${file.name} · ${stage}`,
+          true,
+          percent >= 50
+        );
+      }
+    );
+
     const displayName = (form.displayName.value || '').trim() || file.name;
-    const mat = { id: uid('mat'), fileId: res.file.id, name: displayName, originalName: file.name, type: fileTypeFromName(file.name), mime: res.file.mimeType, size: res.file.size, downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl, folderId: res.file.folderId, folderUrl: res.file.folderUrl, description: (form.description ? form.description.value : '').trim(), uploadedBy: state.user.id, uploadedAt: nowISO() };
+    const mat = {
+      id: uid('mat'),
+      fileId: uploadedFile.id || uploadedFile.fileId,
+      name: displayName,
+      originalName: file.name,
+      type: fileTypeFromName(file.name),
+      mime: uploadedFile.mimeType || file.type || 'application/octet-stream',
+      size: uploadedFile.size || file.size,
+      downloadUrl: uploadedFile.downloadUrl,
+      viewUrl: uploadedFile.viewUrl,
+      previewUrl: uploadedFile.previewUrl,
+      folderId: uploadedFile.folderId,
+      folderUrl: uploadedFile.folderUrl,
+      description,
+      uploadedBy: state.user.id,
+      uploadedAt: nowISO()
+    };
+
+    if (!mat.fileId) throw new Error('Upload completed but Google Drive did not return a file ID.');
     if (!Array.isArray(m.materials)) m.materials = [];
     m.materials.push(mat);
     m.updatedAt = nowISO();
     saveDB();
     logAudit('Upload Material', 'Modul', mid, `${displayName} (${formatFileSize(file.size)})`);
+
     if (progressBar) progressBar.style.width = '100%';
-    state.pendingFile = null; closeModal(); toast('✅ ' + t('mat_upload_success')); render();
+    state.pendingFile = null;
+    closeModal();
+    toast('✅ ' + t('mat_upload_success'));
+    render();
     finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
   } catch (err) {
     console.error('Upload error:', err);
