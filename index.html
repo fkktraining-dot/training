@@ -4030,11 +4030,16 @@ function registerForm() {
     <div class="login-field"><label>${t('lbl_email')} *</label><input class="login-input" type="email" name="email" required placeholder="nama@email.com" value="${esc(draft.email || '')}" /></div>
     <div class="login-field">
       <label>${t('lbl_org')} *</label>
-      <select class="login-input" name="org" required>
-        <option value="">${currentLang === 'en' ? 'Select your registered company' : 'Pilih syarikat yang telah didaftarkan'}</option>
-        ${companyList().map(company => `<option value="${esc(company)}" ${sameCompany(company,draft.org)?'selected':''}>${esc(company)}</option>`).join('')}
-      </select>
-      <small class="muted">${currentLang === 'en' ? 'Select the company registered in Companies & Participants. If your company is not listed, contact the administrator.' : 'Pilih nama syarikat daripada senarai Companies & Participants. Jika tiada dalam senarai, sila hubungi pentadbir.'}</small>
+      <input class="login-input" name="org" list="registerCompanyOptions" required maxlength="500"
+        autocomplete="organization"
+        placeholder="${currentLang === 'en' ? 'Choose or enter your company name' : 'Pilih atau masukkan nama syarikat'}"
+        value="${esc(draft.org || '')}" />
+      <datalist id="registerCompanyOptions">
+        ${companyList().map(company => `<option value="${esc(company)}"></option>`).join('')}
+      </datalist>
+      <small class="muted">${currentLang === 'en'
+        ? (companyList().length ? 'Choose a company from the suggestions. If it is not listed, enter the official company name.' : 'No company suggestions are currently available. Enter your official company name to continue.')
+        : (companyList().length ? 'Pilih syarikat daripada cadangan. Jika tiada dalam senarai, masukkan nama rasmi syarikat.' : 'Tiada senarai syarikat dipaparkan buat masa ini. Masukkan nama rasmi syarikat untuk meneruskan pendaftaran.')}</small>
     </div>
     <div class="login-field">
       <label>${t('password')} *</label>
@@ -5060,16 +5065,29 @@ function handleRegister(form) {
   const org = form.org ? form.org.value.trim() : '';
   const pass = form.password.value, cp = form.confirmPassword.value;
   if (!name || !username || !email || !pass || !org) { toast(t('msg_required'), 'bad'); return; }
+  if (org.length > 500) {
+    toast(currentLang === 'en' ? 'Company name must not exceed 500 characters.' : 'Nama syarikat tidak boleh melebihi 500 aksara.', 'bad');
+    return;
+  }
+  // Match an existing company without changing its stored spelling.
+  // If the list is empty or the company is not yet registered, add only
+  // this newly supplied company name; existing records are left untouched.
   const registeredCompanies = companyList();
   const matchedCompany = registeredCompanies.find(company => sameCompany(company, org));
-  if (!matchedCompany) { toast(currentLang === 'en' ? 'Please select a company from the registered company list.' : 'Sila pilih syarikat daripada senarai syarikat yang telah didaftarkan.', 'bad'); return; }
+  const companyName = matchedCompany || org.replace(/\s+/g, ' ').trim();
   if (!/^[A-Za-z0-9_]{3,}$/.test(username)) { toast(t('username_invalid'), 'bad'); return; }
   if (!assessPassword(pass).allMet) { toast(t('pwd_format_invalid'), 'bad'); return; }
   if (pass !== cp) { toast(t('password_mismatch'), 'bad'); return; }
   if (DB.users.find(x => String(x.username||'').toLowerCase() === username.toLowerCase())) { toast(t('username_taken'), 'bad'); return; }
   if (DB.users.find(x => String(x.email||'').toLowerCase() === email)) { toast(t('msg_email_taken'), 'bad'); return; }
-  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org: matchedCompany, ic: '', phone: '', status: 'pending', createdAt: nowISO() };
-  DB.users.push(nu); saveDB();
+  const nu = { id: uid('u'), username, name, email, password: pass, role: 'participant', org: companyName, ic: '', phone: '', status: 'pending', createdAt: nowISO() };
+  DB.users.push(nu);
+  // Keep the company suggestion list usable for the next registration.
+  if (!matchedCompany) {
+    if (!Array.isArray(DB.companies)) DB.companies = [];
+    DB.companies.push({ id: uid('co'), name: companyName, createdAt: nowISO(), createdBy: 'self-registration' });
+  }
+  saveDB();
   state.loginMode = 'login';
   try { sessionStorage.removeItem('cftpmy_register_draft'); } catch(e) {}
   logAudit('Register (Pending Approval)', 'Pengguna', nu.id, name);
