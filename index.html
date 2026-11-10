@@ -5058,7 +5058,7 @@ async function handleLogin(form) {
     const verification = await driveAPI(
       'verifyLogin',
       { email: idInput, password: passInput },
-      45000
+      25000
     );
 
     if (!verification || verification.ok !== true) {
@@ -5119,12 +5119,15 @@ async function handleLogin(form) {
     });
   } catch (err) {
     console.error('[login] Google Sheets verification failed:', err);
-    toast(
-      currentLang === 'en'
-        ? 'Unable to verify your account with Google Sheets. Check your connection and try again.'
-        : 'Tidak dapat mengesahkan akaun melalui Google Sheets. Sila semak sambungan dan cuba lagi.',
-      'bad'
-    );
+    const rawError = String(err && err.message || '');
+    const isTimeout = /abort|timeout|timed out/i.test(rawError);
+    const isNetwork = /failed to fetch|networkerror|load failed|http 5\d\d/i.test(rawError);
+    const detail = isTimeout
+      ? (currentLang === 'en' ? 'Google Sheets took too long to respond. Please try again.' : 'Google Sheets mengambil masa terlalu lama untuk memberi respons. Sila cuba lagi.')
+      : isNetwork
+        ? (currentLang === 'en' ? 'Cannot connect to the Google Sheets service. Check the deployment URL and internet connection.' : 'Tidak dapat menyambung ke servis Google Sheets. Semak URL deployment dan sambungan internet.')
+        : (currentLang === 'en' ? 'Google Sheets verification failed. Please contact the administrator if this continues.' : 'Pengesahan Google Sheets gagal. Sila hubungi pentadbir jika masalah berterusan.');
+    toast(detail, 'bad');
   } finally {
     setBusy(false);
   }
