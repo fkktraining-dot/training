@@ -702,8 +702,21 @@ function applyDiff(baseState, diff) {
     arr.forEach((x, i) => { if (upsertMap.has(x.id)) existingIdx.set(x.id, i); });
     const newOnes = [];
     for (const [id, entity] of upsertMap) {
-      if (existingIdx.has(id)) arr[existingIdx.get(id)] = entity;
-      else newOnes.push(entity);
+      if (existingIdx.has(id)) {
+        const index = existingIdx.get(id);
+        const existing = arr[index];
+        // Login responses intentionally omit password. Never let a redacted
+        // response or partial user update erase the locally-held value.
+        if (key === 'users' && entity && typeof entity === 'object') {
+          const mergedUser = Object.assign({}, existing, entity);
+          if (entity.password === undefined || entity.password === null || entity.password === '') {
+            if (existing.password !== undefined) mergedUser.password = existing.password;
+          }
+          arr[index] = mergedUser;
+        } else {
+          arr[index] = entity;
+        }
+      } else newOnes.push(entity);
     }
     result[key] = arr.concat(newOnes);
   }
