@@ -5035,8 +5035,6 @@ async function handleLogin(form) {
     btn.textContent = busy ? label : origText;
   };
 
-  // Normalize only the login identifier. Existing account records are not
-  // edited, migrated, or rewritten by this check.
   const normalizeLoginId = value => String(value ?? '')
     .normalize('NFKC')
     .replace(/^\uFEFF/, '')
@@ -5045,18 +5043,9 @@ async function handleLogin(form) {
     .toLocaleLowerCase();
 
   try {
-    setBusy(true, '⏳ Menunggu pengesahan akaun…');
-
-    // IMPORTANT: do not authenticate against an old local cache after an
-    // arbitrary 12-second timeout. Wait for the initial Google Sheets/Drive
-    // state load to finish first, otherwise valid users can be reported as
-    // having an invalid email simply because their account has not loaded yet.
-    if (!firstSyncDone && firstSyncPromise) {
-      await firstSyncPromise;
-    }
+    setBusy(true, '⏳ Menyemak Google Sheets…');
 
     const idInput = normalizeLoginId(form.email?.value);
-    // Keep the password comparison behaviour compatible with existing records.
     const passInput = String(form.password?.value ?? '').trim();
 
     if (!idInput || !passInput) {
@@ -5064,26 +5053,50 @@ async function handleLogin(form) {
       return;
     }
 
-    const users = Array.isArray(DB?.users) ? DB.users : [];
-    const u = users.find(x => {
-      const xUser = normalizeLoginId(x?.username ?? x?.userName ?? '');
-      const xEmail = normalizeLoginId(x?.email ?? x?.emailAddress ?? '');
-      return (xUser === idInput || xEmail === idInput) &&
-        String(x?.password ?? '').trim() === passInput;
-    });
+    // Authenticate against the Users sheet on the server.
+    // This bypasses stale browser/localStorage user caches.
+    const verification = await driveAPI(
+      'verifyLogin',
+      { email: idInput, password: passInput },
+      45000
+    );
 
-    if (!u) {
+    if (!verification || verification.ok !== true) {
+      throw new Error(
+        verification && verification.error
+          ? verification.error
+          : 'Google Sheets verification did not return a valid response.'
+      );
+    }
+
+    if (!verification.match || !verification.user) {
       toast(t('msg_invalid_login'), 'bad');
       return;
     }
-    if (u.status === 'pending') {
+
+    // Server-returned user data is authoritative for login and approval status.
+    // Merge it over any cached record so stale status values cannot override Sheets.
+    const serverUser = verification.user;
+    const cachedUser = (Array.isArray(DB?.users) ? DB.users : [])
+      .find(x => String(x?.id || '') === String(serverUser.id || '')) || {};
+    const u = Object.assign({}, cachedUser, serverUser);
+
+    const accountStatus = String(u.status || '').trim().toLowerCase();
+    if (accountStatus === 'pending') {
       toast('⏳ ' + t('msg_account_pending'), 'warn');
       return;
     }
-    if (u.status === 'rejected') {
+    if (accountStatus === 'rejected') {
       toast('⛔ ' + t('msg_account_rejected'), 'bad');
       return;
     }
+
+    // Refresh the matching local user record with the latest server fields.
+    // Do not write anything back to Google Sheets during login.
+    if (!Array.isArray(DB.users)) DB.users = [];
+    const cachedIndex = DB.users.findIndex(x => String(x?.id || '') === String(u.id || ''));
+    if (cachedIndex >= 0) DB.users[cachedIndex] = Object.assign({}, DB.users[cachedIndex], serverUser);
+    else DB.users.push(u);
 
     state.user = u;
     state.view = 'dashboard';
@@ -5098,18 +5111,18 @@ async function handleLogin(form) {
 
     render();
 
-    // Preserve the existing post-login refresh and Google Drive preload flow.
+    // Keep the existing background refresh and Google Drive preload behaviour.
     pullFromServer(false, { force: true, maxAttempts: 2 }).finally(() => {
       preloadGoogleDriveDataAfterLogin(true).catch(err =>
         console.warn('[post-login preload] failed:', err)
       );
     });
   } catch (err) {
-    console.error('[login] authentication preparation failed:', err);
+    console.error('[login] Google Sheets verification failed:', err);
     toast(
       currentLang === 'en'
-        ? 'Unable to verify the account because the server data could not be loaded. Please refresh and try again.'
-        : 'Akaun tidak dapat disahkan kerana data pelayan gagal dimuatkan. Sila muat semula dan cuba lagi.',
+        ? 'Unable to verify your account with Google Sheets. Check your connection and try again.'
+        : 'Tidak dapat mengesahkan akaun melalui Google Sheets. Sila semak sambungan dan cuba lagi.',
       'bad'
     );
   } finally {
