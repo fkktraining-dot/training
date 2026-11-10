@@ -5029,35 +5029,92 @@ async function handleChangePassword(form) {
 async function handleLogin(form) {
   const btn = form.querySelector('button[type="submit"]');
   const origText = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Memeriksa…'; }
-  const doLogin = () => {
-    if (btn) { btn.disabled = false; btn.textContent = origText; }
-    const idInput = String(form.email.value || '').trim().toLowerCase();
-    const passInput = String(form.password.value || '').trim();
-    if (!idInput || !passInput) { toast(t('msg_required'), 'bad'); return; }
-    const u = DB.users.find(x => {
-      const xUser = String(x.username || '').trim().toLowerCase();
-      const xEmail = String(x.email || '').trim().toLowerCase();
-      const xPass = String(x.password ?? '').trim();
-      return (xUser === idInput || xEmail === idInput) && xPass === passInput;
+  const setBusy = (busy, label) => {
+    if (!btn) return;
+    btn.disabled = !!busy;
+    btn.textContent = busy ? label : origText;
+  };
+
+  // Normalize only the login identifier. Existing account records are not
+  // edited, migrated, or rewritten by this check.
+  const normalizeLoginId = value => String(value ?? '')
+    .normalize('NFKC')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .replace(/\s+/g, '')
+    .toLocaleLowerCase();
+
+  try {
+    setBusy(true, '⏳ Menunggu pengesahan akaun…');
+
+    // IMPORTANT: do not authenticate against an old local cache after an
+    // arbitrary 12-second timeout. Wait for the initial Google Sheets/Drive
+    // state load to finish first, otherwise valid users can be reported as
+    // having an invalid email simply because their account has not loaded yet.
+    if (!firstSyncDone && firstSyncPromise) {
+      await firstSyncPromise;
+    }
+
+    const idInput = normalizeLoginId(form.email?.value);
+    // Keep the password comparison behaviour compatible with existing records.
+    const passInput = String(form.password?.value ?? '').trim();
+
+    if (!idInput || !passInput) {
+      toast(t('msg_required'), 'bad');
+      return;
+    }
+
+    const users = Array.isArray(DB?.users) ? DB.users : [];
+    const u = users.find(x => {
+      const xUser = normalizeLoginId(x?.username ?? x?.userName ?? '');
+      const xEmail = normalizeLoginId(x?.email ?? x?.emailAddress ?? '');
+      return (xUser === idInput || xEmail === idInput) &&
+        String(x?.password ?? '').trim() === passInput;
     });
-    if (!u) { toast(t('msg_invalid_login'), 'bad'); return; }
-    if (u.status === 'pending') { toast('⏳ ' + t('msg_account_pending'), 'warn'); return; }
-    if (u.status === 'rejected') { toast('⛔ ' + t('msg_account_rejected'), 'bad'); return; }
-    state.user = u; state.view = 'dashboard'; state.params = {};
+
+    if (!u) {
+      toast(t('msg_invalid_login'), 'bad');
+      return;
+    }
+    if (u.status === 'pending') {
+      toast('⏳ ' + t('msg_account_pending'), 'warn');
+      return;
+    }
+    if (u.status === 'rejected') {
+      toast('⛔ ' + t('msg_account_rejected'), 'bad');
+      return;
+    }
+
+    state.user = u;
+    state.view = 'dashboard';
+    state.params = {};
     localStorage.setItem(SESSION_KEY, u.id);
     try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
     logAudit('Login', 'Sesi', u.id, u.name);
-    try { history.replaceState({ view: 'dashboard', params: {}, cftp: true }, ''); lastPushedStateKey = stateKeyOf('dashboard', {}); } catch(e) {}
+    try {
+      history.replaceState({ view: 'dashboard', params: {}, cftp: true }, '');
+      lastPushedStateKey = stateKeyOf('dashboard', {});
+    } catch(e) {}
+
     render();
-    // Sheets state was fetched during boot; refresh it once after login while
-    // preserving local edits, then automatically warm Google Drive listings.
+
+    // Preserve the existing post-login refresh and Google Drive preload flow.
     pullFromServer(false, { force: true, maxAttempts: 2 }).finally(() => {
-      preloadGoogleDriveDataAfterLogin(true).catch(err => console.warn('[post-login preload] failed:', err));
+      preloadGoogleDriveDataAfterLogin(true).catch(err =>
+        console.warn('[post-login preload] failed:', err)
+      );
     });
-  };
-  if (firstSyncDone || !firstSyncPromise) doLogin();
-  else { if (btn) btn.textContent = '⏳ Sinkronisasi…'; Promise.race([firstSyncPromise, new Promise(r => setTimeout(r, 12000))]).then(doLogin); }
+  } catch (err) {
+    console.error('[login] authentication preparation failed:', err);
+    toast(
+      currentLang === 'en'
+        ? 'Unable to verify the account because the server data could not be loaded. Please refresh and try again.'
+        : 'Akaun tidak dapat disahkan kerana data pelayan gagal dimuatkan. Sila muat semula dan cuba lagi.',
+      'bad'
+    );
+  } finally {
+    setBusy(false);
+  }
 }
 
 function handleRegister(form) {
