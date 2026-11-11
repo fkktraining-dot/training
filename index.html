@@ -6829,7 +6829,7 @@ function activitiesView() {
         <td><div class="toolbar">
           <button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>
           ${isVip ? '' : (canCreate ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : '')}
-          ${!isVip && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="print-activity-quiz" data-id="${a.id}" title="${currentLang === 'en' ? 'Print paper quiz PDF' : 'Cetak kuiz kertas PDF'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}
+          ${canCreate ? `<button class="btn btn-sm" data-act="print-activity-master" data-id="${a.id}" title="${currentLang === 'en' ? 'Print activity master paper' : 'Cetak master aktiviti'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}
           ${!isVip && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
           ${isVip ? '' : (canCreate ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : '')}
           ${isVip || !practical ? '' : `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>`}
@@ -8535,14 +8535,14 @@ function printActivityQuiz(aid) {
   const title = tce(act.title);
   const moduleTitle = tce(mod?.name || '');
   const duration = act.quizDuration ? `${act.quizDuration} ${en ? 'minutes' : 'minit'}` : (en ? 'As instructed' : 'Mengikut arahan');
-  const questions = act.quiz.map((q,i)=>`<article class="question"><p class="qtitle"><strong>${i+1}. ${tce(q.q)}</strong></p>${(q.options||[]).map((o,j)=>`<p class="option"><span class="letter">${'ABCD'[j]}.</span> ${tce(o)}</p>`).join('')}</article>`).join('');
+  const questions = act.quiz.map((q,i)=>`<article class="question"><p class="qtitle"><strong>${i+1}. ${tce(q.q)}</strong></p>${(q.options||[]).map((o,j)=>`<p class="option"><span class="letter">${'ABCD'[j]}.</span> ${tce(o)}</p>`).join('')}<p class="manual-answer"><strong>${en?'Your answer':'Jawapan'}:</strong> __________________________________________</p></article>`).join('');
   const html = `<html><head><meta charset="utf-8"><title>${esc(act.title)} - ${en?'Paper Quiz':'Kuiz Bercetak'}</title><style>
     @page{size:A4;margin:17mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#17251f;font-size:11.5pt;line-height:1.55;margin:0}
     .cover{height:260mm;display:flex;flex-direction:column;justify-content:center;text-align:center;page-break-after:always;break-after:page;padding:12mm 8mm}
     .brand{font-size:13pt;font-weight:700;letter-spacing:2px;color:#176b55;margin-bottom:32mm}.cover h1{font-size:25pt;line-height:1.25;margin:0 0 12mm;color:#124d3e}.cover h2{font-size:15pt;font-weight:500;margin:0 0 18mm;color:#42564e}
     .covermeta{border:1px solid #9eafa7;padding:12mm 10mm;text-align:left;margin:0 auto;width:90%;line-height:2.1}.covermeta p{margin:3mm 0}.instructions{margin:15mm auto 0;text-align:left;width:90%;font-size:10pt;color:#4d5d56}
     .paper-head{border-bottom:2px solid #176b55;padding-bottom:5mm;margin-bottom:9mm}.paper-head h1{font-size:18pt;margin:0 0 2mm}.paper-head p{margin:0;color:#53655d;font-size:10pt}
-    .question{margin:0 0 9mm;break-inside:avoid;page-break-inside:avoid}.qtitle{margin:0 0 3mm}.option{margin:1.5mm 0 1.5mm 7mm}.letter{font-weight:700;display:inline-block;min-width:7mm}
+    .question{margin:0 0 9mm;break-inside:avoid;page-break-inside:avoid}.qtitle{margin:0 0 3mm}.option{margin:1.5mm 0 1.5mm 7mm}.letter{font-weight:700;display:inline-block;min-width:7mm}.manual-answer{margin:4mm 0 0 7mm;padding:2mm 0;border-bottom:1px dotted #9eafa7;font-size:10pt}
     .answer-space{height:15mm;border-bottom:1px solid #d6ded9;margin-top:3mm}.footer{margin-top:15mm;border-top:1px solid #d6ded9;padding-top:3mm;font-size:8pt;color:#718078}
     </style></head><body>
     <section class="cover"><div class="brand">CFTP MALAYSIA</div><h1>${title}</h1><h2>${moduleTitle}</h2>
@@ -8556,6 +8556,108 @@ function printActivityQuiz(aid) {
     ${questions}
     <div class="footer">${en?'CFTP Malaysia · Printed paper assessment':'CFTP Malaysia · Kertas penilaian bercetak'}</div>
     </body></html>`;
+  printHTML(html);
+}
+
+
+function printActivityMaster(aid) {
+  const role = state.user && state.user.role;
+  if (!state.user || !['admin','trainer','facilitator'].includes(role)) {
+    toast(currentLang === 'en' ? 'You are not authorised to print this activity.' : 'Anda tidak dibenarkan mencetak aktiviti ini.', 'bad');
+    return;
+  }
+  const act = getActivity(aid);
+  if (!act) {
+    toast(currentLang === 'en' ? 'Activity not found.' : 'Aktiviti tidak ditemui.', 'bad');
+    return;
+  }
+  // Quiz paper: reuse the existing print layout, now with manual answer lines.
+  if (!isPracticalActivityMethod(act.method) && Array.isArray(act.quiz) && act.quiz.length) {
+    printActivityQuiz(aid);
+    return;
+  }
+
+  const en = currentLang === 'en';
+  const mod = getModule(act.moduleId);
+  const title = tce(act.title || (en ? 'Activity' : 'Aktiviti'));
+  const moduleTitle = tce(mod?.name || '');
+  const duration = act.duration ? `${act.duration} ${en ? 'hours' : 'jam'}` : (en ? 'As instructed' : 'Mengikut arahan');
+  const criteria = isPracticalActivityMethod(act.method) ? (getRubricCriteria(act) || []) : [];
+  const escText = (v) => tce(v || '');
+  const lines = (count) => Array.from({length:count}, (_,i)=>`<div class="writing-line"></div>`).join('');
+
+  const criterionRows = criteria.map((c,i) => {
+    const levels = (c.levels || []).slice().sort((a,b)=>Number(b.mark)-Number(a.mark));
+    return `<tr>
+      <td class="criterion"><b>${i+1}. ${escText(c.name)}</b><div class="weight">${Number(c.weight)||0}%</div></td>
+      <td>${levels.map(l=>`<div class="level"><span class="tick">□</span><b>${escText(l.label)}</b> <strong class="mark">${escText(l.mark)}</strong>${l.description ? `<div class="descriptor">${escText(l.description)}</div>` : ''}</div>`).join('')}</td>
+      <td class="score-cell">____________</td>
+    </tr>`;
+  }).join('');
+
+  const objective = String(act.objectives || '').trim();
+  const instructions = String(act.instructions || '').trim();
+  const materials = String(act.materials || '').trim();
+  const hasRubric = criteria.length > 0;
+  const paperBody = hasRubric ? `
+    <h2>${en ? 'Assessment Criteria' : 'Kriteria Penilaian'}</h2>
+    <table><thead><tr><th style="width:24%">${en?'CRITERION':'KRITERIA'}</th><th>${en?'PERFORMANCE LEVEL / DESCRIPTOR':'TAHAP PRESTASI / DESKRIPTOR'}</th><th style="width:17%">${en?'MARK':'MARKAH'}</th></tr></thead><tbody>${criterionRows}</tbody></table>
+    <div class="total-row"><b>${en?'TOTAL MARK':'JUMLAH MARKAH'}</b><span>________________ / 100</span></div>
+    <h2>${en?'Trainer / Facilitator Notes':'Catatan Trainer / Fasilitator'}</h2>${lines(5)}
+  ` : `
+    <h2>${en?'Answer / Working Space':'Ruang Jawapan / Kerja'}</h2>
+    ${Array.from({length:4},(_,i)=>`<section class="response-block"><b>${en?'Response':'Jawapan'} ${i+1}</b>${lines(4)}</section>`).join('')}
+  `;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(act.title)} - ${en?'Activity Master Paper':'Master Aktiviti'}</title><style>
+    @page{size:A4;margin:16mm}*{box-sizing:border-box}
+    body{font:11pt Arial,sans-serif;color:#1d2b25;line-height:1.5;margin:0}
+    .cover{min-height:265mm;display:flex;flex-direction:column;justify-content:center;text-align:center;page-break-after:always;break-after:page;padding:10mm}
+    .brand{font-size:13pt;font-weight:700;letter-spacing:2px;color:#0b6b53;margin-bottom:30mm}
+    .cover h1{font-size:25pt;line-height:1.25;color:#124d3e;margin:0 0 10mm}
+    .cover h2{font-size:15pt;font-weight:500;color:#42564e;margin:0 0 18mm}
+    .covermeta{border:1px solid #9eafa7;padding:10mm;text-align:left;margin:0 auto;width:90%;line-height:2}
+    .covermeta p{margin:2mm 0}.instructions{width:90%;margin:13mm auto 0;text-align:left;font-size:10pt}
+    .paper-head{border-bottom:3px solid #0b6b53;padding-bottom:5mm;margin-bottom:8mm}
+    .paper-head .brand-small{font-size:9pt;letter-spacing:1.5px;color:#0b6b53;font-weight:bold}
+    .paper-head h1{font-size:19pt;color:#124d3e;margin:2mm 0}
+    .paper-head p{margin:0;color:#5b6c64;font-size:9.5pt}
+    h2{font-size:13pt;color:#0b6b53;margin:8mm 0 3mm}
+    .info{margin:4mm 0 7mm}.info p{margin:2mm 0}
+    table{width:100%;border-collapse:collapse;font-size:9.5pt}
+    th,td{border:1px solid #cbd8d1;padding:7px;vertical-align:top}
+    th{background:#eaf3ee;text-align:left;font-size:8.5pt}
+    .criterion{width:24%}.weight,.descriptor{font-size:8.5pt;color:#64736c}
+    .level{padding:3px 1px;border-bottom:1px dotted #d8e1dc;min-height:22px}
+    .level:last-child{border:0}.tick{font-size:13pt;margin-right:4px}.mark{float:right;background:#edf4f0;padding:0 4px}
+    .score-cell{text-align:center;vertical-align:middle;font-size:10pt}
+    .total-row{display:flex;justify-content:space-between;padding:10px;border:1px solid #b9cfc3;background:#f4faf6;margin-top:7mm}
+    .writing-line{height:9mm;border-bottom:1px solid #cbd8d1}
+    .response-block{margin:5mm 0 8mm;break-inside:avoid}
+    .footer{margin-top:12mm;border-top:1px solid #d6ded9;padding-top:3mm;color:#748078;font-size:8pt}
+    @media print{.cover{min-height:265mm}}
+  </style></head><body>
+    <section class="cover">
+      <div class="brand">CFTP MALAYSIA</div>
+      <h1>${title}</h1><h2>${moduleTitle}</h2>
+      <div class="covermeta">
+        <p><strong>${en?'ACTIVITY / ASSESSMENT MASTER PAPER':'MASTER AKTIVITI / KERTAS PENILAIAN'}</strong></p>
+        <p>${en?'Activity type':'Jenis aktiviti'}: ${escText(act.method || (en?'Activity':'Aktiviti'))}</p>
+        <p>${en?'Date':'Tarikh'}: __________________________________</p>
+        <p>${en?'Start time':'Masa mula'}: ______________ &nbsp;&nbsp; ${en?'End time':'Masa tamat'}: ______________</p>
+        <p>${en?'Duration':'Tempoh'}: ${esc(duration)}</p>
+        ${hasRubric ? `<p>${en?'Assessment criteria':'Kriteria penilaian'}: ${criteria.length}</p>` : ''}
+      </div>
+      <div class="instructions"><b>${en?'Instructions':'Arahan'}:</b><br>${escText(instructions) || (en?'Read the activity instructions carefully. Write your answers in the spaces provided.':'Baca arahan aktiviti dengan teliti. Tulis jawapan pada ruang yang disediakan.')}</div>
+    </section>
+    <header class="paper-head"><div class="brand-small">CFTP MALAYSIA</div><h1>${title}</h1><p>${moduleTitle} · ${escText(act.method)} · ${en?'Duration':'Tempoh'}: ${esc(duration)}</p></header>
+    <section class="info">
+      ${objective ? `<h2>${en?'Objectives':'Objektif'}</h2><p>${escText(objective)}</p>` : ''}
+      ${materials ? `<h2>${en?'Materials / Resources':'Bahan / Sumber'}</h2><p>${escText(materials)}</p>` : ''}
+    </section>
+    ${paperBody}
+    <div class="footer">${en?'CFTP Malaysia · Trainer / Administrator / Facilitator master copy':'CFTP Malaysia · Salinan master Trainer / Admin / Fasilitator'} · ${en?'No participant name or participant record is included':'Tiada nama atau rekod peserta dimasukkan'}</div>
+  </body></html>`;
   printHTML(html);
 }
 
@@ -8965,6 +9067,7 @@ document.addEventListener('click', async (e) => {
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
+    case 'print-activity-master': printActivityMaster(id); break;
     case 'print-activity-quiz': printActivityQuiz(id); break;
     case 'manual-quiz-answers': openManualQuizAnswers(tgt.dataset.aid, tgt.dataset.pid); break;
     case 'open-quiz-tab': openQuizTab(id); break;
