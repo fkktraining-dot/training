@@ -5989,7 +5989,8 @@ function moduleDetailView() {
   const modActs = moduleActivitiesList(m.id);
   const participants = enrolledParticipants(m.id);
   const enrolled = isParticipant ? isEnrolled(m.id, state.user.id) : false;
-  const canEdit = isAdmin || isOwner;
+  // Facilitators may manage learning activities within modules assigned to them.
+  const canEdit = isAdmin || isOwner || isFac;
   const canEditMaterial = isAdmin || isOwner || isFac;
   const canEditTT = canManageTimetable(m.id);
   if (isParticipant) {
@@ -6794,7 +6795,8 @@ function activitiesView() {
   const isFac = state.user.role === 'facilitator';
   const acts = (isAdmin || isVip) ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
   const drafts = acts.filter(a => !a.published).length;
-  const canCreate = isAdmin || state.user.role === 'trainer';
+  // Match Trainer activity authoring access for assigned Facilitator modules.
+  const canCreate = isAdmin || state.user.role === 'trainer' || state.user.role === 'facilitator';
   return `<div class="card">
     <div class="card-head">
       <div><h2>${isVip ? t('nav_activities') : (isAdmin ? t('nav_activities') : (isFac ? t('nav_activities') : t('title_activities_mine')))}</h2>${isVip ? `<small class="muted">${t('vip_read_only')}</small>` : ''}</div>
@@ -7544,12 +7546,18 @@ function participantAssessmentView() {
     }).join('') : `<div class="empty">${t('rb_no_practical')}</div>`}
   </div>`;
 }
+function facilitatorCanEditRubric(rubricId) {
+  const rb = (DB.rubrics || []).find(r => r.id === rubricId);
+  if (!rb || !state.user || state.user.role !== 'facilitator') return false;
+  return rb.createdBy === state.user.id || (DB.activities || []).some(a => a.rubricId === rubricId && canTrainerAccessModule(a.moduleId));
+}
+
 function openRubricEditor(rubricId, assignToActivityId) {
   if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
   const isEdit = !!rubricId;
   const rb = isEdit ? DB.rubrics.find(r => r.id === rubricId) : null;
   if (isEdit && !rb) { toast(t('msg_not_found'), 'bad'); return; }
-  if (isEdit && state.user.role === 'facilitator' && rb.createdBy !== state.user.id) { toast(t('rb_cannot_edit'), 'bad'); return; }
+  if (isEdit && state.user.role === 'facilitator' && !facilitatorCanEditRubric(rubricId)) { toast(t('rb_cannot_edit'), 'bad'); return; }
   state.editingRubricId = rubricId || null;
   state.tempRubric = isEdit ? JSON.parse(JSON.stringify(rb.criteria)) : [{ name:'', weight:100, levels:[{label:t('rb_level_excellent'),mark:5,description:''},{label:t('rb_level_good'),mark:4,description:''},{label:t('rb_level_fair'),mark:3,description:''},{label:t('rb_level_weak'),mark:2,description:''},{label:t('rb_level_fail'),mark:1,description:''}] }];
   state.tempRubricMeta = isEdit ? { name: rb.name || '', name_en: rb.name_en || '', description: rb.description || '', description_en: rb.description_en || '' } : { name:'', name_en:'', description:'', description_en:'' };
@@ -7591,7 +7599,7 @@ function handleSaveRubricConfig(assignToActivityId) {
   if (rubricId) {
     const rb = DB.rubrics.find(r => r.id === rubricId);
     if (!rb) { toast(t('msg_not_found'), 'bad'); return; }
-    if (state.user.role === 'facilitator' && rb.createdBy !== state.user.id) { toast(t('rb_own_only_edit'), 'bad'); return; }
+    if (state.user.role === 'facilitator' && !facilitatorCanEditRubric(rubricId)) { toast(t('rb_own_only_edit'), 'bad'); return; }
     rb.name = name; rb.name_en = name_en; rb.description = desc; rb.description_en = description_en; rb.criteria = JSON.parse(JSON.stringify(state.tempRubric));
     rb.updatedAt = nowISO(); rb.approvalStatus = newStatus; rb.reviewedBy = reviewerId; rb.reviewedAt = reviewedAt;
     if (isFac) rb.reviewRemarks = '';
