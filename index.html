@@ -2669,6 +2669,8 @@ const QUIZSTART_PREFIX = 'cftpmy_quizstart_';
 const FESTART_PREFIX = 'cftpmy_festart_';
 let DB = null;
 let lastSyncedSnapshot = null;
+let lastKnownServerRevision = null;
+let revisionPollInFlight = false;
 let quizTimerInterval = null;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const state = {
@@ -2863,6 +2865,7 @@ async function performMergedSave(maxAttempts = 5) {
       }
 
       const serverState = loadRes.state;
+      if (Number.isFinite(Number(serverState._rev))) lastKnownServerRevision = Number(serverState._rev);
       const merged = mergeLocalDiffOntoServer(lastSyncedSnapshot, serverState, localDiff);
       const editsDuringSave = computeDiff(dbAtStart, DB);
       const outboundDiff = computeDiff(serverState, merged);
@@ -2897,6 +2900,7 @@ async function performMergedSave(maxAttempts = 5) {
       }
 
       merged._rev = Number(saveRes._rev) || Number(serverState._rev) || 0;
+      lastKnownServerRevision = merged._rev;
       merged._syncId = saveRes._syncId || uid('sync');
       merged._syncTs = saveRes._syncTs || nowISO();
       merged._savedBy = state.user ? state.user.id : 'system';
@@ -3077,7 +3081,10 @@ function fastBoot() {
   }
   render();
   hideSplash();
-  serverPullInBackground();
+  // Stagger initial full-state reads across browsers to reduce a simultaneous
+  // first-open burst when an entire class/cohort enters the system together.
+  const initialSyncJitter = Math.floor(Math.random() * 5000);
+  setTimeout(() => serverPullInBackground(), initialSyncJitter);
 }
 
 async function serverPullInBackground() {
@@ -3087,6 +3094,7 @@ async function serverPullInBackground() {
       const res = await driveAPI('loadState');
       if (res.ok && res.state && Array.isArray(res.state.users)) {
         const serverState = res.state;
+        if (Number.isFinite(Number(serverState._rev))) lastKnownServerRevision = Number(serverState._rev);
         let pendingDiff = {};
         try {
           const rawPending = localStorage.getItem('cftpmy_pending_diff');
@@ -9653,6 +9661,7 @@ async function pullFromServerInternal(showToast, options = {}) {
         throw new Error((res && res.error) || 'Server returned incomplete data');
       }
       const serverState = res.state;
+      if (Number.isFinite(Number(serverState._rev))) lastKnownServerRevision = Number(serverState._rev);
       const localChanges = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
       const hasLocalChanges = !isDiffEmpty(localChanges);
       // Preserve unsynced local edits while refreshing all server-side records.
@@ -9686,8 +9695,34 @@ async function pullFromServerInternal(showToast, options = {}) {
   return { ok: false };
 }
 
-// Refresh shared data more frequently so localStorage cache stays close to the latest server state.
-setInterval(() => pullFromServer(false), 10000);
+// Multi-user scaling: poll the tiny revision endpoint instead of downloading the
+// complete database every 10 seconds. A full pull occurs only when Master revision changes.
+async function checkServerRevisionForUpdates() {
+  if (revisionPollInFlight || !state.user || document.hidden || !navigator.onLine) return;
+  if (isStandaloneQuizAttemptActive() || isSystemInfoVideoSessionActive()) return;
+  if (saveInFlight || saveTimer || savePending) return;
+  revisionPollInFlight = true;
+  try {
+    const info = await driveAPI('getStateRevision', {}, 12000);
+    if (info && info.ok && Number.isFinite(Number(info._rev))) {
+      const remoteRev = Number(info._rev);
+      if (lastKnownServerRevision === null) lastKnownServerRevision = remoteRev;
+      else if (remoteRev !== lastKnownServerRevision) {
+        await pullFromServer(false, { maxAttempts: 2 });
+      }
+    }
+  } catch (e) {
+    console.warn('[revision poll] temporary failure; local content retained:', e.message || e);
+  } finally {
+    revisionPollInFlight = false;
+  }
+}
+
+// Spread polling across clients to avoid 50 browsers hitting Apps Script together.
+setInterval(() => {
+  const jitter = Math.floor(Math.random() * 10000);
+  setTimeout(checkServerRevisionForUpdates, jitter);
+}, 25000);
 
 // Refresh when network connectivity returns; keep local edits if a save is pending.
 window.addEventListener('online', () => { if (state.user) pullFromServer(true, { force: true, maxAttempts: 4 }); });
