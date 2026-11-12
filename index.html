@@ -4699,17 +4699,22 @@ function programMemoryView() {
     const totalReactions = reactions.length;
     const reactionTypes = ['👍','❤️','😂','😮','😢','😡'];
     const reactionCount = emoji => reactions.filter(r => String((r && (r.reaction || r.emoji || r.type)) || '') === emoji).length;
-    const reactionSummary = reactionTypes.map(emoji => `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1" title="${emoji}"><span>${emoji}</span><b class="text-slate-700">${reactionCount(emoji)}</b></span>`).join('');
-    const reactionPicker = reactionTypes.map(emoji => `<button data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${emoji}" class="text-xl hover:scale-125 inline-flex items-center gap-1" title="${emoji}"><span>${emoji}</span><small class="text-[10px] font-bold text-slate-500">${reactionCount(emoji)}</small></button>`).join('');
+    // The single visible reaction row is also the direct-click reaction control.
+    // Keep the existing reaction data and handler; only the duplicate lower row is removed.
+    const reactionSummary = reactionTypes.map(emoji => `<button type="button" data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${emoji}" class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 border-0 cursor-pointer hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-300" title="React ${emoji}" aria-label="React ${emoji}"><span>${emoji}</span><b class="text-slate-700">${reactionCount(emoji)}</b></button>`).join('');
     const imageMarkup = images.length ? `<div class="bg-slate-900 cursor-pointer overflow-hidden max-h-[500px] ${images.length>1?'grid grid-cols-2':''}">${images.slice(0,6).map((im,i)=>`<div class="relative ${images.length===1?'w-full':''}" data-act="memory-open-image" data-url="${esc(im.viewUrl || im.imageUrl || '')}"><img src="${esc(im.imageUrl || '')}" alt="Gambar Hantaran" class="w-full ${images.length===1?'max-h-[500px] object-cover':'h-56 sm:h-64 object-cover'} hover:scale-[1.01] transition duration-300" loading="lazy">${i===5 && images.length>6?`<span class="absolute inset-0 bg-black/60 text-white text-2xl flex items-center justify-center">+${images.length-6}</span>`:''}</div>`).join('')}</div>` : '';
-    const commentMarkup = comments.map(c=>`<div class="flex gap-2.5"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(c.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div class="flex-1 min-w-0"><div class="bg-slate-200/70 p-3 rounded-2xl w-fit max-w-[88%]"><div class="font-bold text-xs text-slate-800">${tce(c.userName || '')}</div><div class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">${tce(c.text || '')}</div></div><div class="text-[11px] font-semibold text-slate-400 mt-1 pl-2">${fmtDateTime(c.createdAt)}</div></div></div>`).join('');
+    const commentMarkup = comments.map(c=>{
+      const commentOwner = String(c.userId || c.createdBy || c.participantId || c.authorId || '');
+      const commentId = String(c.id || c.commentId || c.commentID || '');
+      const isOwnComment = !!state.user && commentOwner && commentOwner === String(state.user.id);
+      return `<div class="flex gap-2.5 group"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">${esc(String(c.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div class="flex-1 min-w-0"><div class="flex items-start gap-2"><div class="bg-slate-200/70 p-3 rounded-2xl w-fit max-w-[88%]"><div class="font-bold text-xs text-slate-800">${tce(c.userName || '')}</div><div class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">${tce(c.text || '')}</div></div>${isOwnComment && commentId ? `<button type="button" data-act="memory-delete-comment" data-pid="${esc(p.id)}" data-cid="${esc(commentId)}" class="pm-delete-comment" title="${programMemoryText('Padam komen sendiri','Delete your comment')}" aria-label="${programMemoryText('Padam komen sendiri','Delete your comment')}"><i class="fa-regular fa-trash-can"></i></button>` : ''}</div><div class="text-[11px] font-semibold text-slate-400 mt-1 pl-2">${fmtDateTime(c.createdAt)}</div></div></div>`;
+    }).join('');
     return `<article id="pm-post-${esc(p.id)}" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition">
       <div class="p-4 flex items-center justify-between"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(p.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div><div class="flex items-center gap-1.5 font-bold text-slate-800 text-sm"><span>${tce(p.userName || programMemoryText('Pengguna','User'))}</span></div><div class="flex items-center gap-1 text-slate-400 text-xs mt-0.5"><span>${fmtDateTime(p.createdAt)}</span><span>•</span><i class="fa-solid fa-earth-americas text-[10px]"></i></div></div></div>${isAdmin?`<button data-act="memory-edit-description" data-pid="${esc(p.id)}" class="text-slate-400 hover:text-rose-600 p-2 rounded-full hover:bg-slate-100 transition" title="Edit penerangan"><i class="fa-solid fa-ellipsis"></i></button>`:''}</div>
       ${p.text?`<div class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line">${tce(p.text)}</div>`:''}
       ${imageMarkup}
       <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
-      <div class="px-2 py-1 flex items-center justify-between border-b border-slate-100 relative"><div class="reaction-container flex-1 relative group"><div class="reaction-bar absolute -top-12 left-2 bg-white px-3 py-1.5 rounded-full shadow-xl border border-slate-200 flex items-center gap-2 z-30 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition">${reactionPicker}</div><button data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="👍" class="w-full py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition"><i class="fa-regular fa-thumbs-up text-base"></i><span>${programMemoryText('Suka','Like')}</span></button></div><button data-act="memory-focus-comment" data-pid="${esc(p.id)}" class="flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition"><i class="fa-regular fa-comment text-base"></i><span>Komen</span></button></div>
-      <div class="p-4 bg-slate-50/50 space-y-3"><div id="comments-list-${esc(p.id)}" class="space-y-3">${commentMarkup}</div>${!vip?`<form class="flex items-center gap-2" onsubmit="event.preventDefault();submitProgramMemoryComment('${esc(p.id)}')"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(displayName).charAt(0).toUpperCase())}</div><input id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="Tulis komen..." class="flex-1 min-w-0 border border-slate-200 rounded-full bg-white py-2 px-4 text-sm outline-none focus:border-blue-400"><button type="submit" class="w-9 h-9 rounded-full bg-blue-600 text-white"><i class="fa-solid fa-paper-plane"></i></button></form>`:''}</div>
+      <div class="p-4 bg-slate-50/50 space-y-3"><div id="comments-list-${esc(p.id)}" class="space-y-3">${commentMarkup}</div>${!vip?`<form class="flex items-center gap-2" onsubmit="event.preventDefault();submitProgramMemoryComment('${esc(p.id)}')"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(displayName).charAt(0).toUpperCase())}</div><input id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="Tulis komen anda di sini..." aria-label="Tulis komen" class="flex-1 min-w-0 border border-slate-200 rounded-full bg-white py-2.5 px-4 text-sm outline-none focus:border-blue-400"><button type="submit" aria-label="Hantar komen" title="Hantar komen" class="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-paper-plane"></i></button></form>`:''}</div>
       ${isAdmin?`<div class="px-4 pb-3"><button class="btn btn-sm btn-danger" data-act="memory-delete" data-pid="${esc(p.id)}">🗑️ ${programMemoryText('Padam hantaran','Delete post')}</button></div>`:''}</article>`;
   }).join('');
   return `<div class="bg-slate-100 text-slate-800 min-h-full py-6 px-3 sm:px-4" style="font-family:Inter,Arial,sans-serif"><div class="max-w-2xl mx-auto space-y-6">
@@ -4750,6 +4755,30 @@ async function submitProgramMemoryComment(pictureId) {
     if (!result?.ok) throw new Error(result?.error || 'Comment failed.');
     await loadProgramMemory(true);
   } catch (err) { toast(err.message || 'Comment failed.','bad'); }
+}
+
+async function deleteProgramMemoryComment(pictureId, commentId) {
+  if (!state.user || !pictureId || !commentId) return;
+  const album = programMemoryPhotos.find(x => String(x.id) === String(pictureId));
+  const comment = album && Array.isArray(album.comments) ? album.comments.find(c => String(c.id || c.commentId || c.commentID || '') === String(commentId)) : null;
+  const ownerId = String(comment && (comment.userId || comment.createdBy || comment.participantId || comment.authorId) || '');
+  if (!comment || ownerId !== String(state.user.id)) {
+    toast(programMemoryText('Anda hanya boleh memadam komen sendiri.','You can only delete your own comment.'),'warn');
+    return;
+  }
+  if (!confirm(programMemoryText('Padam komen ini? Tindakan ini tidak boleh dibatalkan.','Delete this comment? This action cannot be undone.'))) return;
+  try {
+    // Requires the Apps Script endpoint to support deleteProgramPictureComment.
+    const result = await driveAPI('deleteProgramPictureComment', {
+      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
+      pictureId:String(pictureId), commentId:String(commentId)
+    });
+    if (!result?.ok) throw new Error(result?.error || 'Delete comment failed.');
+    await loadProgramMemory(true);
+    toast(programMemoryText('Komen berjaya dipadam.','Comment deleted.'),'ok');
+  } catch (err) {
+    toast(err.message || programMemoryText('Komen tidak dapat dipadam.','Unable to delete comment.'),'bad');
+  }
 }
 
 async function copyProgramMemoryLink(url) {
@@ -9209,7 +9238,18 @@ function printActivityMaster(aid) {
     .response-block{margin:5mm 0 8mm;break-inside:avoid}
     .footer{margin-top:12mm;border-top:1px solid #d6ded9;padding-top:3mm;color:#748078;font-size:8pt}
     @media print{.cover{min-height:265mm}}
-  </style></head><body>
+  
+/* Programme Memory: direct emoji reactions, always-visible comment field and own-comment delete */
+.pm-reaction-picker{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;align-items:stretch;max-width:440px;margin:0 auto}
+.pm-reaction-choice{min-height:64px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;padding:7px 3px;cursor:pointer;touch-action:manipulation;transition:background .15s,border-color .15s,transform .15s}
+.pm-reaction-choice:hover,.pm-reaction-choice:focus-visible{background:#eff6ff;border-color:#93c5fd;outline:2px solid transparent}
+.pm-reaction-choice:active{transform:scale(.96)}
+.pm-reaction-emoji{font-size:1.8rem;line-height:1.5}
+.pm-reaction-choice small{font-size:.68rem;font-weight:700;color:#64748b;line-height:1}
+.pm-delete-comment{flex:0 0 auto;border:0;border-radius:8px;background:transparent;color:#94a3b8;padding:9px;min-width:36px;min-height:36px;cursor:pointer}
+.pm-delete-comment:hover,.pm-delete-comment:focus-visible{background:#fee2e2;color:#b91c1c;outline:none}
+@media(max-width:420px){.pm-reaction-picker{gap:6px}.pm-reaction-choice{min-height:58px;border-radius:10px}.pm-reaction-emoji{font-size:1.55rem}}
+</style></head><body>
     <section class="cover">
       <div class="brand">CFTP MALAYSIA</div>
       <h1>${title}</h1><h2>${moduleTitle}</h2>
@@ -9535,6 +9575,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'memory-comment': submitProgramMemoryComment(tgt.dataset.pid); break;
+    case 'memory-delete-comment': deleteProgramMemoryComment(tgt.dataset.pid, tgt.dataset.cid); break;
     case 'memory-edit-description': editProgramMemoryDescription(tgt.dataset.pid); break;
     case 'memory-delete': deleteProgramMemoryAlbum(tgt.dataset.pid); break;
     case 'memory-react': submitProgramMemoryReaction(tgt.dataset.pid, tgt.dataset.reaction); break;
