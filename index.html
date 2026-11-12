@@ -4283,7 +4283,7 @@ function registerForm() {
   </form>`;
 }
 
-function navItems() {
+function navItemsBase() {
   const r = state.user.role;
   if (r === 'vip') {
     return [
@@ -4387,6 +4387,19 @@ function navItems() {
     { v:'profile', label:t('nav_profile'), icon:'👤' }
   ];
 }
+
+function navItems() {
+  const items = navItemsBase();
+  if (state.user && !items.some(x => x.v === 'memory')) {
+    items.splice(1, 0, {
+      v:'memory',
+      label: currentLang === 'en' ? 'Programme Memory' : 'Memory Program',
+      icon:'📸'
+    });
+  }
+  return items;
+}
+
 function tabNotificationCount(view) {
   const role = state.user?.role;
   const uid = String(state.user?.id || '');
@@ -4439,7 +4452,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Programme Memory' : 'Memory Program', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
@@ -4625,6 +4638,7 @@ function viewContent() {
     case 'modules': return modulesView();
     case 'materials-library': return materialsLibraryView();
     case 'system-information': return systemInformationView();
+    case 'memory': return programMemoryView();
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
     case 'enrolled-programs': return enrolledProgramsView();
@@ -4653,6 +4667,146 @@ function viewContent() {
   }
 }
 
+
+
+/* =========================================================
+   PROGRAMME MEMORY — Drive gallery + isolated metadata sheet
+   ========================================================= */
+let programMemoryPhotos = [];
+let programMemoryLoadedAt = 0;
+let programMemoryLoading = false;
+const PROGRAM_MEMORY_MAX_BYTES = 8 * 1024 * 1024;
+
+function programMemoryText(ms, en) { return currentLang === 'en' ? en : ms; }
+
+function programMemoryView() {
+  const vip = state.user && state.user.role === 'vip';
+  const photos = Array.isArray(programMemoryPhotos) ? programMemoryPhotos : [];
+  return `
+    <section class="card">
+      <div class="card-head">
+        <div><h2>📸 ${programMemoryText('Memory Program','Programme Memory')}</h2>
+          <small class="muted">${programMemoryText('Kongsi gambar dan kenangan sepanjang program.','Share photos and memories throughout the programme.')}</small>
+        </div>
+        <div class="memory-toolbar">
+          <button class="btn btn-sm" data-act="memory-refresh">🔄 ${programMemoryText('Muat semula','Refresh')}</button>
+          ${!vip ? `<button class="btn btn-sm btn-primary" data-act="memory-upload-trigger">＋ ${programMemoryText('Muat naik gambar','Upload photo')}</button>` : `<span class="pill">👁️ ${programMemoryText('VIP · Baca sahaja','VIP · Read only')}</span>`}
+        </div>
+      </div>
+      ${!vip ? `<div class="memory-upload-box" style="margin-top:10px">
+        <input id="programMemoryFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none">
+        <small class="muted">${programMemoryText('Format JPG, PNG, WEBP atau GIF · Maksimum 8 MB setiap gambar.','JPG, PNG, WEBP or GIF · Maximum 8 MB per image.')}</small>
+      </div>` : `<div class="info-box">${programMemoryText('Akaun VIP boleh melihat gambar, komen dan reaksi sahaja. Muat naik gambar tidak dibenarkan.','VIP accounts can view photos, comments and reactions only. Photo uploads are disabled.')}</div>`}
+      ${programMemoryLoading ? `<div class="empty">⏳ ${programMemoryText('Memuatkan galeri...','Loading gallery...')}</div>` : ''}
+      ${!programMemoryLoading && !photos.length ? `<div class="empty">📷 ${programMemoryText('Belum ada gambar. Jadilah yang pertama berkongsi kenangan program!','No photos yet. Be the first to share a programme memory!')}</div>` : ''}
+    </section>
+    ${photos.length ? `<div class="memory-grid">${photos.map(p => {
+      const comments = Array.isArray(p.comments) ? p.comments : [];
+      const reactions = Array.isArray(p.reactions) ? p.reactions : [];
+      const counts = ['👍','❤️','😊','🎉','👏'].map(emoji => ({emoji,count:reactions.filter(x=>x.reaction===emoji).length}));
+      return `<article class="memory-card">
+        <a href="${esc(p.viewUrl || '#')}" target="_blank" rel="noopener"><img class="memory-photo" src="${esc(p.imageUrl || '')}" alt="${programMemoryText('Gambar program','Programme photo')}" loading="lazy"></a>
+        <div class="memory-body">
+          <div class="memory-meta"><strong>👤 ${tce(p.userName || programMemoryText('Pengguna','User'))}</strong><span>· ${fmtDateTime(p.createdAt)}</span></div>
+          ${p.text ? `<p class="memory-caption">${tce(p.text)}</p>` : ''}
+          <div class="memory-reactions">${counts.map(x=>vip ? `<span style="border:1px solid var(--line);border-radius:999px;padding:5px 9px">${x.emoji} ${x.count || ''}</span>` : `<button type="button" data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${x.emoji}" title="${x.emoji}">${x.emoji} ${x.count || ''}</button>`).join('')}</div>
+          <div class="memory-comments">
+            <strong style="font-size:.82rem">💬 ${programMemoryText('Komen','Comments')} (${comments.length})</strong>
+            ${comments.map(c=>`<div class="memory-comment"><strong>${tce(c.userName || '')}</strong> <span class="muted">· ${fmtDateTime(c.createdAt)}</span><div>${tce(c.text || '')}</div></div>`).join('')}
+            ${!vip ? `<div class="memory-comment-form"><input class="input" id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="${programMemoryText('Tulis komen...','Write a comment...')}"><button class="btn btn-sm btn-primary" data-act="memory-comment" data-pid="${esc(p.id)}">${programMemoryText('Hantar','Post')}</button></div>` : ''}
+          </div>
+        </div>
+      </article>`;
+    }).join('')}</div>` : ''}
+  `;
+}
+
+async function loadProgramMemory(force) {
+  if (!state.user || programMemoryLoading) return;
+  if (!sessionStorage.getItem('cftp_program_memory_token')) { toast(programMemoryText('Sesi Memory tiada. Sila log keluar dan log masuk semula.','Memory session is missing. Please log out and sign in again.'),'warn'); return; }
+  if (!force && programMemoryLoadedAt && Date.now() - programMemoryLoadedAt < 15000 && state.view === 'memory') return;
+  programMemoryLoading = true;
+  if (state.view === 'memory') render();
+  try {
+    const result = await driveAPI('listProgramMemory', { userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '' }, 60000);
+    if (!result || !result.ok) throw new Error(result?.error || 'Unable to load programme gallery.');
+    programMemoryPhotos = Array.isArray(result.photos) ? result.photos : [];
+    programMemoryLoadedAt = Date.now();
+  } catch (err) {
+    toast(programMemoryText('Galeri gagal dimuatkan: ','Gallery could not be loaded: ') + (err.message || ''), 'bad');
+  } finally {
+    programMemoryLoading = false;
+    if (state.view === 'memory') render();
+  }
+}
+
+async function submitProgramMemoryComment(pictureId) {
+  const input = document.getElementById('memoryComment-' + pictureId);
+  const comment = String(input?.value || '').trim();
+  if (!comment) { toast(programMemoryText('Sila tulis komen.','Please enter a comment.'),'warn'); return; }
+  try {
+    const result = await driveAPI('addProgramPictureComment', {
+      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:String(pictureId), comment
+    });
+    if (!result?.ok) throw new Error(result?.error || 'Comment failed.');
+    await loadProgramMemory(true);
+  } catch (err) { toast(err.message || 'Comment failed.','bad'); }
+}
+
+async function submitProgramMemoryReaction(pictureId, reaction) {
+  try {
+    const result = await driveAPI('reactProgramPicture', {
+      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:String(pictureId), reaction:String(reaction)
+    });
+    if (!result?.ok) throw new Error(result?.error || 'Reaction failed.');
+    await loadProgramMemory(true);
+  } catch (err) { toast(err.message || 'Reaction failed.','bad'); }
+}
+
+async function handleProgramMemoryFiles(files) {
+  if (!state.user || state.user.role === 'vip') {
+    toast(programMemoryText('Akses VIP ialah baca sahaja.','VIP access is read-only.'),'warn');
+    return;
+  }
+  const chosen = Array.from(files || []);
+  if (!chosen.length) return;
+  for (const file of chosen) {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type || '')) {
+      toast(programMemoryText('Fail bukan format gambar yang disokong: ','Unsupported image file: ') + file.name,'bad');
+      continue;
+    }
+    if (file.size <= 0 || file.size > PROGRAM_MEMORY_MAX_BYTES) {
+      toast(programMemoryText('Saiz maksimum setiap gambar ialah 8 MB: ','Maximum image size is 8 MB: ') + file.name,'bad');
+      continue;
+    }
+    try {
+      toast(programMemoryText('Memuat naik: ','Uploading: ') + file.name);
+      const base64 = await new Promise((resolve,reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+        reader.onerror = () => reject(new Error('Unable to read selected image.'));
+        reader.readAsDataURL(file);
+      });
+      const result = await driveAPI('uploadProgramPicture', {
+        payload:{
+          userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', filename:file.name, mimeType:file.type,
+          size:file.size, base64
+        }
+      }, 120000);
+      if (!result?.ok) throw new Error(result?.error || 'Upload failed.');
+    } catch (err) {
+      toast(programMemoryText('Gagal memuat naik ','Upload failed for ') + file.name + ': ' + (err.message || ''),'bad');
+    }
+  }
+  await loadProgramMemory(true);
+}
+
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'programMemoryFile') {
+    handleProgramMemoryFiles(e.target.files);
+    e.target.value = '';
+  }
+});
 
 /* =========================================================
    SYSTEM INFORMATION — ADMIN MANAGED GUIDES & MULTIPLE FILES
@@ -5319,6 +5473,9 @@ async function handleLogin(form) {
     else DB.users.push(u);
 
     state.user = u;
+    try {
+      if (verification.programMemoryToken) sessionStorage.setItem('cftp_program_memory_token', verification.programMemoryToken);
+    } catch (_) {}
     state.view = 'dashboard';
     state.params = {};
     localStorage.setItem(SESSION_KEY, u.id);
@@ -6727,7 +6884,26 @@ function finalPracticalRubricPrintHTML(feid,pid) {
   const pages=cohort.map((p,idx)=>{const pr=fePracticalFor(feid,p.id);const rows=criteria.map((c,i)=>`<tr><td><b>${esc(c.name)}</b><div class="muted">${Number(c.weight)||0}%</div></td><td>${(c.levels||[]).slice().sort((a,b)=>Number(b.mark)-Number(a.mark)).map(l=>`<div class="level">□ <b>${esc(l.label)}</b> <span class="mark">${esc(l.mark)}</span><div class="muted">${esc(l.description||'')}</div></div>`).join('')}</td><td class="score">${pr?.scores?.[i]??''}</td></tr>`).join('');
     return `<section class="page"><header><b>CFTP · FINAL EXAMINATION</b><h1>FINAL EXAM PRACTICAL RUBRIC</h1><h2>${esc(fe.title)}</h2><p>${esc(feModulesLabel(fe))} · ${esc(rb.name)}</p></header><div class="person"><div><small>PARTICIPANT</small><b>${esc(p.name||'')}</b></div><div><small>PARTICIPANT ID</small><b>${esc(p.id)}</b></div><div><small>ORGANISATION</small><b>${esc(p.org||'—')}</b></div><div><small>DATE</small><b>________________</b></div></div><table><thead><tr><th>CRITERION</th><th>PERFORMANCE LEVEL / DESCRIPTOR</th><th>MARK</th></tr></thead><tbody>${rows}</tbody></table><div class="total">OVERALL MARK: <b>${pr?Number(pr.total).toFixed(1)+'%':'________ %'}</b></div><p>Trainer / Facilitator remarks:</p><div class="remarks">${esc(pr?.remarks||'')}</div><div class="sign">_________________________ Trainer / Facilitator <span>_________________________ Participant</span></div><footer>Printed ${esc(new Date().toLocaleString())} · ${idx+1}/${cohort.length}</footer></section>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Final Exam Rubric</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial;color:#26352e}.page{page-break-after:always;break-after:page;min-height:270mm;position:relative}.page:last-child{page-break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px;color:#0b6b53}h1{font-size:19px;margin:6px 0}h2{font-size:14px;margin:0;color:#26352e}header p,.muted{color:#687a72;font-size:9px}.person{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:7px;margin:12px 0}.person div{border:1px solid #ccd9d2;padding:8px;min-height:42px}.person small{display:block;font-size:8px;color:#687a72}.person b{font-size:10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left}.level{padding:4px;border-bottom:1px dotted #ddd}.mark{float:right;font-weight:bold}.score{text-align:center;font-size:15px;font-weight:bold}.total{margin-top:12px;padding:12px;text-align:right;background:#f1f8f4;border:1px solid #b9cfc3}.total b{font-size:17px;color:#0b6b53}.remarks{border:1px solid #cbd8d1;min-height:45px;padding:8px}.sign{display:flex;justify-content:space-between;margin-top:24px;font-size:9px}footer{position:absolute;bottom:0;border-top:1px solid #ddd;width:100%;padding-top:5px;font-size:8px;color:#777}</style></head><body>${pages}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Final Exam Rubric</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial;color:#26352e}.page{page-break-after:always;break-after:page;min-height:270mm;position:relative}.page:last-child{page-break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px;color:#0b6b53}h1{font-size:19px;margin:6px 0}h2{font-size:14px;margin:0;color:#26352e}header p,.muted{color:#687a72;font-size:9px}.person{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:7px;margin:12px 0}.person div{border:1px solid #ccd9d2;padding:8px;min-height:42px}.person small{display:block;font-size:8px;color:#687a72}.person b{font-size:10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left}.level{padding:4px;border-bottom:1px dotted #ddd}.mark{float:right;font-weight:bold}.score{text-align:center;font-size:15px;font-weight:bold}.total{margin-top:12px;padding:12px;text-align:right;background:#f1f8f4;border:1px solid #b9cfc3}.total b{font-size:17px;color:#0b6b53}.remarks{border:1px solid #cbd8d1;min-height:45px;padding:8px}.sign{display:flex;justify-content:space-between;margin-top:24px;font-size:9px}footer{position:absolute;bottom:0;border-top:1px solid #ddd;width:100%;padding-top:5px;font-size:8px;color:#777}
+/* Programme Memory Gallery — additive UI */
+.memory-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.memory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.memory-card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);min-width:0}
+.memory-photo{display:block;width:100%;max-height:360px;object-fit:cover;background:#edf3f0;cursor:zoom-in}
+.memory-body{padding:13px}
+.memory-meta{font-size:.77rem;color:var(--muted);display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.memory-caption{font-size:.9rem;margin:0 0 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.memory-reactions{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.memory-reactions button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 9px;cursor:pointer}
+.memory-comments{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.memory-comment{font-size:.8rem;padding:6px 0;border-bottom:1px dashed var(--line);overflow-wrap:anywhere}
+.memory-comment strong{color:var(--brand)}
+.memory-comment-form{display:flex;gap:6px;margin-top:8px}
+.memory-comment-form input{min-width:0;flex:1}
+.memory-upload-box{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@media(max-width:600px){.memory-grid{grid-template-columns:1fr}.memory-photo{max-height:300px}.memory-comment-form{flex-direction:column}}
+
+</style></head><body>${pages}</body></html>`;
 }
 function printFinalPracticalRubric(feid,pid){try{printHTML(finalPracticalRubricPrintHTML(feid,pid||null));}catch(e){toast('⚠️ '+e.message,'bad');}}
 
@@ -9162,6 +9338,14 @@ document.addEventListener('click', async (e) => {
       saveDB(); logAudit(act==='verify-attendance'?'Verify Attendance':'Reject Attendance','Kehadiran',`${date}:${pid}`,`${userName(pid)} — ${date}`); render(); break;
     }
     case 'manual-sync': manualSyncNow(); break;
+    case 'memory-refresh': loadProgramMemory(true); break;
+    case 'memory-upload-trigger': {
+      if (state.user.role === 'vip') { toast(currentLang === 'en' ? 'VIP access is read-only.' : 'Akses VIP ialah baca sahaja.','warn'); break; }
+      document.getElementById('programMemoryFile')?.click();
+      break;
+    }
+    case 'memory-comment': submitProgramMemoryComment(tgt.dataset.pid); break;
+    case 'memory-react': submitProgramMemoryReaction(tgt.dataset.pid, tgt.dataset.reaction); break;
     case 'system-info-add': openSystemInformationModal(); break;
     case 'system-info-edit': openSystemInformationModal(tgt.dataset.id); break;
     case 'system-info-delete': deleteSystemInformation(tgt.dataset.id); break;
@@ -9237,8 +9421,8 @@ document.addEventListener('click', async (e) => {
     }
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
-    case 'logout': handleLogoutClick(); break;
-    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); break;
+    case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
+    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); if (tgt.dataset.view === 'memory') loadProgramMemory(); break;
     case 'open-audit-notification': {
       const entity = String(tgt.dataset.entity || '').toLowerCase();
       const entityId = String(tgt.dataset.entityid || '');
