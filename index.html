@@ -723,6 +723,97 @@ function applyDiff(baseState, diff) {
   return result;
 }
 
+// Three-way merge: local-only field edits are applied; concurrent server edits win
+// on the same field. Conflicting local values are retained in a bounded browser log.
+function mergeLocalDiffOntoServer(baseState, serverState, localDiff) {
+  const result = cloneDB(serverState || {});
+  const conflicts = [];
+  if (!localDiff || typeof localDiff !== 'object') return result;
+
+  for (const collection of Object.keys(localDiff)) {
+    if (!MERGEABLE_COLLECTIONS.includes(collection)) continue;
+    const change = localDiff[collection] || {};
+    const baseRows = Array.isArray(baseState && baseState[collection]) ? baseState[collection] : [];
+    const serverRows = Array.isArray(result[collection]) ? result[collection].slice() : [];
+    const baseMap = new Map(baseRows.map(x => [String(x.id), x]));
+    const serverMap = new Map(serverRows.map(x => [String(x.id), x]));
+
+    for (const idValue of (change.deletes || [])) {
+      const id = String(idValue);
+      const baseItem = baseMap.get(id);
+      const serverItem = serverMap.get(id);
+      if (!baseItem || !serverItem) continue;
+      if (JSON.stringify(baseItem) === JSON.stringify(serverItem)) {
+        result[collection] = serverRows.filter(x => String(x.id) !== id);
+        serverMap.delete(id);
+      } else {
+        conflicts.push({ collection, id, field:'__delete__', base:baseItem, local:null, server:serverItem });
+      }
+    }
+
+    for (const localItem of (change.upserts || [])) {
+      if (!localItem || !localItem.id) continue;
+      const id = String(localItem.id);
+      const baseItem = baseMap.get(id);
+      const serverItem = serverMap.get(id);
+
+      if (!baseItem) {
+        if (!serverItem) {
+          result[collection] = (result[collection] || []).concat([localItem]);
+          serverMap.set(id, localItem);
+        } else if (JSON.stringify(serverItem) !== JSON.stringify(localItem)) {
+          conflicts.push({ collection, id, field:'__create__', base:null, local:localItem, server:serverItem });
+        }
+        continue;
+      }
+
+      if (!serverItem) {
+        conflicts.push({ collection, id, field:'__record__', base:baseItem, local:localItem, server:null });
+        continue;
+      }
+
+      const mergedItem = Object.assign({}, serverItem);
+      const keys = new Set([...Object.keys(baseItem), ...Object.keys(localItem)]);
+      for (const key of keys) {
+        if (key === 'id') continue;
+        const baseValue = baseItem[key];
+        const localValue = localItem[key];
+        const serverValue = serverItem[key];
+        const localChanged = JSON.stringify(localValue) !== JSON.stringify(baseValue);
+        const serverChanged = JSON.stringify(serverValue) !== JSON.stringify(baseValue);
+        if (!localChanged) continue;
+        if (!serverChanged || JSON.stringify(localValue) === JSON.stringify(serverValue)) {
+          if (localValue === undefined) delete mergedItem[key];
+          else mergedItem[key] = localValue;
+        } else {
+          conflicts.push({ collection, id, field:key, base:baseValue, local:localValue, server:serverValue });
+        }
+      }
+      const index = result[collection].findIndex(x => String(x.id) === id);
+      if (index >= 0) result[collection][index] = mergedItem;
+    }
+  }
+
+  if (conflicts.length) {
+    try {
+      const key = 'cftpmy_conflict_log';
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+      const safe = conflicts.map(c => {
+        const redact = value => {
+          if (!value || typeof value !== 'object') return value;
+          const copy = JSON.parse(JSON.stringify(value));
+          if (Object.prototype.hasOwnProperty.call(copy, 'password')) delete copy.password;
+          return copy;
+        };
+        return { at:nowISO(), collection:c.collection, id:c.id, field:c.field,
+          base:redact(c.base), local:redact(c.local), server:redact(c.server) };
+      });
+      localStorage.setItem(key, JSON.stringify(existing.concat(safe).slice(-100)));
+    } catch(e) {}
+  }
+  return result;
+}
+
 function fileToBase64(file, onProgress) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2660,6 +2751,7 @@ window.addEventListener('popstate', (e) => {
    SYNC / UPLOAD STATE TRACKING
    ========================================================= */
 let saveTimer = null, saveInFlight = false, savePending = false;
+let saveInFlightPromise = null;
 let pendingSaveSince = 0;
 let firstSyncDone = false;
 let firstSyncPromise = null;
@@ -2676,8 +2768,26 @@ function saveDB() {
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) { console.error(e); }
   try {
     const diff = computeDiff(lastSyncedSnapshot, DB);
-    if (!isDiffEmpty(diff)) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(diff));
-    else localStorage.removeItem('cftpmy_pending_diff');
+    if (!firstSyncDone) {
+      let prior = {};
+      try { prior = JSON.parse(localStorage.getItem('cftpmy_pending_diff') || '{}') || {}; } catch(e) {}
+      const combined = {};
+      const collections = new Set([...Object.keys(prior), ...Object.keys(diff)]);
+      collections.forEach(collection => {
+        const p = prior[collection] || {}, d = diff[collection] || {};
+        const upserts = new Map();
+        (p.upserts || []).forEach(item => { if (item && item.id) upserts.set(String(item.id), item); });
+        (d.upserts || []).forEach(item => { if (item && item.id) upserts.set(String(item.id), item); });
+        const deletes = new Set([...(p.deletes || []), ...(d.deletes || [])].map(String));
+        upserts.forEach((item, id) => deletes.delete(id));
+        if (upserts.size || deletes.size) combined[collection] = { upserts:[...upserts.values()], deletes:[...deletes] };
+      });
+      if (!isDiffEmpty(combined)) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(combined));
+    } else if (!isDiffEmpty(diff)) {
+      localStorage.setItem('cftpmy_pending_diff', JSON.stringify(diff));
+    } else {
+      localStorage.removeItem('cftpmy_pending_diff');
+    }
   } catch(e) {}
   if (!pendingSaveSince) pendingSaveSince = Date.now();
   updateBeforeUnload();
@@ -2693,72 +2803,114 @@ function scheduleServerSave() {
 }
 
 async function robustServerSave() {
-  if (saveInFlight) { savePending = true; return { ok: true, queued: true }; }
+  if (saveInFlightPromise) {
+    savePending = true;
+    return await saveInFlightPromise;
+  }
+
   saveInFlight = true;
-  try {
-    const result = await performMergedSave();
-    if (result.ok) {
-      pendingSaveSince = 0;
-      updateBeforeUnload();
-      const b = document.getElementById('syncBadge');
-      if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
+  saveInFlightPromise = (async () => {
+    let result = { ok:true, skipped:true };
+    let rounds = 0;
+    do {
+      savePending = false;
+      result = await performMergedSave();
+      if (!result || !result.ok) return result || { ok:false, error:'Save returned no result.' };
+      rounds++;
+      // Drain edits queued while a save was in progress, but bound the loop.
+    } while ((savePending || !isDiffEmpty(computeDiff(lastSyncedSnapshot, DB))) && rounds < 5);
+
+    if (!isDiffEmpty(computeDiff(lastSyncedSnapshot, DB))) {
+      savePending = true;
+      return { ok:false, queued:true, error:'Additional changes remain queued. Please sync again.' };
+    }
+
+    pendingSaveSince = 0;
+    updateBeforeUnload();
+    const badge = document.getElementById('syncBadge');
+    if (badge) {
+      badge.textContent = '✓';
+      badge.style.background = '#e8f5ec';
+      badge.style.color = '#1e7d4f';
+      badge.title = 'Synced ' + new Date().toLocaleTimeString();
     }
     return result;
+  })();
+
+  try {
+    return await saveInFlightPromise;
   } finally {
     saveInFlight = false;
-    if (savePending) { savePending = false; setTimeout(() => robustServerSave(), 150 + Math.floor(Math.random() * 200)); }
+    saveInFlightPromise = null;
+    if (savePending) {
+      // Keep the unsaved diff on disk; schedule a bounded follow-up save.
+      savePending = false;
+      scheduleServerSave();
+    }
   }
 }
 
-async function performMergedSave(maxAttempts = 8) {
-  const preDiff = computeDiff(lastSyncedSnapshot, DB);
-  if (isDiffEmpty(preDiff)) return { ok: true, skipped: true };
-
+async function performMergedSave(maxAttempts = 5) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const dbAtStart = cloneDB(DB);
     try {
       const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
       if (isDiffEmpty(localDiff)) return { ok:true, skipped:true };
 
-      let serverState = null;
-      try {
-        const loadRes = await driveAPI('loadState');
-        if (loadRes && loadRes.ok && loadRes.state) serverState = loadRes.state;
-      } catch (loadErr) {
-        console.warn('loadState failed during incremental save:', loadErr);
+      const loadRes = await driveAPI('loadState');
+      if (!loadRes || !loadRes.ok || !loadRes.state || !Array.isArray(loadRes.state.users)) {
+        throw new Error((loadRes && loadRes.error) || 'Google Sheets returned incomplete data; local changes were retained.');
       }
 
-      // Merge against the latest server state, but transmit only changed IDs.
-      const base = serverState || lastSyncedSnapshot || dbAtStart;
-      const merged = applyDiff(base, localDiff);
-      const savedBy = state.user ? state.user.id : 'system';
+      const serverState = loadRes.state;
+      const merged = mergeLocalDiffOntoServer(lastSyncedSnapshot, serverState, localDiff);
+      const editsDuringSave = computeDiff(dbAtStart, DB);
+      const outboundDiff = computeDiff(serverState, merged);
+
+      if (isDiffEmpty(outboundDiff)) {
+        // Server already contains these changes (e.g. a previous request completed
+        // but its response was lost). Treat as confirmed only after reading it back.
+        DB = mergeLocalDiffOntoServer(dbAtStart, serverState, editsDuringSave);
+        lastSyncedSnapshot = cloneDB(serverState);
+        try {
+          localStorage.setItem(DB_KEY, JSON.stringify(DB));
+          localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot));
+          localStorage.removeItem('cftpmy_pending_diff');
+        } catch(e) {}
+        return { ok:true, skipped:true, _rev:Number(serverState._rev)||0 };
+      }
 
       const saveRes = await driveAPI('saveDelta', {
-        diff: localDiff,
-        savedBy: savedBy
+        diff: outboundDiff,
+        savedBy: state.user ? state.user.id : 'system',
+        expectedRev: Number(serverState._rev) || 0
       });
+
       if (!saveRes || !saveRes.ok) {
+        if (saveRes && saveRes.conflict) {
+          // Another device saved between our read and write. Retry using a fresh
+          // server snapshot; do not replace the local pending diff.
+          await sleep(Math.min(1200, 150 * Math.pow(2, attempt)));
+          continue;
+        }
         throw new Error((saveRes && saveRes.error) || 'Incremental save failed');
       }
 
-      merged._rev = Number(saveRes._rev) || Number(base._rev) || 0;
+      merged._rev = Number(saveRes._rev) || Number(serverState._rev) || 0;
       merged._syncId = saveRes._syncId || uid('sync');
       merged._syncTs = saveRes._syncTs || nowISO();
-      merged._savedBy = savedBy;
+      merged._savedBy = state.user ? state.user.id : 'system';
 
-      // Keep edits made while the network request was running.
-      const editsDuringSave = computeDiff(dbAtStart, DB);
-      DB = applyDiff(merged, editsDuringSave);
+      // Preserve any edits made while the request was in flight.
+      DB = mergeLocalDiffOntoServer(dbAtStart, merged, editsDuringSave);
       lastSyncedSnapshot = cloneDB(merged);
 
       const stillPending = computeDiff(lastSyncedSnapshot, DB);
       try {
         localStorage.setItem(DB_KEY, JSON.stringify(DB));
-        if (!isDiffEmpty(stillPending)) {
-          localStorage.setItem('cftpmy_pending_diff', JSON.stringify(stillPending));
-        } else {
-          localStorage.removeItem('cftpmy_pending_diff');
-        }
+        localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot));
+        if (!isDiffEmpty(stillPending)) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(stillPending));
+        else localStorage.removeItem('cftpmy_pending_diff');
       } catch(e) {}
 
       pendingSaveSince = isDiffEmpty(stillPending) ? 0 : Date.now();
@@ -2768,20 +2920,19 @@ async function performMergedSave(maxAttempts = 8) {
     } catch (err) {
       console.warn(`[incremental save] attempt ${attempt + 1} failed:`, err);
       if (attempt === maxAttempts - 1) {
-        const b = document.getElementById('syncBadge');
-        if (b) {
-          b.textContent = '⚠';
-          b.style.background = '#fdecea';
-          b.style.color = '#c0392b';
-          b.title = 'Save failed: ' + err.message;
+        const badge = document.getElementById('syncBadge');
+        if (badge) {
+          badge.textContent = '⚠';
+          badge.style.background = '#fdecea';
+          badge.style.color = '#c0392b';
+          badge.title = 'Save failed: ' + err.message;
         }
         return { ok:false, error:err.message };
       }
-      const backoff = Math.min(6000, 300 * Math.pow(2, attempt)) + Math.random() * 500;
-      await sleep(backoff);
+      await sleep(Math.min(5000, 300 * Math.pow(2, attempt)) + Math.random() * 300);
     }
   }
-  return { ok:false, error:'Max retries exceeded' };
+  return { ok:false, conflict:true, error:'The server changed repeatedly while saving. Local changes remain pending; retry synchronisation.' };
 }
 
 async function forceSaveNow() {
@@ -2897,15 +3048,25 @@ function fastBoot() {
   if (!DB || typeof DB !== 'object') DB = emptyDB();
   migrateDB();
 
+  // Restore the last server-confirmed baseline separately from the cached working copy.
+  try {
+    const rawSnapshot = localStorage.getItem('cftpmy_last_synced_snapshot');
+    if (rawSnapshot) {
+      const parsedSnapshot = JSON.parse(rawSnapshot);
+      if (parsedSnapshot && Array.isArray(parsedSnapshot.users)) lastSyncedSnapshot = parsedSnapshot;
+    }
+  } catch(e) {}
+
+  // Do not delete the pending diff at boot. It is removed only after the server
+  // confirms that the corresponding changes have been stored.
   try {
     const rawDiff = localStorage.getItem('cftpmy_pending_diff');
     if (rawDiff) {
       const pendingDiff = JSON.parse(rawDiff);
       if (!isDiffEmpty(pendingDiff)) {
-        DB = applyDiff(DB, pendingDiff);
-        console.log('[boot] Recovered pending diff from previous session');
+        if (lastSyncedSnapshot) DB = applyDiff(lastSyncedSnapshot, pendingDiff);
+        console.log('[boot] Pending changes retained for server reconciliation');
       }
-      localStorage.removeItem('cftpmy_pending_diff');
     }
   } catch(e) {}
 
@@ -2926,14 +3087,25 @@ async function serverPullInBackground() {
       const res = await driveAPI('loadState');
       if (res.ok && res.state && Array.isArray(res.state.users)) {
         const serverState = res.state;
-        const pendingDiff = lastSyncedSnapshot ? computeDiff(lastSyncedSnapshot, DB) : {};
+        let pendingDiff = {};
+        try {
+          const rawPending = localStorage.getItem('cftpmy_pending_diff');
+          if (rawPending) pendingDiff = JSON.parse(rawPending) || {};
+        } catch(e) {}
+        if (isDiffEmpty(pendingDiff) && lastSyncedSnapshot) pendingDiff = computeDiff(lastSyncedSnapshot, DB);
         const hasPending = !isDiffEmpty(pendingDiff);
         const newDB = hasPending ? applyDiff(serverState, pendingDiff) : cloneDB(serverState);
         if (!Array.isArray(newDB.questionBank)) newDB.questionBank = [];
         DB = newDB;
         migrateDB();
         lastSyncedSnapshot = cloneDB(serverState);
-        try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); localStorage.setItem('cftpmy_cache_refreshed_at', nowISO()); } catch(e) {}
+        try {
+          localStorage.setItem(DB_KEY, JSON.stringify(DB));
+          localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot));
+          localStorage.setItem('cftpmy_cache_refreshed_at', nowISO());
+          if (hasPending) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(pendingDiff));
+          else localStorage.removeItem('cftpmy_pending_diff');
+        } catch(e) {}
         const sessionUserRestored = restoreActiveSessionUser();
         if (!checkStandaloneFinal() && !checkStandaloneQuiz()) render();
         if (hasPending || sessionUserRestored) scheduleServerSave();
@@ -9490,6 +9662,7 @@ async function pullFromServerInternal(showToast, options = {}) {
       lastSyncedSnapshot = cloneDB(serverState);
       try {
         localStorage.setItem(DB_KEY, JSON.stringify(DB));
+        localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot));
         localStorage.setItem('cftpmy_cache_refreshed_at', nowISO());
         if (hasLocalChanges) localStorage.setItem('cftpmy_pending_diff', JSON.stringify(localChanges));
         else localStorage.removeItem('cftpmy_pending_diff');
