@@ -2804,7 +2804,7 @@ function scheduleServerSave() {
   if (saveInFlight) { savePending = true; return; }
   const b = document.getElementById('syncBadge');
   if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
-  saveTimer = setTimeout(async () => { saveTimer = null; await robustServerSave(); }, 1200 + Math.floor(Math.random() * 400));
+  saveTimer = setTimeout(async () => { saveTimer = null; await robustServerSave(); }, 500 + Math.floor(Math.random() * 1000));
 }
 
 async function robustServerSave() {
@@ -2822,12 +2822,12 @@ async function robustServerSave() {
       result = await performMergedSave();
       if (!result || !result.ok) return result || { ok:false, error:'Save returned no result.' };
       rounds++;
-      // Drain edits queued while a save was in progress, but bound the loop.
+      // Drain edits made while a direct Master save was in progress, but bound the loop.
     } while ((savePending || !isDiffEmpty(computeDiff(lastSyncedSnapshot, DB))) && rounds < 5);
 
     if (!isDiffEmpty(computeDiff(lastSyncedSnapshot, DB))) {
       savePending = true;
-      return { ok:false, queued:true, error:'Additional changes remain queued. Please sync again.' };
+      return { ok:false, error:'Additional changes remain pending locally. Please sync again.' };
     }
 
     pendingSaveSince = 0;
@@ -2837,7 +2837,7 @@ async function robustServerSave() {
       badge.textContent = '✓';
       badge.style.background = '#e8f5ec';
       badge.style.color = '#1e7d4f';
-      badge.title = 'Synced ' + new Date().toLocaleTimeString();
+      badge.title = 'Saved to Master ' + new Date().toLocaleTimeString();
     }
     return result;
   })();
@@ -3631,12 +3631,33 @@ function showSyncModal(opts) {
   };
 }
 
+function prepareLogoutAudit_() {
+  if (!state.user || !Array.isArray(DB.audit)) return;
+  const userId = String(state.user.id || '');
+  const recentDuplicate = DB.audit.slice(-20).some(a =>
+    a && a.action === 'Logout' && String(a.actorId || '') === userId &&
+    (Date.now() - (Date.parse(a.at || '') || 0)) < 10 * 60 * 1000
+  );
+  if (recentDuplicate) return;
+  DB.audit.push({ id:uid('au'), at:nowISO(), actorId:state.user.id, actorName:state.user.name, action:'Logout', entity:'Sesi', entityId:state.user.id, details:state.user.name });
+  // Include the logout audit in the same durable save request; do not create
+  // a second save after the user has already logged out.
+  saveDB();
+}
+
 function handleLogoutClick() {
+  // Queue the audit record before checking pending changes. This prevents the
+  // old behaviour where doLogout() created a new save after the save modal
+  // had already succeeded and the session was being closed.
+  prepareLogoutAudit_();
   const hasPending = pendingSaveSince > 0 || saveInFlight || !!saveTimer;
   if (!hasPending) { doLogout(); return; }
   const modal = showSyncModal({ title: t('sync_upload_title'), desc: t('sync_upload_desc'), onSkip: () => { modal.close(); doLogout(); } });
   forceSaveNow().then(res => {
-    if (res.ok) { modal.done(true); setTimeout(() => { modal.close(); doLogout(); }, 900); }
+    if (res.ok) {
+      modal.done(true, currentLang === 'en' ? 'All changes have been saved to the Master Sheet.' : 'Semua perubahan berjaya disimpan ke Master Sheet.');
+      setTimeout(() => { modal.close(); doLogout(); }, 500);
+    }
     else {
       modal.done(false, (res.error || '') + (currentLang === 'en'
         ? ' — Your session is still active. Close this message and retry saving before logging out.'
@@ -3652,8 +3673,11 @@ function handleLogoutClick() {
 }
 
 function doLogout() {
-  if (state.user) logAudit('Logout', 'Sesi', state.user.id, state.user.name);
-  pendingSaveSince = 0; savePending = false; saveInFlight = false;
+  // Do not start another save here. prepareLogoutAudit_() already included
+  // the audit row in the save attempt. Any unacknowledged diff remains in
+  // localStorage for recovery on the next login.
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  pendingSaveSince = 0; savePending = false;
   updateBeforeUnload();
   state.user = null; state.view = 'dashboard'; state.params = {}; state.loginMode = 'login';
   localStorage.removeItem(SESSION_KEY);
