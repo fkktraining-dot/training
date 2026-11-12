@@ -620,7 +620,7 @@ html, body {
    ========================================================= */
 const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzwuWLsDVDCN20VkUu5MNmj84o_dHj361ICec9rq7HRsHk2kJMUfdpivICHtvMJTJEb9Q/exec';
 const DRIVE_API_KEY = '';
-const DRIVE_TIMEOUT_MS = 30000;
+const DRIVE_TIMEOUT_MS = 120000; // Allow time for Apps Script lock contention under concurrent use.
 
 async function driveAPI(action, data, timeoutMs) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
@@ -639,6 +639,9 @@ async function driveAPI(action, data, timeoutMs) {
     return res.json();
   } catch (e) {
     clearTimeout(tid);
+    if (ctl.signal.aborted || (e && e.name === 'AbortError')) {
+      throw new Error('Google Apps Script mengambil masa terlalu lama untuk memberi respons (had 120 saat). Sesi anda masih aktif. Perubahan setempat dikekalkan; cuba sync semula dan semak status Master sebelum log keluar.');
+    }
     throw e;
   }
 }
