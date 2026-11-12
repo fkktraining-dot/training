@@ -607,6 +607,11 @@ html, body {
 }
 
 </style>
+<script>tailwind.config = {corePlugins:{preflight:false}};</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>.reaction-bar{transition:all .2s cubic-bezier(.175,.885,.32,1.275)}.emoji-btn{transition:transform .15s ease}.emoji-btn:hover{transform:scale(1.4) translateY(-4px)}#view .max-w-2xl{max-width:42rem}</style>
 </head>
 <body>
 <div id="app"></div>
@@ -3156,6 +3161,7 @@ function migrateDB() {
   if (!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals = [];
   if (!Array.isArray(DB.retests)) DB.retests = [];
   if (!Array.isArray(DB.retestRequests)) DB.retestRequests = [];
+  if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
 
   if (typeof DB._rev !== 'number') DB._rev = 0;
   if (!DB._syncTs) DB._syncTs = nowISO();
@@ -4681,44 +4687,37 @@ function programMemoryText(ms, en) { return currentLang === 'en' ? en : ms; }
 
 function programMemoryView() {
   const vip = state.user && state.user.role === 'vip';
+  const isAdmin = state.user && state.user.role === 'admin';
   const photos = Array.isArray(programMemoryPhotos) ? programMemoryPhotos : [];
-  return `
-    <section class="card">
-      <div class="card-head">
-        <div><h2>📸 ${programMemoryText('Memory Program','Programme Memory')}</h2>
-          <small class="muted">${programMemoryText('Kongsi gambar dan kenangan sepanjang program.','Share photos and memories throughout the programme.')}</small>
-        </div>
-        <div class="memory-toolbar">
-          <button class="btn btn-sm" data-act="memory-refresh">🔄 ${programMemoryText('Muat semula','Refresh')}</button>
-          ${!vip ? `<button class="btn btn-sm btn-primary" data-act="memory-upload-trigger">＋ ${programMemoryText('Muat naik gambar','Upload photo')}</button>` : `<span class="pill">👁️ ${programMemoryText('VIP · Baca sahaja','VIP · Read only')}</span>`}
-        </div>
-      </div>
-      ${!vip ? `<div class="memory-upload-box" style="margin-top:10px">
-        <input id="programMemoryFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none">
-        <small class="muted">${programMemoryText('Format JPG, PNG, WEBP atau GIF · Maksimum 8 MB setiap gambar.','JPG, PNG, WEBP or GIF · Maximum 8 MB per image.')}</small>
-      </div>` : `<div class="info-box">${programMemoryText('Akaun VIP boleh melihat gambar, komen dan reaksi sahaja. Muat naik gambar tidak dibenarkan.','VIP accounts can view photos, comments and reactions only. Photo uploads are disabled.')}</div>`}
-      ${programMemoryLoading ? `<div class="empty">⏳ ${programMemoryText('Memuatkan galeri...','Loading gallery...')}</div>` : ''}
-      ${!programMemoryLoading && !photos.length ? `<div class="empty">📷 ${programMemoryText('Belum ada gambar. Jadilah yang pertama berkongsi kenangan program!','No photos yet. Be the first to share a programme memory!')}</div>` : ''}
-    </section>
-    ${photos.length ? `<div class="memory-grid">${photos.map(p => {
-      const comments = Array.isArray(p.comments) ? p.comments : [];
-      const reactions = Array.isArray(p.reactions) ? p.reactions : [];
-      const counts = ['👍','❤️','😊','🎉','👏'].map(emoji => ({emoji,count:reactions.filter(x=>x.reaction===emoji).length}));
-      return `<article class="memory-card">
-        <a href="${esc(p.viewUrl || '#')}" target="_blank" rel="noopener"><img class="memory-photo" src="${esc(p.imageUrl || '')}" alt="${programMemoryText('Gambar program','Programme photo')}" loading="lazy"></a>
-        <div class="memory-body">
-          <div class="memory-meta"><strong>👤 ${tce(p.userName || programMemoryText('Pengguna','User'))}</strong><span>· ${fmtDateTime(p.createdAt)}</span></div>
-          ${p.text ? `<p class="memory-caption">${tce(p.text)}</p>` : ''}
-          <div class="memory-reactions">${counts.map(x=>vip ? `<span style="border:1px solid var(--line);border-radius:999px;padding:5px 9px">${x.emoji} ${x.count || ''}</span>` : `<button type="button" data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${x.emoji}" title="${x.emoji}">${x.emoji} ${x.count || ''}</button>`).join('')}</div>
-          <div class="memory-comments">
-            <strong style="font-size:.82rem">💬 ${programMemoryText('Komen','Comments')} (${comments.length})</strong>
-            ${comments.map(c=>`<div class="memory-comment"><strong>${tce(c.userName || '')}</strong> <span class="muted">· ${fmtDateTime(c.createdAt)}</span><div>${tce(c.text || '')}</div></div>`).join('')}
-            ${!vip ? `<div class="memory-comment-form"><input class="input" id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="${programMemoryText('Tulis komen...','Write a comment...')}"><button class="btn btn-sm btn-primary" data-act="memory-comment" data-pid="${esc(p.id)}">${programMemoryText('Hantar','Post')}</button></div>` : ''}
-          </div>
-        </div>
-      </article>`;
-    }).join('')}</div>` : ''}
-  `;
+  const displayName = (state.user && (state.user.name || state.user.fullName || state.user.username)) || programMemoryText('Pengguna CFTP','CFTP User');
+  const avatarUrl = state.user && (state.user.avatar || state.user.photoURL || state.user.photoUrl) || '';
+  const avatar = avatarUrl ? `<img src="${esc(avatarUrl)}" alt="" class="w-11 h-11 rounded-full object-cover ring-2 ring-slate-100">` : `<div class="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(displayName).trim().charAt(0).toUpperCase() || 'U')}</div>`;
+  const postCards = photos.map(p => {
+    const comments = Array.isArray(p.comments) ? p.comments : [];
+    const reactions = Array.isArray(p.reactions) ? p.reactions : [];
+    const images = Array.isArray(p.images) && p.images.length ? p.images : [{imageUrl:p.imageUrl,viewUrl:p.viewUrl}];
+    const totalReactions = reactions.length;
+    const reactionTypes = ['👍','❤️','😂','😮','😢','😡'];
+    const reactionCount = emoji => reactions.filter(r => String((r && (r.reaction || r.emoji || r.type)) || '') === emoji).length;
+    const reactionSummary = reactionTypes.map(emoji => `<span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1" title="${emoji}"><span>${emoji}</span><b class="text-slate-700">${reactionCount(emoji)}</b></span>`).join('');
+    const reactionPicker = reactionTypes.map(emoji => `<button data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${emoji}" class="text-xl hover:scale-125 inline-flex items-center gap-1" title="${emoji}"><span>${emoji}</span><small class="text-[10px] font-bold text-slate-500">${reactionCount(emoji)}</small></button>`).join('');
+    const imageMarkup = images.length ? `<div class="bg-slate-900 cursor-pointer overflow-hidden max-h-[500px] ${images.length>1?'grid grid-cols-2':''}">${images.slice(0,6).map((im,i)=>`<div class="relative ${images.length===1?'w-full':''}" data-act="memory-open-image" data-url="${esc(im.viewUrl || im.imageUrl || '')}"><img src="${esc(im.imageUrl || '')}" alt="Gambar Hantaran" class="w-full ${images.length===1?'max-h-[500px] object-cover':'h-56 sm:h-64 object-cover'} hover:scale-[1.01] transition duration-300" loading="lazy">${i===5 && images.length>6?`<span class="absolute inset-0 bg-black/60 text-white text-2xl flex items-center justify-center">+${images.length-6}</span>`:''}</div>`).join('')}</div>` : '';
+    const commentMarkup = comments.map(c=>`<div class="flex gap-2.5"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(c.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div class="flex-1 min-w-0"><div class="bg-slate-200/70 p-3 rounded-2xl w-fit max-w-[88%]"><div class="font-bold text-xs text-slate-800">${tce(c.userName || '')}</div><div class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">${tce(c.text || '')}</div></div><div class="text-[11px] font-semibold text-slate-400 mt-1 pl-2">${fmtDateTime(c.createdAt)}</div></div></div>`).join('');
+    return `<article id="pm-post-${esc(p.id)}" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition">
+      <div class="p-4 flex items-center justify-between"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(p.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div><div class="flex items-center gap-1.5 font-bold text-slate-800 text-sm"><span>${tce(p.userName || programMemoryText('Pengguna','User'))}</span></div><div class="flex items-center gap-1 text-slate-400 text-xs mt-0.5"><span>${fmtDateTime(p.createdAt)}</span><span>•</span><i class="fa-solid fa-earth-americas text-[10px]"></i></div></div></div>${isAdmin?`<button data-act="memory-edit-description" data-pid="${esc(p.id)}" class="text-slate-400 hover:text-rose-600 p-2 rounded-full hover:bg-slate-100 transition" title="Edit penerangan"><i class="fa-solid fa-ellipsis"></i></button>`:''}</div>
+      ${p.text?`<div class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line">${tce(p.text)}</div>`:''}
+      ${imageMarkup}
+      <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
+      <div class="px-2 py-1 flex items-center justify-between border-b border-slate-100 relative"><div class="reaction-container flex-1 relative group"><div class="reaction-bar absolute -top-12 left-2 bg-white px-3 py-1.5 rounded-full shadow-xl border border-slate-200 flex items-center gap-2 z-30 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition">${reactionPicker}</div><button data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="👍" class="w-full py-2 rounded-xl flex items-center justify-center gap-2 font-semibold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition"><i class="fa-regular fa-thumbs-up text-base"></i><span>${programMemoryText('Suka','Like')}</span></button></div><button data-act="memory-focus-comment" data-pid="${esc(p.id)}" class="flex-1 py-2 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100 font-semibold text-xs sm:text-sm transition"><i class="fa-regular fa-comment text-base"></i><span>Komen</span></button></div>
+      <div class="p-4 bg-slate-50/50 space-y-3"><div id="comments-list-${esc(p.id)}" class="space-y-3">${commentMarkup}</div>${!vip?`<form class="flex items-center gap-2" onsubmit="event.preventDefault();submitProgramMemoryComment('${esc(p.id)}')"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(displayName).charAt(0).toUpperCase())}</div><input id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="Tulis komen..." class="flex-1 min-w-0 border border-slate-200 rounded-full bg-white py-2 px-4 text-sm outline-none focus:border-blue-400"><button type="submit" class="w-9 h-9 rounded-full bg-blue-600 text-white"><i class="fa-solid fa-paper-plane"></i></button></form>`:''}</div>
+      ${isAdmin?`<div class="px-4 pb-3"><button class="btn btn-sm btn-danger" data-act="memory-delete" data-pid="${esc(p.id)}">🗑️ ${programMemoryText('Padam hantaran','Delete post')}</button></div>`:''}</article>`;
+  }).join('');
+  return `<div class="bg-slate-100 text-slate-800 min-h-full py-6 px-3 sm:px-4" style="font-family:Inter,Arial,sans-serif"><div class="max-w-2xl mx-auto space-y-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5"><div class="flex items-center gap-3 pb-3 border-b border-slate-100">${avatar}<div><h2 class="font-bold text-slate-800 text-sm sm:text-base">${tce(displayName)}</h2><span class="inline-flex items-center gap-1 text-xs text-slate-500 font-medium"><i class="fa-solid fa-earth-americas"></i> Awam</span></div></div>
+    ${!vip?`<div class="mt-4 space-y-3"><textarea id="programMemoryCaption" rows="3" maxlength="1000" placeholder="Tulis penerangan untuk gambar yang ingin dimuat naik..." class="w-full resize-y border-0 rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base p-3"></textarea><div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600"><button type="button" data-act="memory-upload-trigger" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-600"><i class="fa-regular fa-image text-lg"></i><span>Foto / Video</span></button><button type="button" data-act="memory-refresh" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-blue-50 text-blue-600"><i class="fa-solid fa-rotate"></i><span>Muat semula</span></button></div><input type="file" id="programMemoryFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden><small class="text-xs text-slate-400">Isi penerangan di atas, kemudian pilih gambar. Maksimum 8 MB setiap gambar; satu penerangan digunakan untuk semua gambar album.</small><div id="programMemoryUploadProgress" class="memory-upload-progress" aria-live="polite"><div class="memory-upload-progress-head"><strong id="programMemoryUploadTitle">Sedia untuk muat naik</strong><span id="programMemoryUploadPercent">0%</span></div><div class="memory-upload-track"><div id="programMemoryUploadBar" class="memory-upload-bar" style="width:0%"></div></div><div id="programMemoryUploadDetail" class="muted">Pilih Foto / Video untuk melihat kemajuan muat naik di sini.</div></div></div>`:`<div class="pt-3 text-xs text-slate-500">👁️ Akaun VIP boleh melihat kenangan, memberi reaksi dan membaca komen.</div>`}</div>
+    ${programMemoryLoading?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200">⏳ Memuatkan kenangan...</div>`:''}
+    ${!programMemoryLoading&&!photos.length?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200"><i class="fa-regular fa-folder-open text-4xl mb-2"></i><p class="font-semibold text-slate-600">Tiada hantaran lagi.</p><p class="text-xs">Jadilah yang pertama berkongsi gambar atau kapsyen!</p></div>`:''}
+    <div id="postsFeed" class="space-y-5">${postCards}</div></div></div>`;
 }
 
 async function loadProgramMemory(force) {
@@ -4753,6 +4752,14 @@ async function submitProgramMemoryComment(pictureId) {
   } catch (err) { toast(err.message || 'Comment failed.','bad'); }
 }
 
+async function copyProgramMemoryLink(url) {
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+    else { const field=document.createElement('textarea'); field.value=url; field.style.position='fixed'; field.style.opacity='0'; document.body.appendChild(field); field.select(); document.execCommand('copy'); field.remove(); }
+    toast(programMemoryText('Pautan kenangan berjaya disalin untuk dikongsi.','Memory link copied and ready to share.'),'ok');
+  } catch (err) { toast(url); }
+}
+
 async function submitProgramMemoryReaction(pictureId, reaction) {
   try {
     const result = await driveAPI('reactProgramPicture', {
@@ -4763,47 +4770,113 @@ async function submitProgramMemoryReaction(pictureId, reaction) {
   } catch (err) { toast(err.message || 'Reaction failed.','bad'); }
 }
 
-async function handleProgramMemoryFiles(files) {
+function updateProgramMemoryUploadProgress(percent, title, detail, indeterminate) {
+  const panel = document.getElementById('programMemoryUploadProgress');
+  if (!panel) return;
+  panel.hidden = false;
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  const bar = document.getElementById('programMemoryUploadBar');
+  const pct = document.getElementById('programMemoryUploadPercent');
+  const heading = document.getElementById('programMemoryUploadTitle');
+  const info = document.getElementById('programMemoryUploadDetail');
+  if (bar) { bar.style.width = value + '%'; bar.classList.toggle('is-indeterminate', !!indeterminate); }
+  if (pct) pct.textContent = Math.round(value) + '%';
+  if (heading) heading.textContent = title || '';
+  if (info) info.textContent = detail || '';
+}
+
+async function handleProgramMemoryFiles(files, suppliedCaption) {
   if (!state.user || state.user.role === 'vip') {
-    toast(programMemoryText('Akses VIP ialah baca sahaja.','VIP access is read-only.'),'warn');
-    return;
+    toast(programMemoryText('Akses VIP ialah baca sahaja.','VIP access is read-only.'),'warn'); return;
   }
   const chosen = Array.from(files || []);
   if (!chosen.length) return;
-  for (const file of chosen) {
-    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type || '')) {
-      toast(programMemoryText('Fail bukan format gambar yang disokong: ','Unsupported image file: ') + file.name,'bad');
-      continue;
-    }
-    if (file.size <= 0 || file.size > PROGRAM_MEMORY_MAX_BYTES) {
-      toast(programMemoryText('Saiz maksimum setiap gambar ialah 8 MB: ','Maximum image size is 8 MB: ') + file.name,'bad');
+  const caption = String(suppliedCaption ?? document.getElementById('programMemoryCaption')?.value ?? '').trim();
+  if (!caption) {
+    toast(programMemoryText('Sila isi penerangan gambar sebelum memilih fail.','Please enter an image description before selecting files.'),'warn');
+    document.getElementById('programMemoryCaption')?.focus();
+    return;
+  }
+  const albumId = 'album_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g,'') : Date.now() + '_' + Math.random().toString(36).slice(2));
+  let uploaded = 0, failed = 0, skipped = 0;
+  const total = chosen.length;
+  updateProgramMemoryUploadProgress(0,
+    programMemoryText('Memulakan muat naik','Starting upload'),
+    programMemoryText('0 daripada '+total+' gambar selesai','0 of '+total+' photos completed'), false);
+  for (let i = 0; i < total; i++) {
+    const file = chosen[i];
+    const completedBefore = uploaded + failed + skipped;
+    const basePercent = completedBefore / total * 100;
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type || '') || file.size <= 0 || file.size > PROGRAM_MEMORY_MAX_BYTES) {
+      skipped++;
+      updateProgramMemoryUploadProgress((uploaded+failed+skipped)/total*100,
+        programMemoryText('Fail tidak disokong','Unsupported file'),
+        (i+1)+'/'+total+' · '+file.name+' · '+programMemoryText('Format/saiz tidak sah','Invalid format/size'), false);
       continue;
     }
     try {
-      toast(programMemoryText('Memuat naik: ','Uploading: ') + file.name);
+      updateProgramMemoryUploadProgress(basePercent,
+        programMemoryText('Membaca gambar '+(i+1)+'/'+total,'Reading photo '+(i+1)+'/'+total),
+        file.name+' · '+(file.size/1024/1024).toFixed(2)+' MB', true);
       const base64 = await new Promise((resolve,reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
         reader.onerror = () => reject(new Error('Unable to read selected image.'));
         reader.readAsDataURL(file);
       });
-      const result = await driveAPI('uploadProgramPicture', {
-        payload:{
-          userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', filename:file.name, mimeType:file.type,
-          size:file.size, base64
-        }
-      }, 120000);
+      updateProgramMemoryUploadProgress(basePercent,
+        programMemoryText('Memuat naik gambar '+(i+1)+'/'+total,'Uploading photo '+(i+1)+'/'+total),
+        file.name+' · '+programMemoryText('Sedang dihantar ke Google Drive...','Sending to Google Drive...'), true);
+      const result = await driveAPI('uploadProgramPicture', {payload:{
+        userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
+        albumId, caption:String(caption).slice(0,1000), filename:file.name, mimeType:file.type, size:file.size, base64
+      }}, 120000);
       if (!result?.ok) throw new Error(result?.error || 'Upload failed.');
+      uploaded++;
     } catch (err) {
+      failed++;
       toast(programMemoryText('Gagal memuat naik ','Upload failed for ') + file.name + ': ' + (err.message || ''),'bad');
     }
+    const done = uploaded + failed + skipped;
+    updateProgramMemoryUploadProgress(done/total*100,
+      done === total ? programMemoryText('Muat naik selesai','Upload complete') : programMemoryText('Kemajuan muat naik','Upload progress'),
+      done+'/'+total+' · '+uploaded+' '+programMemoryText('berjaya','successful')+' · '+failed+' '+programMemoryText('gagal','failed')+' · '+skipped+' '+programMemoryText('dilangkau','skipped'), false);
   }
+  updateProgramMemoryUploadProgress(100,
+    programMemoryText('Muat naik selesai','Upload complete'),
+    uploaded+' / '+total+' '+programMemoryText('gambar berjaya dimuat naik','photos uploaded successfully')+(failed ? ' · '+failed+' '+programMemoryText('gagal','failed') : '')+(skipped ? ' · '+skipped+' '+programMemoryText('dilangkau','skipped') : ''), false);
+  if (uploaded) toast(programMemoryText(uploaded+' gambar berjaya dimuat naik dalam satu album.','Uploaded '+uploaded+' photos into one album.') + (failed+skipped ? ' '+(failed+skipped)+' '+programMemoryText('tidak berjaya.','not successful.') : ''),'ok');
   await loadProgramMemory(true);
+}
+async function editProgramMemoryDescription(pictureId) {
+  if (!state.user || state.user.role !== 'admin') return;
+  const album = programMemoryPhotos.find(x=>String(x.id)===String(pictureId));
+  if (!album) return;
+  const description = prompt(programMemoryText('Edit penerangan event:','Edit event description:'), album.text || '');
+  if (description === null) return;
+  try {
+    const result = await driveAPI('updateProgramPictureDescription',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId),description});
+    if (!result?.ok) throw new Error(result?.error || 'Update failed.');
+    await loadProgramMemory(true);
+    toast(programMemoryText('Penerangan dikemaskini.','Description updated.'),'ok');
+  } catch(err) { toast(err.message || 'Update failed.','bad'); }
+}
+
+async function deleteProgramMemoryAlbum(pictureId) {
+  if (!state.user || state.user.role !== 'admin') return;
+  if (!confirm(programMemoryText('Padam semua gambar dalam album event ini? Tindakan ini tidak boleh dibatalkan.','Delete every photo in this event album? This cannot be undone.'))) return;
+  try {
+    const result = await driveAPI('deleteProgramPicture',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId)});
+    if (!result?.ok) throw new Error(result?.error || 'Delete failed.');
+    await loadProgramMemory(true);
+    toast(programMemoryText('Album berjaya dipadam.','Album deleted.'),'ok');
+  } catch(err) { toast(err.message || 'Delete failed.','bad'); }
 }
 
 document.addEventListener('change', e => {
   if (e.target && e.target.id === 'programMemoryFile') {
-    handleProgramMemoryFiles(e.target.files);
+    const caption = document.getElementById('programMemoryCaption')?.value || '';
+    handleProgramMemoryFiles(e.target.files, caption);
     e.target.value = '';
   }
 });
@@ -6885,6 +6958,44 @@ function finalPracticalRubricPrintHTML(feid,pid) {
     return `<section class="page"><header><b>CFTP · FINAL EXAMINATION</b><h1>FINAL EXAM PRACTICAL RUBRIC</h1><h2>${esc(fe.title)}</h2><p>${esc(feModulesLabel(fe))} · ${esc(rb.name)}</p></header><div class="person"><div><small>PARTICIPANT</small><b>${esc(p.name||'')}</b></div><div><small>PARTICIPANT ID</small><b>${esc(p.id)}</b></div><div><small>ORGANISATION</small><b>${esc(p.org||'—')}</b></div><div><small>DATE</small><b>________________</b></div></div><table><thead><tr><th>CRITERION</th><th>PERFORMANCE LEVEL / DESCRIPTOR</th><th>MARK</th></tr></thead><tbody>${rows}</tbody></table><div class="total">OVERALL MARK: <b>${pr?Number(pr.total).toFixed(1)+'%':'________ %'}</b></div><p>Trainer / Facilitator remarks:</p><div class="remarks">${esc(pr?.remarks||'')}</div><div class="sign">_________________________ Trainer / Facilitator <span>_________________________ Participant</span></div><footer>Printed ${esc(new Date().toLocaleString())} · ${idx+1}/${cohort.length}</footer></section>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>Final Exam Rubric</title><style>@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:11px Arial;color:#26352e}.page{page-break-after:always;break-after:page;min-height:270mm;position:relative}.page:last-child{page-break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px;color:#0b6b53}h1{font-size:19px;margin:6px 0}h2{font-size:14px;margin:0;color:#26352e}header p,.muted{color:#687a72;font-size:9px}.person{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:7px;margin:12px 0}.person div{border:1px solid #ccd9d2;padding:8px;min-height:42px}.person small{display:block;font-size:8px;color:#687a72}.person b{font-size:10px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left}.level{padding:4px;border-bottom:1px dotted #ddd}.mark{float:right;font-weight:bold}.score{text-align:center;font-size:15px;font-weight:bold}.total{margin-top:12px;padding:12px;text-align:right;background:#f1f8f4;border:1px solid #b9cfc3}.total b{font-size:17px;color:#0b6b53}.remarks{border:1px solid #cbd8d1;min-height:45px;padding:8px}.sign{display:flex;justify-content:space-between;margin-top:24px;font-size:9px}footer{position:absolute;bottom:0;border-top:1px solid #ddd;width:100%;padding-top:5px;font-size:8px;color:#777}
+
+/* Program Memories — layout adapted directly from the supplied standalone HTML, scoped inside the right content panel */
+.pm-social-page{width:100%;min-width:0;background:#f1f5f9;color:#1e293b;border-radius:14px;padding:22px 14px 30px;font-family:Inter,Arial,sans-serif}
+.pm-social-container{width:min(100%,672px);margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.pm-social-composer,.pm-social-post,.pm-social-empty{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.06);overflow:hidden}
+.pm-social-composer{padding:17px 18px 12px}.pm-social-profile{display:flex;align-items:center;gap:12px;padding-bottom:13px;border-bottom:1px solid #f1f5f9}.pm-social-profile>div:last-child{display:flex;flex-direction:column;gap:3px}.pm-social-profile strong{font-size:.9rem}.pm-social-profile span{font-size:.72rem;color:#64748b}
+.pm-social-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:#dcefe6;color:#08734e;font-weight:800;font-size:1rem}.pm-social-avatar-small{width:40px;height:40px;font-size:.9rem}
+.pm-social-prompt{width:100%;text-align:left;margin-top:14px;border:0;border-radius:24px;background:#f1f5f9;color:#64748b;padding:13px 17px;cursor:pointer;font-size:.9rem}.pm-social-prompt:hover{background:#e8edf3}
+.pm-social-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #f1f5f9;margin-top:14px;padding-top:10px;flex-wrap:wrap}.pm-social-tools button{border:0;background:transparent;padding:9px 12px;border-radius:9px;color:#475569;font-weight:650;cursor:pointer}.pm-social-tools button:hover,.pm-social-actions button:hover{background:#f1f5f9}.pm-green{color:#059669;font-size:1.15rem;margin-right:5px}.pm-amber{color:#d97706;font-size:1.1rem;margin-right:5px}.pm-social-hint,.pm-social-upload-note small{font-size:.72rem;color:#94a3b8}.pm-social-upload-note{padding-top:5px}.pm-social-vip{padding-top:12px;color:#64748b;font-size:.8rem}
+.pm-social-feed{display:flex;flex-direction:column;gap:17px}.pm-social-post-head{display:flex;align-items:center;gap:11px;padding:15px 16px 10px}.pm-social-author{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.pm-social-author strong{font-size:.9rem;color:#1e293b}.pm-social-author span{font-size:.7rem;color:#94a3b8}.pm-social-more{border:0;background:transparent;color:#64748b;font-weight:800;padding:8px 11px;border-radius:50%;cursor:pointer}.pm-social-caption{padding:4px 16px 13px;font-size:.9rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;color:#334155}
+.pm-social-stats{display:flex;justify-content:space-between;gap:8px;padding:10px 15px;color:#64748b;font-size:.73rem;border-bottom:1px solid #e2e8f0}.pm-social-actions{display:flex;align-items:center;justify-content:space-around;gap:5px;padding:7px 10px;border-bottom:1px solid #e2e8f0}.pm-social-actions>button{border:0;background:transparent;border-radius:9px;padding:8px 10px;color:#475569;font-size:.78rem;font-weight:650;cursor:pointer}.pm-social-reactions{display:flex;gap:2px;flex-wrap:wrap}.pm-social-reactions button{border:0;background:transparent;border-radius:8px;padding:6px;font-size:.8rem;cursor:pointer}.pm-social-reactions button:hover{background:#f1f5f9}
+.pm-social-comments{padding:11px 15px 14px;background:#f8fafc}.pm-social-comment{display:flex;align-items:flex-start;gap:8px;padding:5px 0}.pm-comment-avatar{width:29px;height:29px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;background:#dcefe6;color:#08734e;font-size:.72rem;font-weight:800}.pm-social-comment>div:last-child{min-width:0}.pm-comment-bubble{background:#e9eef4;border-radius:14px;padding:8px 11px;display:inline-block;max-width:100%}.pm-comment-bubble strong{font-size:.72rem;color:#334155}.pm-comment-bubble p{font-size:.8rem;color:#475569;margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.pm-social-comment small{display:block;color:#94a3b8;font-size:.65rem;padding:3px 8px}.pm-social-comment-form{display:flex;align-items:center;gap:8px;padding-top:10px}.pm-social-comment-form .pm-social-avatar{width:32px;height:32px;font-size:.75rem}.pm-social-comment-form input{flex:1;min-width:0;border:1px solid #e2e8f0;border-radius:24px;background:#fff;padding:9px 14px;font-size:.8rem;outline:none}.pm-social-comment-form input:focus{border-color:#60a5fa;box-shadow:0 0 0 2px #dbeafe}.pm-comment-send{border:0;border-radius:50%;width:34px;height:34px;background:#2563eb;color:#fff;cursor:pointer}.pm-social-admin{padding:0 15px 13px}.pm-social-empty{text-align:center;padding:38px 20px;color:#94a3b8}.pm-empty-icon{font-size:2.2rem;margin-bottom:8px}.pm-social-empty strong{display:block;color:#475569}.pm-social-empty p{font-size:.8rem;margin:5px 0 0}
+@media(max-width:600px){.pm-social-page{padding:12px 6px 22px;border-radius:10px}.pm-social-container{gap:12px}.pm-social-composer{padding:13px}.pm-social-post-head{padding:12px}.pm-social-stats{font-size:.66rem}.pm-social-actions{flex-wrap:wrap}.pm-social-actions>button{padding:7px}.pm-social-hint{flex-basis:100%;padding-left:8px}}
+
+/* Facebook-inspired Program Memories feed, adapted to the existing CFTP data/API */
+.memory-feed-shell{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.memory-feed-composer,.memory-feed-post,.memory-feed-empty{background:#fff;border:1px solid #e1e5e9;border-radius:14px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
+.memory-feed-composer{padding:15px 16px 10px}
+.memory-feed-composer-top{display:flex;align-items:center;gap:11px;padding-bottom:13px}
+.memory-feed-avatar{width:42px;height:42px;border-radius:50%;background:#e8f1ec;color:#176b50;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
+.memory-feed-avatar-small{width:40px;height:40px;font-size:.9rem}
+.memory-feed-prompt{flex:1;text-align:left;border:0;border-radius:24px;background:#f0f2f5;padding:12px 16px;color:#65676b;cursor:pointer;font-size:.92rem}
+.memory-feed-prompt:hover{background:#e7e9ec}
+.memory-feed-actions{border-top:1px solid #edf0f2;padding-top:9px;display:flex;justify-content:space-around;gap:8px}
+.memory-feed-actions button{border:0;background:transparent;padding:9px 12px;border-radius:8px;color:#606770;font-weight:650;cursor:pointer}
+.memory-feed-actions button:hover{background:#f2f3f5}.memory-feed-actions button span{font-size:1.1rem;color:#269b69;margin-right:5px}
+.memory-feed-upload-box{padding-top:8px}.memory-feed-upload-box>small{display:block;font-size:.75rem}.memory-feed-vip-note{font-size:.78rem;color:var(--muted);padding-top:9px}
+.memory-feed-posts{display:flex;flex-direction:column;gap:15px}.memory-feed-post-head{display:flex;align-items:center;gap:10px;padding:14px 15px 9px}
+.memory-feed-author{display:flex;flex-direction:column;gap:3px;min-width:0}.memory-feed-author strong{font-size:.9rem;color:#242526}.memory-feed-author span{font-size:.72rem;color:#65676b}
+.memory-feed-caption{padding:4px 15px 12px;font-size:.92rem;white-space:pre-wrap;overflow-wrap:anywhere;color:#242526}
+.memory-feed-post .memory-collage{margin:0;border-radius:0}.memory-feed-stats{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;color:#65676b;font-size:.76rem;border-bottom:1px solid #e4e6eb}
+.memory-feed-actionbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid #e4e6eb;color:#65676b;font-size:.8rem;font-weight:650}
+.memory-feed-actionbar .memory-reactions{margin:0}.memory-feed-actionbar .memory-reactions button{border:0;background:transparent;padding:5px 7px;font-size:.85rem}.memory-feed-actionbar .memory-reactions button:hover{background:#f0f2f5}
+.memory-feed-comments{padding:8px 14px 13px;background:#fff}.memory-feed-comments .memory-comment{border:0;padding:7px 0}.memory-feed-comments .memory-comment>div{display:inline-block;background:#f0f2f5;border-radius:14px;padding:8px 11px;margin-top:3px}
+.memory-feed-comments .memory-comment-form{padding-top:8px}.memory-feed-comments .memory-comment-form input{border-radius:22px;background:#f0f2f5;border:1px solid #edf0f2;padding:9px 13px}
+.memory-feed-admin{padding:0 14px 12px}.memory-feed-empty{text-align:center;padding:36px 20px;color:#65676b}.memory-feed-empty-icon{font-size:2rem;color:#8b9a92;margin-bottom:8px}.memory-feed-empty strong{display:block;color:#343a40}.memory-feed-empty p{font-size:.82rem;margin:5px 0 0}
+@media(max-width:600px){.memory-feed-shell{margin:0 -4px}.memory-feed-composer,.memory-feed-post,.memory-feed-empty{border-radius:10px}.memory-feed-stats{font-size:.69rem}.memory-feed-actionbar{flex-wrap:wrap}}
+
 /* Programme Memory Gallery — additive UI */
 .memory-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .memory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
@@ -6901,8 +7012,33 @@ function finalPracticalRubricPrintHTML(feid,pid) {
 .memory-comment-form{display:flex;gap:6px;margin-top:8px}
 .memory-comment-form input{min-width:0;flex:1}
 .memory-upload-box{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.memory-upload-progress{flex:1 1 100%;min-width:220px;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff)}
+.memory-upload-progress
+.memory-upload-progress-head{display:flex;justify-content:space-between;gap:12px;font-size:.86rem;margin-bottom:7px}
+.memory-upload-track{height:9px;border-radius:99px;background:var(--line);overflow:hidden}
+.memory-upload-bar{height:100%;width:0;background:var(--brand);border-radius:99px;transition:width .2s ease}
+.memory-upload-bar.is-indeterminate{background:linear-gradient(90deg,var(--brand) 0%,#8cc9b4 50%,var(--brand) 100%);background-size:200% 100%;animation:memoryUploadPulse 1.2s linear infinite}
+.memory-upload-progress .muted{display:block;font-size:.76rem;margin-top:6px;overflow-wrap:anywhere}
+@keyframes memoryUploadPulse{from{background-position:100% 0}to{background-position:-100% 0}}
 @media(max-width:600px){.memory-grid{grid-template-columns:1fr}.memory-photo{max-height:300px}.memory-comment-form{flex-direction:column}}
 
+
+.memory-collage{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(3,minmax(82px,1fr));height:270px;gap:3px;overflow:hidden;background:#e8efec}
+.memory-collage a{position:relative;display:block;min-width:0;min-height:0;overflow:hidden}
+.memory-collage .memory-photo{width:100%;height:100%;max-height:none;object-fit:cover;display:block}
+.memory-collage a:first-child:nth-last-child(1){grid-column:1/-1;grid-row:1/-1}
+.memory-collage a:first-child:nth-last-child(2){grid-column:1/4;grid-row:1/-1}
+.memory-collage a:first-child:nth-last-child(2)~a{grid-column:4/-1;grid-row:1/-1}
+.memory-collage a:first-child:nth-last-child(3){grid-column:1/5;grid-row:1/3}
+.memory-collage a:first-child:nth-last-child(3)~a{grid-column:5/-1}
+.memory-collage a:first-child:nth-last-child(3)~a:nth-of-type(2){grid-row:2/4}
+.memory-collage a:first-child:nth-last-child(n+4){grid-column:span 2;grid-row:auto}
+.memory-collage a:first-child:nth-last-child(n+4):first-child{grid-column:1/5;grid-row:1/3}
+.memory-collage a:first-child:nth-last-child(n+4):nth-child(2){grid-column:5/7;grid-row:1/2}
+.memory-collage a:first-child:nth-last-child(n+4):nth-child(3){grid-column:5/7;grid-row:2/3}
+.memory-collage a:first-child:nth-last-child(n+4):nth-child(n+4){grid-row:3/4}
+.memory-more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff;font-size:1.6rem;font-weight:800}
+@media(max-width:600px){.memory-collage{height:220px;grid-template-rows:repeat(3,minmax(65px,1fr))}}
 </style></head><body>${pages}</body></html>`;
 }
 function printFinalPracticalRubric(feid,pid){try{printHTML(finalPracticalRubricPrintHTML(feid,pid||null));}catch(e){toast('⚠️ '+e.message,'bad');}}
@@ -7172,6 +7308,50 @@ function handleBulkEnroll(form) {
 /* =========================================================
    ACTIVITIES
    ========================================================= */
+function quizPendingParticipants(activity) {
+  if (!activity || isPracticalActivityMethod(activity.method) || !(activity.quiz || []).length) return [];
+  return enrolledParticipants(activity.moduleId)
+    .map(row => row.user)
+    .filter(user => user && user.role === 'participant' && !getLatestAttempt(activity.id, user.id));
+}
+
+function quizReminderMarkup(participantId) {
+  const pending = (DB.quizReminders || []).filter(item =>
+    String(item.participantId) === String(participantId) &&
+    getActivity(item.activityId) &&
+    !getLatestAttempt(item.activityId, participantId)
+  ).sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  if (!pending.length) return '';
+  return `<div class="card" style="border-color:#f0d98a;background:#fffdf5;margin-bottom:16px"><div class="card-head"><h2>🔔 ${currentLang === 'en' ? 'Quiz reminders' : 'Peringatan Quiz'}</h2><span class="badge warn">${pending.length}</span></div>${pending.map(item => {
+    const activity = getActivity(item.activityId);
+    return `<div class="pending-quiz-card"><div><div class="pq-title">📝 ${tce(activity.title)}</div><div class="pq-meta">${tce(moduleName(activity.moduleId))} · ${currentLang === 'en' ? 'Reminder from' : 'Peringatan daripada'} ${tce(userName(item.senderId))} · ${fmtDateTime(item.createdAt)}</div><div class="pq-meta">${tce(item.message || (currentLang === 'en' ? 'Please complete this quiz.' : 'Sila jawab quiz ini.'))}</div></div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${esc(activity.id)}">${currentLang === 'en' ? 'Answer quiz' : 'Jawab quiz'} →</button></div>`;
+  }).join('')}</div>`;
+}
+
+async function sendQuizReminder(activityId) {
+  const activity = getActivity(activityId);
+  if (!activity || !['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
+  if (state.user.role !== 'admin' && !canTrainerAccessActivity(activityId)) { toast(t('msg_no_access'),'bad'); return; }
+  if (isPracticalActivityMethod(activity.method) || !(activity.quiz || []).length) { toast(currentLang === 'en' ? 'This activity has no quiz.' : 'Aktiviti ini tiada quiz.','warn'); return; }
+  const pending = quizPendingParticipants(activity);
+  if (!pending.length) { toast(currentLang === 'en' ? 'All enrolled participants have answered this quiz.' : 'Semua peserta berdaftar telah menjawab quiz ini.','ok'); return; }
+  const message = currentLang === 'en' ? 'Please complete the quiz for this activity.' : 'Sila jawab quiz bagi aktiviti ini.';
+  if (!confirm((currentLang === 'en' ? 'Send a reminder to ' : 'Hantar peringatan kepada ') + pending.length + (currentLang === 'en' ? ' participant(s) who have not answered yet?' : ' peserta yang belum menjawab quiz?'))) return;
+  if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
+  const now = nowISO();
+  pending.forEach(person => {
+    const existing = DB.quizReminders.find(item => String(item.activityId) === String(activity.id) && String(item.participantId) === String(person.id));
+    if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = now; existing.readAt = null; }
+    else DB.quizReminders.push({ id:uid('qrem'), activityId:activity.id, moduleId:activity.moduleId, participantId:person.id, senderId:state.user.id, message, createdAt:now, readAt:null });
+  });
+  saveDB();
+  const saved = await forceSaveNow();
+  if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan belum berjaya disegerakkan. Sila cuba Sync semula.','bad'); return; }
+  logAudit('Send Quiz Reminder','Quiz',activity.id,`${pending.length} participant(s) reminded`);
+  toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s).` : `Peringatan dihantar kepada ${pending.length} peserta.`,'ok');
+  render();
+}
+
 function activitiesView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
@@ -7214,6 +7394,7 @@ function activitiesView() {
           ${isVip ? '' : (canCreate ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : '')}
           ${canCreate ? `<button class="btn btn-sm" data-act="print-activity-master" data-id="${a.id}" title="${currentLang === 'en' ? 'Print activity master paper' : 'Cetak master aktiviti'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}
           ${!isVip && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
+          ${canCreate && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind participants who have not answered' : 'Ingatkan peserta yang belum menjawab'}">🔔 ${quizPendingParticipants(a).length}</button>` : ''}
           ${isVip ? '' : (canCreate ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : '')}
           ${isVip || !practical ? '' : `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>`}
           ${isVip ? '' : (canCreate ? `${!practical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}<button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : '')}
@@ -7347,7 +7528,7 @@ function participantActivitiesView() {
   const me = state.user;
   const acts = accessibleActivities(me.id);
   if (!acts.length) return `<div class="card"><div class="empty">${t('msg_no_activity')} <button class="btn btn-primary btn-sm" data-act="nav" data-view="programs" style="margin-left:8px">${t('nav_programs')}</button></div></div>`;
-  return `<div class="card"><div class="card-head"><h2>${t('title_activities_mine')}</h2><span class="muted">${acts.length}</span></div>${acts.map(a => { const s = scoreFor(a, me.id); return `<div class="card" style="margin-bottom:14px;box-shadow:none"><div class="card-head"><div><h3 style="margin-bottom:2px">${tce(a.title)}</h3><small class="muted">${tce(moduleName(a.moduleId))} · ${fmtDate(a.date)}</small></div>${badgeStatus(s.overall)}</div><p>${tce(a.objectives)}</p><div class="toolbar" style="margin-bottom:10px"><span class="pill">${t('lbl_quiz')}: ${quizBadge(a, me.id).replace(/<[^>]+>/g, '')}</span><span class="pill">${t('lbl_practical')}: ${practicalBadge(a, me.id).replace(/<[^>]+>/g, '')}</span>${a.quizDuration ? `<span class="pill">⏱️ ${a.quizDuration} ${t('lbl_minutes')}</span>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>`;
+  return `${quizReminderMarkup(me.id)}<div class="card"><div class="card-head"><h2>${t('title_activities_mine')}</h2><span class="muted">${acts.length}</span></div>${acts.map(a => { const s = scoreFor(a, me.id); return `<div class="card" style="margin-bottom:14px;box-shadow:none"><div class="card-head"><div><h3 style="margin-bottom:2px">${tce(a.title)}</h3><small class="muted">${tce(moduleName(a.moduleId))} · ${fmtDate(a.date)}</small></div>${badgeStatus(s.overall)}</div><p>${tce(a.objectives)}</p><div class="toolbar" style="margin-bottom:10px"><span class="pill">${t('lbl_quiz')}: ${quizBadge(a, me.id).replace(/<[^>]+>/g, '')}</span><span class="pill">${t('lbl_practical')}: ${practicalBadge(a, me.id).replace(/<[^>]+>/g, '')}</span>${a.quizDuration ? `<span class="pill">⏱️ ${a.quizDuration} ${t('lbl_minutes')}</span>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>`;
 }
 
 function vipActivityDetailView(act) {
@@ -7429,7 +7610,7 @@ function activityDetailView() {
     ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2><span class="badge ${pWindow.state === 'closed' ? 'bad' : 'draft'}">${pWindow.state === 'closed' ? t('status_closed') : t('status_not_open')}</span></div><div class="info-box warn"><h4>🕐 ${pWindow.state === 'closed' ? t('practical_closed') : t('practical_not_open')}</h4><p style="margin:0">${pWindow.state === 'not-open' && act.practicalOpenAt ? fmtDT(act.practicalOpenAt) : (act.practicalCloseAt ? fmtDT(act.practicalCloseAt) : '')}</p></div></div>`
     : `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📏 ${t('act_practical_criteria')}</h2>${rubricObj ? `<span class="badge ${rubricObj.approvalStatus === 'approved' ? 'info' : 'warn'}">${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : ''}</div><div class="info-box warn"><h4>🕐 ${t('act_practical_wait', fmtDate(act.date))}</h4><p style="margin:0">${t('act_practical_eval_hint')}</p></div><div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td><small class="muted">${c.levels.map(l => `${tce(l.label)} (${l.mark})`).join(' · ')}</small></td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div></div>`) : '';
   const pracSection = ''; // Practical Test results are displayed in the dedicated participant tab.
-  return `<div class="card"><div class="card-head"><div><h2>${tce(act.title)}</h2><small class="muted">📦 ${tce(moduleName(act.moduleId))} · 👤 ${tce(userName(act.trainerId))}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="activities">←</button>${canEdit ? `<button class="btn btn-sm ${act.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${act.id}">${act.published ? '🚫 ' + t('btn_unpublish') : '✅ ' + t('btn_publish')}</button><button class="btn btn-sm" data-act="edit-activity" data-id="${act.id}">✏️</button>` : ''}${canEditRubric && isPracticalActivityMethod(act.method) ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${act.id}">📏</button>` : ''}${canEdit && !isPracticalActivityMethod(act.method) ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️</button>` : ''}</div></div>${canEdit && !act.published ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p style="margin:0">${t('act_publish_warn')}</p></div>` : ''}<div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_date')}</div><div class="v">${fmtDate(act.date)}</div></div><div class="meta-item"><div class="k">${t('lbl_duration')}</div><div class="v">${act.duration} ${t('lbl_hours')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${act.published ? '✅ ' + t('lbl_published') : '⚠️ ' + t('lbl_draft')}</div></div><div class="meta-item"><div class="k">${t('lbl_quiz')}</div><div class="v">${(act.quiz||[]).length}${act.quizDuration ? ` · ⏱️ ${act.quizDuration}m` : ''}</div></div></div><h3>${t('act_objectives')}</h3><p>${tce(act.objectives)}</p><h3>${t('act_instructions')}</h3><p>${tce(act.instructions)}</p><h3>${t('act_materials')}</h3><p>${tce(act.materials)}</p>${isPracticalActivityMethod(act.method) ? `<h3>${t('act_rubric_section')} ${rubricObj ? `<small class="muted" style="font-weight:400">— ${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳ ' + t('rb_pending_approval') : ''}</small>` : ''}</h3>${rubric.length ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td>${c.levels.map(l => `<span class="badge draft" style="margin-right:4px">${tce(l.label)} (${l.mark})</span>`).join('')}</td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted">${t('act_rubric_none_hint')}</p>`}` : ''}</div>
+  return `<div class="card"><div class="card-head"><div><h2>${tce(act.title)}</h2><small class="muted">📦 ${tce(moduleName(act.moduleId))} · 👤 ${tce(userName(act.trainerId))}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="activities">←</button>${canEdit ? `<button class="btn btn-sm ${act.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${act.id}">${act.published ? '🚫 ' + t('btn_unpublish') : '✅ ' + t('btn_publish')}</button><button class="btn btn-sm" data-act="edit-activity" data-id="${act.id}">✏️</button>` : ''}${canEditRubric && !isPracticalActivityMethod(act.method) && (act.quiz||[]).length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${act.id}">🔔 ${currentLang === 'en' ? 'Remind pending' : 'Ingatkan belum jawab'} (${quizPendingParticipants(act).length})</button>` : ''}${canEditRubric && isPracticalActivityMethod(act.method) ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${act.id}">📏</button>` : ''}${canEdit && !isPracticalActivityMethod(act.method) ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️</button>` : ''}</div></div>${canEdit && !act.published ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p style="margin:0">${t('act_publish_warn')}</p></div>` : ''}<div class="meta-grid"><div class="meta-item"><div class="k">${t('lbl_date')}</div><div class="v">${fmtDate(act.date)}</div></div><div class="meta-item"><div class="k">${t('lbl_duration')}</div><div class="v">${act.duration} ${t('lbl_hours')}</div></div><div class="meta-item"><div class="k">${t('lbl_status')}</div><div class="v">${act.published ? '✅ ' + t('lbl_published') : '⚠️ ' + t('lbl_draft')}</div></div><div class="meta-item"><div class="k">${t('lbl_quiz')}</div><div class="v">${(act.quiz||[]).length}${act.quizDuration ? ` · ⏱️ ${act.quizDuration}m` : ''}</div></div></div><h3>${t('act_objectives')}</h3><p>${tce(act.objectives)}</p><h3>${t('act_instructions')}</h3><p>${tce(act.instructions)}</p><h3>${t('act_materials')}</h3><p>${tce(act.materials)}</p>${isPracticalActivityMethod(act.method) ? `<h3>${t('act_rubric_section')} ${rubricObj ? `<small class="muted" style="font-weight:400">— ${tce(rubricObj.name)}${rubricObj.approvalStatus !== 'approved' ? ' ⏳ ' + t('rb_pending_approval') : ''}</small>` : ''}</h3>${rubric.length ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>${t('rb_col_name')}</th><th>Level</th><th style="text-align:right">${t('rb_weights')}</th></tr></thead><tbody>${rubric.map((c, i) => `<tr><td>${i+1}</td><td><strong>${tce(c.name)}</strong></td><td>${c.levels.map(l => `<span class="badge draft" style="margin-right:4px">${tce(l.label)} (${l.mark})</span>`).join('')}</td><td style="text-align:right"><strong>${c.weight}%</strong></td></tr>`).join('')}</tbody></table></div>` : `<p class="muted">${t('act_rubric_none_hint')}</p>`}` : ''}</div>
   ${mod && (mod.materials||[]).length ? `<div class="card" style="background:#fbfdfc"><div class="card-head"><h2>📎 ${t('act_module_materials')}</h2><span class="badge info">${mod.materials.length}</span></div><p class="muted" style="font-size:.85rem">${t('act_module_materials_hint')} <strong>${tce(mod.name)}</strong></p><div class="material-list">${mod.materials.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type)}</div><div class="mat-body"><div class="mat-name">${tce(mat.name)}</div><div class="mat-meta">${fileTypeLabel(mat.type)}${mat.size ? ' · ' + formatFileSize(mat.size) : ''} · ${fmtDate(mat.uploadedAt)}${mat.fileId ? ' · ☁️ Drive' : ''}</div></div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${mod.id}" data-matid="${mat.id}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${mod.id}" data-matid="${mat.id}">⬇️</button></div></div>`).join('')}</div></div>` : ''}
   ${quizSection}${pracInfo}${pracSection}`;
 }
@@ -8235,7 +8416,16 @@ function practicalRubricPrintHTML(aid, onlyPid) {
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>Practical Assessment Rubric</title><style>
   @page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#26352e;margin:0}.rubric-page{page-break-after:always;break-after:page;min-height:265mm;position:relative}.rubric-page:last-child{page-break-after:auto;break-after:auto}header{border-bottom:3px solid #0b6b53;padding-bottom:10px;margin-bottom:14px}.brand{font-size:9px;letter-spacing:2px;font-weight:bold;color:#0b6b53}h1{font-size:18px;color:#0b6b53;margin:5px 0}h2{font-size:14px;margin:0 0 3px}header p{margin:0;color:#657b74}.participant{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:8px;margin:12px 0}.participant>div{border:1px solid #ccd9d2;border-radius:5px;padding:8px;min-height:43px}.participant small{display:block;font-size:8px;color:#657b74;margin-bottom:4px}.participant b{font-size:10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd8d1;padding:7px;vertical-align:top}th{background:#eaf3ee;text-align:left;font-size:9px}.level{padding:4px 2px;border-bottom:1px dotted #d8e1dc;min-height:25px}.level:last-child{border:0}.tick{font-size:15px;margin-right:5px}.mark{float:right;font-weight:bold;background:#edf4f0;padding:1px 5px;border-radius:3px}.muted{font-size:9px;color:#6b7771}.scorebox{font-size:15px;text-align:center;font-weight:bold}.total{display:flex;justify-content:flex-end;gap:25px;align-items:center;padding:12px;border:1px solid #b9cfc3;background:#f4faf6;margin-top:10px}.total b{font-size:17px;color:#0b6b53}.remarks{margin-top:14px}.remarks>div{height:48px;border:1px solid #cbd8d1;margin-top:5px;padding:6px}.signatures{display:flex;justify-content:space-between;margin-top:25px;text-align:center;font-size:9px}footer{position:absolute;bottom:0;left:0;right:0;border-top:1px solid #dce5df;padding-top:5px;color:#7a867f;font-size:8px}@media print{.rubric-page{min-height:270mm}}
-  </style></head><body>${pages}</body></html>`;
+  
+.memory-collage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:170px;gap:3px;overflow:hidden;background:#e8efec}
+.memory-collage a{position:relative;display:block;min-width:0;min-height:0;overflow:hidden}
+.memory-collage .memory-photo{width:100%;height:100%;max-height:none;object-fit:cover;display:block}
+.memory-collage a:first-child:nth-last-child(1){grid-column:1/-1;grid-row:1/3}
+.memory-collage a:first-child:nth-last-child(2){grid-row:1/3}
+.memory-collage a:first-child:nth-last-child(3){grid-row:1/3}
+.memory-more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff;font-size:1.6rem;font-weight:800}
+@media(max-width:600px){.memory-collage{grid-auto-rows:135px}}
+</style></head><body>${pages}</body></html>`;
 }
 function printPracticalRubric(aid,pid) {
   try { printHTML(practicalRubricPrintHTML(aid,pid||null)); }
@@ -9345,7 +9535,12 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'memory-comment': submitProgramMemoryComment(tgt.dataset.pid); break;
+    case 'memory-edit-description': editProgramMemoryDescription(tgt.dataset.pid); break;
+    case 'memory-delete': deleteProgramMemoryAlbum(tgt.dataset.pid); break;
     case 'memory-react': submitProgramMemoryReaction(tgt.dataset.pid, tgt.dataset.reaction); break;
+    case 'memory-open-image': { const url = tgt.dataset.url || ''; if (url) window.open(url, '_blank', 'noopener'); break; }
+    case 'memory-focus-comment': document.getElementById('memoryComment-' + tgt.dataset.pid)?.focus(); break;
+    case 'memory-share': { const url = location.href.split('#')[0] + '#pm-post-' + tgt.dataset.pid; const post = programMemoryPhotos.find(x=>String(x.id)===String(tgt.dataset.pid)); const shareData = {title:programMemoryText('Kenangan Program CFTP','CFTP Program Memory'),text:String(post?.text || programMemoryText('Lihat kenangan program ini.','View this programme memory.')),url}; if (navigator.share) { navigator.share(shareData).then(()=>{}).catch(err=>{ if (err?.name !== 'AbortError') copyProgramMemoryLink(url); }); } else copyProgramMemoryLink(url); break; }
     case 'system-info-add': openSystemInformationModal(); break;
     case 'system-info-edit': openSystemInformationModal(tgt.dataset.id); break;
     case 'system-info-delete': deleteSystemInformation(tgt.dataset.id); break;
@@ -9455,6 +9650,7 @@ document.addEventListener('click', async (e) => {
       }
       break;
     }
+    case 'send-quiz-reminder': await sendQuizReminder(id); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
