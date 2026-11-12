@@ -4719,7 +4719,7 @@ function programMemoryView() {
   }).join('');
   return `<div class="bg-slate-100 text-slate-800 min-h-full py-6 px-3 sm:px-4" style="font-family:Inter,Arial,sans-serif"><div class="max-w-2xl mx-auto space-y-6">
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5"><div class="flex items-center gap-3 pb-3 border-b border-slate-100">${avatar}<div><h2 class="font-bold text-slate-800 text-sm sm:text-base">${tce(displayName)}</h2><span class="inline-flex items-center gap-1 text-xs text-slate-500 font-medium"><i class="fa-solid fa-earth-americas"></i> Awam</span></div></div>
-    ${!vip?`<div class="mt-4 space-y-3"><textarea id="programMemoryCaption" rows="3" maxlength="1000" placeholder="Tulis penerangan untuk gambar yang ingin dimuat naik..." class="w-full resize-y border-0 rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base p-3"></textarea><div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600"><button type="button" data-act="memory-upload-trigger" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-600"><i class="fa-regular fa-image text-lg"></i><span>Foto / Video</span></button><button type="button" data-act="memory-refresh" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-blue-50 text-blue-600"><i class="fa-solid fa-rotate"></i><span>Muat semula</span></button></div><input type="file" id="programMemoryFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden><small class="text-xs text-slate-400">Isi penerangan di atas, kemudian pilih gambar. Maksimum 8 MB setiap gambar; satu penerangan digunakan untuk semua gambar album.</small><div id="programMemoryUploadProgress" class="memory-upload-progress" aria-live="polite"><div class="memory-upload-progress-head"><strong id="programMemoryUploadTitle">Sedia untuk muat naik</strong><span id="programMemoryUploadPercent">0%</span></div><div class="memory-upload-track"><div id="programMemoryUploadBar" class="memory-upload-bar" style="width:0%"></div></div><div id="programMemoryUploadDetail" class="muted">Pilih Foto / Video untuk melihat kemajuan muat naik di sini.</div></div></div>`:`<div class="pt-3 text-xs text-slate-500">👁️ Akaun VIP boleh melihat kenangan, memberi reaksi dan membaca komen.</div>`}</div>
+    ${!vip?`<div class="mt-4 space-y-3"><textarea id="programMemoryCaption" rows="3" maxlength="1000" placeholder="Tulis penerangan untuk gambar yang ingin dimuat naik..." class="w-full resize-y border-0 rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base p-3"></textarea><div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600"><button type="button" data-act="memory-upload-trigger" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-600"><i class="fa-regular fa-image text-lg"></i><span>Foto / Video</span></button><button type="button" data-act="memory-refresh" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-blue-50 text-blue-600"><i class="fa-solid fa-rotate"></i><span>Muat semula</span></button></div><input type="file" id="programMemoryFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden><small class="text-xs text-slate-400">Isi penerangan di atas, kemudian pilih gambar. Maksimum 8 MB setiap gambar; satu penerangan digunakan untuk semua gambar album.</small><div id="programMemoryUploadProgress" class="memory-upload-progress" aria-live="polite" hidden><div class="memory-upload-visual"><div class="memory-upload-picture"><i class="fa-regular fa-image"></i><span class="memory-upload-cloud"><i class="fa-solid fa-cloud-arrow-up"></i></span></div><div class="memory-upload-copy"><strong id="programMemoryUploadTitle">Uploading photos...</strong><span id="programMemoryUploadDetail">Please wait while your photos are being uploaded.</span><span class="memory-upload-dots" aria-hidden="true"><i></i><i></i><i></i></span></div></div></div></div>`:`<div class="pt-3 text-xs text-slate-500">👁️ Akaun VIP boleh melihat kenangan, memberi reaksi dan membaca komen.</div>`}</div>
     ${programMemoryLoading?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200">⏳ Memuatkan kenangan...</div>`:''}
     ${!programMemoryLoading&&!photos.length?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200"><i class="fa-regular fa-folder-open text-4xl mb-2"></i><p class="font-semibold text-slate-600">Tiada hantaran lagi.</p><p class="text-xs">Jadilah yang pertama berkongsi gambar atau kapsyen!</p></div>`:''}
     <div id="postsFeed" class="space-y-5">${postCards}</div></div></div>`;
@@ -4803,15 +4803,11 @@ function updateProgramMemoryUploadProgress(percent, title, detail, indeterminate
   const panel = document.getElementById('programMemoryUploadProgress');
   if (!panel) return;
   panel.hidden = false;
-  const value = Math.max(0, Math.min(100, Number(percent) || 0));
-  const bar = document.getElementById('programMemoryUploadBar');
-  const pct = document.getElementById('programMemoryUploadPercent');
   const heading = document.getElementById('programMemoryUploadTitle');
   const info = document.getElementById('programMemoryUploadDetail');
-  if (bar) { bar.style.width = value + '%'; bar.classList.toggle('is-indeterminate', !!indeterminate); }
-  if (pct) pct.textContent = Math.round(value) + '%';
-  if (heading) heading.textContent = title || '';
-  if (info) info.textContent = detail || '';
+  // Visual-only upload status: deliberately do not display percentages, file counts or numeric progress.
+  if (heading) heading.textContent = programMemoryText('Sedang memuat naik gambar...','Uploading photos...');
+  if (info) info.textContent = programMemoryText('Sila tunggu sementara gambar dihantar ke Google Drive.','Please wait while your photos are uploaded to Google Drive.');
 }
 
 async function handleProgramMemoryFiles(files, suppliedCaption) {
@@ -4830,8 +4826,7 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
   let uploaded = 0, failed = 0, skipped = 0;
   const total = chosen.length;
   updateProgramMemoryUploadProgress(0,
-    programMemoryText('Memulakan muat naik','Starting upload'),
-    programMemoryText('0 daripada '+total+' gambar selesai','0 of '+total+' photos completed'), false);
+    programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
   for (let i = 0; i < total; i++) {
     const file = chosen[i];
     const completedBefore = uploaded + failed + skipped;
@@ -4839,14 +4834,12 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type || '') || file.size <= 0 || file.size > PROGRAM_MEMORY_MAX_BYTES) {
       skipped++;
       updateProgramMemoryUploadProgress((uploaded+failed+skipped)/total*100,
-        programMemoryText('Fail tidak disokong','Unsupported file'),
-        (i+1)+'/'+total+' · '+file.name+' · '+programMemoryText('Format/saiz tidak sah','Invalid format/size'), false);
+        programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
       continue;
     }
     try {
       updateProgramMemoryUploadProgress(basePercent,
-        programMemoryText('Membaca gambar '+(i+1)+'/'+total,'Reading photo '+(i+1)+'/'+total),
-        file.name+' · '+(file.size/1024/1024).toFixed(2)+' MB', true);
+        programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
       const base64 = await new Promise((resolve,reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
@@ -4854,8 +4847,7 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
         reader.readAsDataURL(file);
       });
       updateProgramMemoryUploadProgress(basePercent,
-        programMemoryText('Memuat naik gambar '+(i+1)+'/'+total,'Uploading photo '+(i+1)+'/'+total),
-        file.name+' · '+programMemoryText('Sedang dihantar ke Google Drive...','Sending to Google Drive...'), true);
+        programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
       const result = await driveAPI('uploadProgramPicture', {payload:{
         userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
         albumId, caption:String(caption).slice(0,1000), filename:file.name, mimeType:file.type, size:file.size, base64
@@ -4868,12 +4860,10 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
     }
     const done = uploaded + failed + skipped;
     updateProgramMemoryUploadProgress(done/total*100,
-      done === total ? programMemoryText('Muat naik selesai','Upload complete') : programMemoryText('Kemajuan muat naik','Upload progress'),
-      done+'/'+total+' · '+uploaded+' '+programMemoryText('berjaya','successful')+' · '+failed+' '+programMemoryText('gagal','failed')+' · '+skipped+' '+programMemoryText('dilangkau','skipped'), false);
+      programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
   }
-  updateProgramMemoryUploadProgress(100,
-    programMemoryText('Muat naik selesai','Upload complete'),
-    uploaded+' / '+total+' '+programMemoryText('gambar berjaya dimuat naik','photos uploaded successfully')+(failed ? ' · '+failed+' '+programMemoryText('gagal','failed') : '')+(skipped ? ' · '+skipped+' '+programMemoryText('dilangkau','skipped') : ''), false);
+  const uploadPanel = document.getElementById('programMemoryUploadProgress');
+  if (uploadPanel) uploadPanel.hidden = true;
   if (uploaded) toast(programMemoryText(uploaded+' gambar berjaya dimuat naik dalam satu album.','Uploaded '+uploaded+' photos into one album.') + (failed+skipped ? ' '+(failed+skipped)+' '+programMemoryText('tidak berjaya.','not successful.') : ''),'ok');
   await loadProgramMemory(true);
 }
@@ -7041,14 +7031,20 @@ function finalPracticalRubricPrintHTML(feid,pid) {
 .memory-comment-form{display:flex;gap:6px;margin-top:8px}
 .memory-comment-form input{min-width:0;flex:1}
 .memory-upload-box{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.memory-upload-progress{flex:1 1 100%;min-width:220px;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff)}
-.memory-upload-progress
-.memory-upload-progress-head{display:flex;justify-content:space-between;gap:12px;font-size:.86rem;margin-bottom:7px}
-.memory-upload-track{height:9px;border-radius:99px;background:var(--line);overflow:hidden}
-.memory-upload-bar{height:100%;width:0;background:var(--brand);border-radius:99px;transition:width .2s ease}
-.memory-upload-bar.is-indeterminate{background:linear-gradient(90deg,var(--brand) 0%,#8cc9b4 50%,var(--brand) 100%);background-size:200% 100%;animation:memoryUploadPulse 1.2s linear infinite}
-.memory-upload-progress .muted{display:block;font-size:.76rem;margin-top:6px;overflow-wrap:anywhere}
-@keyframes memoryUploadPulse{from{background-position:100% 0}to{background-position:-100% 0}}
+.memory-upload-progress{flex:1 1 100%;min-width:220px;margin-top:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff)}
+.memory-upload-progress[hidden]{display:none!important}
+.memory-upload-visual{display:flex;align-items:center;justify-content:center;gap:16px;min-height:88px}
+.memory-upload-picture{position:relative;width:68px;height:68px;flex:0 0 68px;border-radius:16px;background:#e8f5ef;color:#16845f;display:flex;align-items:center;justify-content:center;font-size:34px;animation:memoryPhotoFloat 1.8s ease-in-out infinite}
+.memory-upload-cloud{position:absolute;right:-9px;bottom:-5px;width:34px;height:34px;border-radius:50%;background:#16845f;color:#fff;border:3px solid var(--surface,#fff);display:flex;align-items:center;justify-content:center;font-size:15px;animation:memoryCloudBounce 1.1s ease-in-out infinite}
+.memory-upload-copy{display:flex;flex-direction:column;gap:5px;min-width:0}
+.memory-upload-copy strong{font-size:.92rem;color:var(--text,#24352e)}
+.memory-upload-copy span:not(.memory-upload-dots){font-size:.76rem;color:var(--muted,#718078)}
+.memory-upload-dots{display:flex;gap:5px;align-items:center;height:9px}
+.memory-upload-dots i{width:6px;height:6px;border-radius:50%;background:#16845f;animation:memoryUploadDot 1s ease-in-out infinite}
+.memory-upload-dots i:nth-child(2){animation-delay:.15s}.memory-upload-dots i:nth-child(3){animation-delay:.3s}
+@keyframes memoryPhotoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes memoryCloudBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes memoryUploadDot{0%,80%,100%{opacity:.3;transform:scale(.75)}40%{opacity:1;transform:scale(1.15)}}
 @media(max-width:600px){.memory-grid{grid-template-columns:1fr}.memory-photo{max-height:300px}.memory-comment-form{flex-direction:column}}
 
 
