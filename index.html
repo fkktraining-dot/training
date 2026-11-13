@@ -4745,7 +4745,6 @@ function navItemsBase() {
       { v:'final', label:t('nav_final') + (pf ? ` (${pf})` : ''), icon:'🎓' },
       { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
       { v:'reports', label:t('nav_reports'), icon:'📄' },
-      { v:'feedback', label:currentLang === 'en' ? 'Feedback' : 'Maklum Balas', icon:'💬' },
       { v:'profile', label:t('nav_profile'), icon:'👤' }
     ];
   }
@@ -4813,7 +4812,6 @@ function navItemsBase() {
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
-    { v:'feedback', label:currentLang === 'en' ? 'Feedback' : 'Maklum Balas', icon:'💬' },
     { v:'profile', label:t('nav_profile'), icon:'👤' }
   ];
 }
@@ -10840,7 +10838,15 @@ document.addEventListener('click', async (e) => {
     }
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
-    case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
+    case 'logout': {
+      const confirmText = currentLang === 'en'
+        ? 'Are you sure you want to log out?'
+        : 'Adakah anda pasti mahu log keluar?';
+      if (!window.confirm(confirmText)) break;
+      try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {}
+      handleLogoutClick();
+      break;
+    }
     case 'open-final-question-bell': openFinalQuestionBell(); break;
     case 'bell-submit-final-questions': {
       const feid = tgt.dataset.feid, mid = tgt.dataset.mid;
