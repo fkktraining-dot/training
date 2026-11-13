@@ -606,6 +606,121 @@ html, body {
 .shell:not(.admin-shell) .nav{max-height:28vh;min-height:80px}
 }
 
+
+
+/* =========================================================
+   FIXED APP FRAME + INDEPENDENT CONTENT SCROLL
+   Desktop: keep the application frame/sidebar stationary;
+   only the main content area scrolls to its true bottom.
+   Mobile: retain natural page scrolling for usability.
+   ========================================================= */
+@media screen and (min-width: 901px) {
+  html, body {
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden !important;
+  }
+  #app {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .shell,
+  .admin-shell {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0 !important;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  .shell > .sidebar,
+  .admin-shell > .sidebar {
+    position: relative !important;
+    top: auto !important;
+    align-self: stretch !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    max-height: 100vh;
+    max-height: 100dvh;
+    flex: 0 0 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .shell > .main,
+  .admin-shell > .main {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0 !important;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .shell > .main > .topbar,
+  .admin-shell > .main > .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    flex: 0 0 auto;
+  }
+  .shell > .main > #view,
+  .admin-shell > .main > #view {
+    flex: 0 0 auto;
+    min-height: min-content;
+    padding-bottom: max(42px, env(safe-area-inset-bottom));
+  }
+}
+
+@media screen and (max-width: 900px) {
+  html, body {
+    height: auto !important;
+    min-height: 100%;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  #app {
+    height: auto !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible !important;
+  }
+  .shell,
+  .admin-shell {
+    height: auto !important;
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .shell > .sidebar,
+  .admin-shell > .sidebar {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .shell > .main,
+  .admin-shell > .main {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .shell > .main > .topbar,
+  .admin-shell > .main > .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+}
+
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -649,6 +764,25 @@ async function driveAPI(action, data, timeoutMs) {
     }
     throw e;
   }
+}
+
+// Programme Memory requests retry transient network failures. Photo uploads use
+// a stable photoId so the backend can safely recognize a response-lost retry.
+async function programMemoryAPI(action, data, timeoutMs) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await driveAPI(action, data, timeoutMs || 60000);
+    } catch (err) {
+      lastError = err;
+      if (attempt >= 2) break;
+      const message = String(err && err.message || '');
+      const transient = /timeout|timed out|abort|failed to fetch|networkerror|load failed|http 5\d\d|service unavailable/i.test(message);
+      if (!transient) break;
+      await sleep(700 * Math.pow(2, attempt));
+    }
+  }
+  throw lastError || new Error('Programme Memory request failed.');
 }
 
 /* =========================================================
@@ -3687,7 +3821,10 @@ function doLogout() {
   updateBeforeUnload();
   state.user = null; state.view = 'dashboard'; state.params = {}; state.loginMode = 'login';
   localStorage.removeItem(SESSION_KEY);
-  try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
+  try {
+    sessionStorage.removeItem('cftpmy_login_draft');
+    sessionStorage.removeItem('cftp_program_memory_token');
+  } catch(e) {}
   lastPushedStateKey = null;
   try { history.replaceState(null, ''); } catch(e) {}
   render();
@@ -4587,6 +4724,17 @@ function renderTabChangeNotifications(view) {
   </section>`;
 }
 function render() {
+  // Capture the user's current reading position before rebuilding the app DOM.
+  // Restore it after the update when the user remains on the same page/tab.
+  // This prevents button actions, refreshes and background updates from
+  // unexpectedly jumping the content back to the top.
+  const __renderPreviousView = state.view;
+  const __renderMainScroller = document.querySelector('.shell > .main, .admin-shell > .main');
+  const __renderMainScrollTop = __renderMainScroller ? __renderMainScroller.scrollTop : 0;
+  const __renderWindowScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  const __renderSidebar = document.querySelector('.shell > .sidebar, .admin-shell > .sidebar');
+  const __renderSidebarScrollTop = __renderSidebar ? __renderSidebar.scrollTop : 0;
+
   // Do not rebuild the application DOM while a participant is answering a
   // standalone quiz. Replacing the form would interrupt the attempt and can
   // discard answers that have not yet been submitted.
@@ -4630,6 +4778,23 @@ function render() {
     });
   }
   pushAppHistoryIfChanged();
+
+  // Restore only for in-page updates. A genuine page/tab navigation keeps
+  // its normal initial position, while actions on the current page stay put.
+  if (__renderPreviousView === state.view) {
+    requestAnimationFrame(() => {
+      const mainScroller = document.querySelector('.shell > .main, .admin-shell > .main');
+      if (mainScroller) mainScroller.scrollTop = __renderMainScrollTop;
+
+      const sidebar = document.querySelector('.shell > .sidebar, .admin-shell > .sidebar');
+      if (sidebar) sidebar.scrollTop = __renderSidebarScrollTop;
+
+      // On mobile the document itself is the scrolling surface.
+      if (!mainScroller || window.matchMedia('(max-width: 900px)').matches) {
+        window.scrollTo(0, __renderWindowScrollY);
+      }
+    });
+  }
 }
 function viewContent() {
   const originalDB = DB;
@@ -4681,6 +4846,7 @@ function viewContent() {
 let programMemoryPhotos = [];
 let programMemoryLoadedAt = 0;
 let programMemoryLoading = false;
+let programMemoryUploadInFlight = false;
 const PROGRAM_MEMORY_MAX_BYTES = 8 * 1024 * 1024;
 
 function programMemoryText(ms, en) { return currentLang === 'en' ? en : ms; }
@@ -4710,29 +4876,40 @@ function programMemoryView() {
       return `<div class="flex gap-2.5 group"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">${esc(String(c.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div class="flex-1 min-w-0"><div class="flex items-start gap-2"><div class="bg-slate-200/70 p-3 rounded-2xl w-fit max-w-[88%]"><div class="font-bold text-xs text-slate-800">${tce(c.userName || '')}</div><div class="text-sm text-slate-700 mt-0.5 whitespace-pre-line">${tce(c.text || '')}</div></div>${isOwnComment && commentId ? `<button type="button" data-act="memory-delete-comment" data-pid="${esc(p.id)}" data-cid="${esc(commentId)}" class="pm-delete-comment" title="${programMemoryText('Padam komen sendiri','Delete your comment')}" aria-label="${programMemoryText('Padam komen sendiri','Delete your comment')}"><i class="fa-regular fa-trash-can"></i></button>` : ''}</div><div class="text-[11px] font-semibold text-slate-400 mt-1 pl-2">${fmtDateTime(c.createdAt)}</div></div></div>`;
     }).join('');
     return `<article id="pm-post-${esc(p.id)}" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition">
-      <div class="p-4 flex items-center justify-between"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(p.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div><div class="flex items-center gap-1.5 font-bold text-slate-800 text-sm"><span>${tce(p.userName || programMemoryText('Pengguna','User'))}</span></div><div class="flex items-center gap-1 text-slate-400 text-xs mt-0.5"><span>${fmtDateTime(p.createdAt)}</span><span>•</span><i class="fa-solid fa-earth-americas text-[10px]"></i></div></div></div>${isAdmin?`<button data-act="memory-edit-description" data-pid="${esc(p.id)}" class="text-slate-400 hover:text-rose-600 p-2 rounded-full hover:bg-slate-100 transition" title="Edit penerangan"><i class="fa-solid fa-ellipsis"></i></button>`:''}</div>
+      <div class="p-4 flex items-center justify-between"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(p.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div><div class="flex items-center gap-1.5 font-bold text-slate-800 text-sm"><span>${tce(p.userName || programMemoryText('Pengguna','User'))}</span></div><div class="flex items-center gap-1 text-slate-400 text-xs mt-0.5"><span>${fmtDateTime(p.createdAt)}</span>${isAdmin?`<button type="button" data-act="memory-edit-date" data-pid="${esc(p.id)}" class="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-50" title="${programMemoryText('Edit tarikh & masa upload','Edit upload date & time')}"><i class="fa-regular fa-calendar"></i><span>${programMemoryText('Edit tarikh & masa','Edit date & time')}</span></button>`:''}<span>•</span><i class="fa-solid fa-earth-americas text-[10px]"></i></div></div></div>${isAdmin?`<button data-act="memory-edit-description" data-pid="${esc(p.id)}" class="text-slate-400 hover:text-rose-600 p-2 rounded-full hover:bg-slate-100 transition" title="Edit penerangan"><i class="fa-solid fa-ellipsis"></i></button>`:''}</div>
       ${p.text?`<div class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line">${tce(p.text)}</div>`:''}
       ${imageMarkup}
+      ${!vip && state.user && (isAdmin || String(p.userId || '') === String(state.user.id)) ? `<div class="px-4 pt-3"><button type="button" data-act="memory-add-photo-trigger" data-pid="${esc(p.id)}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><i class="fa-regular fa-images"></i>${programMemoryText('Tambah gambar pada hantaran ini','Add photos to this post')}</button><input type="file" id="pm-add-photo-${esc(p.id)}" data-album-id="${esc(p.id)}" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden></div>` : ''}
       <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
       <div class="p-4 bg-slate-50/50 space-y-3"><div id="comments-list-${esc(p.id)}" class="space-y-3">${commentMarkup}</div>${!vip?`<form class="flex items-center gap-2" onsubmit="event.preventDefault();submitProgramMemoryComment('${esc(p.id)}')"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(displayName).charAt(0).toUpperCase())}</div><input id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="Tulis komen anda di sini..." aria-label="Tulis komen" class="flex-1 min-w-0 border border-slate-200 rounded-full bg-white py-2.5 px-4 text-sm outline-none focus:border-blue-400"><button type="submit" aria-label="Hantar komen" title="Hantar komen" class="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-paper-plane"></i></button></form>`:''}</div>
       ${isAdmin?`<div class="px-4 pb-3"><button class="btn btn-sm btn-danger" data-act="memory-delete" data-pid="${esc(p.id)}">🗑️ ${programMemoryText('Padam hantaran','Delete post')}</button></div>`:''}</article>`;
   }).join('');
   return `<div class="bg-slate-100 text-slate-800 min-h-full py-6 px-3 sm:px-4" style="font-family:Inter,Arial,sans-serif"><div class="max-w-2xl mx-auto space-y-6">
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5"><div class="flex items-center gap-3 pb-3 border-b border-slate-100">${avatar}<div><h2 class="font-bold text-slate-800 text-sm sm:text-base">${tce(displayName)}</h2><span class="inline-flex items-center gap-1 text-xs text-slate-500 font-medium"><i class="fa-solid fa-earth-americas"></i> Awam</span></div></div>
-    ${!vip?`<div class="mt-4 space-y-3"><textarea id="programMemoryCaption" rows="3" maxlength="1000" placeholder="Tulis penerangan untuk gambar yang ingin dimuat naik..." class="w-full resize-y border-0 rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base p-3"></textarea><div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600"><button type="button" data-act="memory-upload-trigger" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-600"><i class="fa-regular fa-image text-lg"></i><span>Foto / Video</span></button><button type="button" data-act="memory-refresh" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-blue-50 text-blue-600"><i class="fa-solid fa-rotate"></i><span>Muat semula</span></button></div><input type="file" id="programMemoryFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden><small class="text-xs text-slate-400">Isi penerangan di atas, kemudian pilih gambar. Maksimum 8 MB setiap gambar; satu penerangan digunakan untuk semua gambar album.</small><div id="programMemoryUploadProgress" class="memory-upload-progress" aria-live="polite" hidden><div class="memory-upload-visual"><div class="memory-upload-picture"><i class="fa-regular fa-image"></i><span class="memory-upload-cloud"><i class="fa-solid fa-cloud-arrow-up"></i></span></div><div class="memory-upload-copy"><strong id="programMemoryUploadTitle">Uploading photos...</strong><span id="programMemoryUploadDetail">Please wait while your photos are being uploaded.</span><span class="memory-upload-dots" aria-hidden="true"><i></i><i></i><i></i></span></div></div></div></div>`:`<div class="pt-3 text-xs text-slate-500">👁️ Akaun VIP boleh melihat kenangan, memberi reaksi dan membaca komen.</div>`}</div>
+    ${!vip?`<div class="mt-4 space-y-3"><textarea id="programMemoryCaption" rows="3" maxlength="1000" placeholder="Tulis penerangan untuk gambar yang ingin dimuat naik..." class="w-full resize-y border-0 rounded-xl bg-slate-50 hover:bg-slate-100 focus:bg-white focus:ring-2 focus:ring-blue-200 focus:outline-none text-slate-800 placeholder-slate-400 text-sm sm:text-base p-3"></textarea><div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs sm:text-sm font-medium text-slate-600"><button type="button" data-act="memory-upload-trigger" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-600"><i class="fa-regular fa-image text-lg"></i><span>Foto Sahaja</span></button><button type="button" data-act="memory-refresh" class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl hover:bg-blue-50 text-blue-600"><i class="fa-solid fa-rotate"></i><span>Muat semula</span></button></div><input type="file" id="programMemoryFile" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden><small class="text-xs text-slate-400">Isi penerangan di atas, kemudian pilih foto sahaja. Maksimum 8 MB setiap gambar; satu penerangan digunakan untuk semua gambar dalam hantaran.</small><div id="programMemoryUploadProgress" class="memory-upload-progress" aria-live="polite" hidden><div class="memory-upload-visual"><div class="memory-upload-picture"><i class="fa-regular fa-image"></i><span class="memory-upload-cloud"><i class="fa-solid fa-cloud-arrow-up"></i></span></div><div class="memory-upload-copy"><strong id="programMemoryUploadTitle">Uploading photos...</strong><span id="programMemoryUploadDetail">Please wait while your photos are being uploaded.</span><span class="memory-upload-dots" aria-hidden="true"><i></i><i></i><i></i></span></div></div></div></div>`:`<div class="pt-3 text-xs text-slate-500">👁️ Akaun VIP boleh melihat kenangan, memberi reaksi dan membaca komen.</div>`}</div>
     ${programMemoryLoading?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200">⏳ Memuatkan kenangan...</div>`:''}
-    ${!programMemoryLoading&&!photos.length?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200"><i class="fa-regular fa-folder-open text-4xl mb-2"></i><p class="font-semibold text-slate-600">Tiada hantaran lagi.</p><p class="text-xs">Jadilah yang pertama berkongsi gambar atau kapsyen!</p></div>`:''}
+    ${!programMemoryLoading&&!photos.length?`<div class="bg-white rounded-2xl p-10 text-center text-slate-400 border border-slate-200"><i class="fa-regular fa-folder-open text-4xl mb-2"></i><p class="font-semibold text-slate-600">Tiada hantaran lagi.</p><p class="text-xs">Jadilah yang pertama berkongsi foto atau kapsyen!</p></div>`:''}
     <div id="postsFeed" class="space-y-5">${postCards}</div></div></div>`;
 }
 
 async function loadProgramMemory(force) {
   if (!state.user || programMemoryLoading) return;
-  if (!sessionStorage.getItem('cftp_program_memory_token')) { toast(programMemoryText('Sesi Memory tiada. Sila log keluar dan log masuk semula.','Memory session is missing. Please log out and sign in again.'),'warn'); return; }
+  const memoryToken = sessionStorage.getItem('cftp_program_memory_token') || '';
+  if (!memoryToken) {
+    // A missing gallery token is not a reason to log the whole user out.
+    toast(programMemoryText(
+      'Sesi galeri Memory tidak tersedia. Sila log masuk semula untuk mengaktifkan galeri.',
+      'The Memory gallery session is unavailable. Please sign in again to reactivate the gallery.'
+    ), 'warn');
+    return;
+  }
   if (!force && programMemoryLoadedAt && Date.now() - programMemoryLoadedAt < 15000 && state.view === 'memory') return;
   programMemoryLoading = true;
   if (state.view === 'memory') render();
   try {
-    const result = await driveAPI('listProgramMemory', { userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '' }, 60000);
+    const result = await programMemoryAPI('listProgramMemory', {
+      userId:String(state.user.id), token:memoryToken
+    }, 90000);
     if (!result || !result.ok) throw new Error(result?.error || 'Unable to load programme gallery.');
     programMemoryPhotos = Array.isArray(result.photos) ? result.photos : [];
     programMemoryLoadedAt = Date.now();
@@ -4810,19 +4987,28 @@ function updateProgramMemoryUploadProgress(percent, title, detail, indeterminate
   if (info) info.textContent = programMemoryText('Sila tunggu sementara gambar dihantar ke Google Drive.','Please wait while your photos are uploaded to Google Drive.');
 }
 
-async function handleProgramMemoryFiles(files, suppliedCaption) {
+async function handleProgramMemoryFiles(files, suppliedCaption, existingAlbumId) {
   if (!state.user || state.user.role === 'vip') {
     toast(programMemoryText('Akses VIP ialah baca sahaja.','VIP access is read-only.'),'warn'); return;
   }
-  const chosen = Array.from(files || []);
-  if (!chosen.length) return;
-  const caption = String(suppliedCaption ?? document.getElementById('programMemoryCaption')?.value ?? '').trim();
-  if (!caption) {
-    toast(programMemoryText('Sila isi penerangan gambar sebelum memilih fail.','Please enter an image description before selecting files.'),'warn');
-    document.getElementById('programMemoryCaption')?.focus();
+  if (programMemoryUploadInFlight) {
+    toast(programMemoryText('Upload sedang berjalan. Sila tunggu sehingga selesai.','An upload is already running. Please wait until it finishes.'),'warn');
     return;
   }
-  const albumId = 'album_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g,'') : Date.now() + '_' + Math.random().toString(36).slice(2));
+  const chosen = Array.from(files || []);
+  if (!chosen.length) return;
+  programMemoryUploadInFlight = true;
+  const isAppending = !!existingAlbumId;
+  const caption = String(suppliedCaption ?? document.getElementById('programMemoryCaption')?.value ?? '').trim();
+  if (!isAppending && !caption) {
+    toast(programMemoryText('Sila isi penerangan gambar sebelum memilih fail.','Please enter an image description before selecting files.'),'warn');
+    document.getElementById('programMemoryCaption')?.focus();
+    programMemoryUploadInFlight = false;
+    return;
+  }
+  const albumId = isAppending
+    ? String(existingAlbumId)
+    : 'album_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g,'') : Date.now() + '_' + Math.random().toString(36).slice(2));
   let uploaded = 0, failed = 0, skipped = 0;
   const total = chosen.length;
   updateProgramMemoryUploadProgress(0,
@@ -4848,10 +5034,14 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
       });
       updateProgramMemoryUploadProgress(basePercent,
         programMemoryText('Sedang memuat naik gambar...','Uploading photos...'), '', true);
-      const result = await driveAPI('uploadProgramPicture', {payload:{
+      const photoId = 'img_' + (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID().replace(/-/g,'')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
+      const result = await programMemoryAPI('uploadProgramPicture', {payload:{
         userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
-        albumId, caption:String(caption).slice(0,1000), filename:file.name, mimeType:file.type, size:file.size, base64
-      }}, 120000);
+        albumId, appendToExisting:isAppending, photoId, caption:String(caption).slice(0,1000),
+        filename:file.name, mimeType:file.type, size:file.size, base64
+      }}, 180000);
       if (!result?.ok) throw new Error(result?.error || 'Upload failed.');
       uploaded++;
     } catch (err) {
@@ -4864,7 +5054,14 @@ async function handleProgramMemoryFiles(files, suppliedCaption) {
   }
   const uploadPanel = document.getElementById('programMemoryUploadProgress');
   if (uploadPanel) uploadPanel.hidden = true;
-  if (uploaded) toast(programMemoryText(uploaded+' gambar berjaya dimuat naik dalam satu album.','Uploaded '+uploaded+' photos into one album.') + (failed+skipped ? ' '+(failed+skipped)+' '+programMemoryText('tidak berjaya.','not successful.') : ''),'ok');
+  if (uploaded) toast(
+    isAppending
+      ? programMemoryText(uploaded+' gambar berjaya ditambah pada hantaran.','Added '+uploaded+' photos to the post.')
+      : programMemoryText(uploaded+' gambar berjaya dimuat naik dalam satu album.','Uploaded '+uploaded+' photos into one album.')
+    + (failed+skipped ? ' '+(failed+skipped)+' '+programMemoryText('tidak berjaya.','not successful.') : ''),
+    'ok'
+  );
+  programMemoryUploadInFlight = false;
   await loadProgramMemory(true);
 }
 async function editProgramMemoryDescription(pictureId) {
@@ -4881,6 +5078,66 @@ async function editProgramMemoryDescription(pictureId) {
   } catch(err) { toast(err.message || 'Update failed.','bad'); }
 }
 
+async function editProgramMemoryDate(pictureId) {
+  if (!state.user || state.user.role !== 'admin') return;
+  const album = programMemoryPhotos.find(x => String(x.id) === String(pictureId));
+  if (!album) return;
+
+  const existing = new Date(album.createdAt);
+  const currentDate = Number.isNaN(existing.getTime())
+    ? new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Kuala_Lumpur' }).format(new Date())
+    : new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Kuala_Lumpur' }).format(existing);
+  const timeParts = Number.isNaN(existing.getTime()) ? [] :
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone:'Asia/Kuala_Lumpur', hour:'2-digit', minute:'2-digit', hourCycle:'h23'
+    }).formatToParts(existing);
+  const currentTime = timeParts.length
+    ? `${timeParts.find(x => x.type === 'hour')?.value || '12'}:${timeParts.find(x => x.type === 'minute')?.value || '00'}`
+    : '12:00';
+
+  const selectedDate = prompt(
+    programMemoryText('Masukkan tarikh hantaran (YYYY-MM-DD):','Enter the post date (YYYY-MM-DD):'),
+    currentDate
+  );
+  if (selectedDate === null) return;
+  const date = String(selectedDate).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    toast(programMemoryText('Format tarikh tidak sah. Gunakan YYYY-MM-DD.','Invalid date format. Use YYYY-MM-DD.'), 'warn');
+    return;
+  }
+  const dateCheck = new Date(date + 'T12:00:00Z');
+  if (Number.isNaN(dateCheck.getTime()) || dateCheck.toISOString().slice(0, 10) !== date) {
+    toast(programMemoryText('Tarikh yang dipilih tidak sah.','The selected date is invalid.'), 'warn');
+    return;
+  }
+
+  const selectedTime = prompt(
+    programMemoryText('Masukkan masa hantaran (24 jam, HH:MM):','Enter the post time (24-hour format, HH:MM):'),
+    currentTime
+  );
+  if (selectedTime === null) return;
+  const time = String(selectedTime).trim();
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    toast(programMemoryText('Format masa tidak sah. Gunakan HH:MM (00:00–23:59).','Invalid time format. Use HH:MM (00:00–23:59).'), 'warn');
+    return;
+  }
+
+  try {
+    const result = await programMemoryAPI('updateProgramPictureDate', {
+      userId: String(state.user.id),
+      token: sessionStorage.getItem('cftp_program_memory_token') || '',
+      pictureId: String(pictureId),
+      date,
+      time
+    });
+    if (!result?.ok) throw new Error(result?.error || 'Date/time update failed.');
+    await loadProgramMemory(true);
+    toast(programMemoryText('Tarikh dan masa hantaran berjaya dikemaskini.','Post date and time updated successfully.'), 'ok');
+  } catch (err) {
+    toast(err.message || programMemoryText('Tarikh dan masa tidak dapat dikemaskini.','Unable to update date and time.'), 'bad');
+  }
+}
+
 async function deleteProgramMemoryAlbum(pictureId) {
   if (!state.user || state.user.role !== 'admin') return;
   if (!confirm(programMemoryText('Padam semua gambar dalam album event ini? Tindakan ini tidak boleh dibatalkan.','Delete every photo in this event album? This cannot be undone.'))) return;
@@ -4893,9 +5150,17 @@ async function deleteProgramMemoryAlbum(pictureId) {
 }
 
 document.addEventListener('change', e => {
-  if (e.target && e.target.id === 'programMemoryFile') {
+  if (!e.target || !e.target.matches('input[type="file"]')) return;
+  if (e.target.id === 'programMemoryFile') {
     const caption = document.getElementById('programMemoryCaption')?.value || '';
-    handleProgramMemoryFiles(e.target.files, caption);
+    handleProgramMemoryFiles(e.target.files, caption, '');
+    e.target.value = '';
+    return;
+  }
+  if (e.target.dataset && e.target.dataset.albumId) {
+    const albumId = e.target.dataset.albumId;
+    const post = programMemoryPhotos.find(x => String(x.id) === String(albumId));
+    handleProgramMemoryFiles(e.target.files, post ? post.text || '' : '', albumId);
     e.target.value = '';
   }
 });
@@ -5567,6 +5832,7 @@ async function handleLogin(form) {
     state.user = u;
     try {
       if (verification.programMemoryToken) sessionStorage.setItem('cftp_program_memory_token', verification.programMemoryToken);
+      else sessionStorage.removeItem('cftp_program_memory_token');
     } catch (_) {}
     state.view = 'dashboard';
     state.params = {};
@@ -5842,8 +6108,19 @@ function openVipParticipantProgress(pid) {
 function renderParticipantOverallModuleSpider(pid, modules) {
   const participantActs = accessibleActivities(pid).filter(a => a.published);
   const axes = (modules || []).map(mod => {
-    const values = [];
+    const theoryValues = [];
+    const practicalValues = [];
+
     participantActs.filter(a => a.moduleId === mod.id).forEach(act => {
+      // THEORY: use the participant's best recorded quiz attempt for each quiz activity.
+      if (Array.isArray(act.quiz) && act.quiz.length) {
+        const attempt = getAttempt(act.id, pid);
+        if (attempt && Number(attempt.total) > 0) {
+          theoryValues.push(Math.max(0, Math.min(100, Number(attempt.score) / Number(attempt.total) * 100)));
+        }
+      }
+
+      // PRACTICAL: retain the existing rubric criterion weighting.
       const criteria = getRubricCriteria(act);
       const practical = getPractical(act.id, pid);
       criteria.forEach((criterion, ci) => {
@@ -5851,17 +6128,39 @@ function renderParticipantOverallModuleSpider(pid, modules) {
           ? Number(practical.scores[ci]) : null;
         const maxMark = Math.max(0, ...(criterion.levels || []).map(level => Number(level.mark) || 0));
         if (mark !== null && Number.isFinite(mark) && maxMark > 0) {
-          values.push({ value: Math.max(0, Math.min(100, mark / maxMark * 100)), weight: Math.max(0, Number(criterion.weight) || 0) });
+          practicalValues.push({
+            value: Math.max(0, Math.min(100, mark / maxMark * 100)),
+            weight: Math.max(0, Number(criterion.weight) || 0)
+          });
         }
       });
     });
-    if (!values.length) return { id:mod.id, label:mod.name || 'Module', value:null, count:0 };
-    const weightTotal = values.reduce((sum, x) => sum + x.weight, 0);
-    const score = weightTotal > 0
-      ? values.reduce((sum, x) => sum + x.value * x.weight, 0) / weightTotal
-      : values.reduce((sum, x) => sum + x.value, 0) / values.length;
-    return { id:mod.id, label:mod.name || 'Module', value:score, count:values.length };
+
+    const theoryScore = theoryValues.length
+      ? theoryValues.reduce((sum, x) => sum + x, 0) / theoryValues.length
+      : null;
+    const practicalWeightTotal = practicalValues.reduce((sum, x) => sum + x.weight, 0);
+    const practicalScore = practicalValues.length
+      ? (practicalWeightTotal > 0
+          ? practicalValues.reduce((sum, x) => sum + x.value * x.weight, 0) / practicalWeightTotal
+          : practicalValues.reduce((sum, x) => sum + x.value, 0) / practicalValues.length)
+      : null;
+
+    const availableComponents = [theoryScore, practicalScore].filter(x => x !== null);
+    const score = availableComponents.length
+      ? availableComponents.reduce((sum, x) => sum + x, 0) / availableComponents.length
+      : null;
+
+    return {
+      id:mod.id,
+      label:mod.name || 'Module',
+      value:score,
+      count:theoryValues.length + practicalValues.length,
+      theoryScore,
+      practicalScore
+    };
   });
+
   if (!axes.length) return '';
   const W=520, H=410, cx=260, cy=190, R=120, n=axes.length;
   const pointAt=(i,pct)=>{const angle=-Math.PI/2+2*Math.PI*i/n, rr=R*pct/100;return{x:cx+rr*Math.cos(angle),y:cy+rr*Math.sin(angle),angle};};
@@ -5876,17 +6175,41 @@ function renderParticipantOverallModuleSpider(pid, modules) {
   const markers=scored.map(a=>{const q=a.p||pointAt(a.i,100);return `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="4.5" fill="${a.p?'#15805b':'#fff'}" stroke="${a.p?'#fff':'#aab8b1'}" stroke-width="1.5"><title>${esc(a.label)}: ${a.value===null?esc(t('spider_not_taken')):Math.round(a.value)+'%'}</title></circle>`;}).join('');
   const labels=scored.map(a=>{const q=pointAt(a.i,120),anchor=Math.abs(Math.cos(q.angle))<.28?'middle':(Math.cos(q.angle)>0?'start':'end'),label=String(a.label);const short=label.length>25?label.slice(0,22)+'…':label;return `<text x="${q.x.toFixed(1)}" y="${q.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>8?8:9}" fill="#52645c"><title>${esc(label)}</title>${esc(short)}</text>`;}).join('');
   const scoredCount=axes.filter(a=>a.value!==null).length;
-  const rows=axes.map(a=>`<tr><td><strong>${tce(a.label)}</strong></td><td>${a.count}</td><td>${a.value!==null?`<strong>${Math.round(a.value)}%</strong>`:`<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value!==null?`<span class="badge ok">${t('spider_assessed')}</span>`:`<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
+  const rows=axes.map(a=>`<tr><td><strong>${tce(a.label)}</strong></td><td>${a.count}</td><td>${a.theoryScore!==null?Math.round(a.theoryScore)+'%':'—'}</td><td>${a.practicalScore!==null?Math.round(a.practicalScore)+'%':'—'}</td><td>${a.value!==null?`<strong>${Math.round(a.value)}%</strong>`:`<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value!==null?`<span class="badge ok">${t('spider_assessed')}</span>`:`<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
   const heading=currentLang==='en'?'Overall Performance — Combined Modules':'Prestasi Keseluruhan — Gabungan Semua Modul';
-  const desc=currentLang==='en'?'One overall spider web for this participant. Each axis is one enrolled module; each module score is the weighted average of assessed rubric-criterion percentages (or a simple average when weights are zero).':'Satu spider web keseluruhan untuk peserta ini. Setiap paksi mewakili satu modul yang diambil; skor modul ialah purata berwajaran peratus kriteria rubrik yang telah dinilai (atau purata biasa jika semua wajaran sifar).';
-  return `<div class="spider-module overall-participant-spider"><div class="spider-module-head"><h3>🕸️ ${heading}</h3><span class="badge info">${scoredCount}/${axes.length} ${currentLang==='en'?'modules assessed':'modul dinilai'}</span></div><p class="muted" style="font-size:.8rem;margin:8px 0">${desc}</p><div class="spider-layout"><div class="spider-chart-wrap"><svg class="spider-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(heading)}">${grid}${spokes}${ticks}${shape}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Overall module score (%)':'Skor keseluruhan modul (%)'}</div></div><div class="spider-data"><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module':'Modul'}</th><th>${currentLang==='en'?'Assessed criteria':'Kriteria dinilai'}</th><th>${currentLang==='en'?'Overall score':'Skor keseluruhan'}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${rows}</tbody></table></div>${scoredCount===0?`<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>`:''}</div></div></div>`;
+  const desc=currentLang==='en'
+    ?'Each axis represents one enrolled module. The module score combines the average Theory Quiz result and the weighted Practical rubric result equally (50:50) when both are available. If only one component has been assessed, the available component is used.'
+    :'Setiap paksi mewakili satu modul yang diambil. Skor modul menggabungkan purata markah Quiz Theory dan markah rubrik Practical secara sama rata (50:50) apabila kedua-duanya tersedia. Jika hanya satu komponen telah dinilai, komponen yang tersedia digunakan.';
+  return `<div class="spider-module overall-participant-spider"><div class="spider-module-head"><h3>🕸️ ${heading}</h3><span class="badge info">${scoredCount}/${axes.length} ${currentLang==='en'?'modules assessed':'modul dinilai'}</span></div><p class="muted" style="font-size:.8rem;margin:8px 0">${desc}</p><div class="spider-layout"><div class="spider-chart-wrap"><svg class="spider-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(heading)}">${grid}${spokes}${ticks}${shape}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Combined Theory + Practical module score (%)':'Skor gabungan Theory + Practical modul (%)'}</div></div><div class="spider-data"><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module':'Modul'}</th><th>${currentLang==='en'?'Assessments':'Penilaian'}</th><th>Theory</th><th>Practical</th><th>${currentLang==='en'?'Overall score':'Skor keseluruhan'}</th><th>${t('lbl_status')}</th></tr></thead><tbody>${rows}</tbody></table></div>${scoredCount===0?`<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>`:''}</div></div></div>`;
 }
 
 function renderParticipantAssessmentSpider(pid, modules) {
   const moduleCards = (modules || []).map(mod => {
     const modActs = accessibleActivities(pid).filter(a => a.moduleId === mod.id && a.published);
     const axes = [];
+
     modActs.forEach(act => {
+      // THEORY axis: each quiz activity is represented by its best attempt percentage.
+      if (Array.isArray(act.quiz) && act.quiz.length) {
+        const attempt = getAttempt(act.id, pid);
+        const maxMark = attempt && Number(attempt.total) > 0 ? Number(attempt.total) : act.quiz.length;
+        const selectedMark = attempt ? Number(attempt.score) : null;
+        const pct = selectedMark !== null && maxMark > 0
+          ? Math.max(0, Math.min(100, (selectedMark / maxMark) * 100)) : null;
+        axes.push({
+          label: currentLang === 'en' ? `Theory — ${act.title || 'Quiz'}` : `Theory — ${act.title || 'Kuiz'}`,
+          shortLabel: currentLang === 'en' ? `Theory: ${act.title || 'Quiz'}` : `Theory: ${act.title || 'Kuiz'}`,
+          activityTitle: act.title || 'Quiz',
+          component: 'Theory',
+          weight: null,
+          mark: selectedMark,
+          maxMark,
+          level: '',
+          value: pct
+        });
+      }
+
+      // PRACTICAL axes: preserve the current rubric-criterion detail.
       const criteria = getRubricCriteria(act);
       if (!criteria.length) return;
       const practical = getPractical(act.id, pid);
@@ -5901,6 +6224,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
           label: criterion.name || `Criterion ${ci + 1}`,
           shortLabel: criterion.name || `Criterion ${ci + 1}`,
           activityTitle: act.title,
+          component: 'Practical',
           weight: Number(criterion.weight) || 0,
           mark: selectedMark,
           maxMark,
@@ -5909,6 +6233,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
         });
       });
     });
+
     if (!axes.length) return `<div class="spider-module"><h3>${tce(mod.name)}</h3><div class="empty">${t('spider_no_assessments')}</div></div>`;
 
     const W = 480, H = 390, cx = 240, cy = 178, R = 112;
@@ -5939,7 +6264,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
       }
     }
     const markers = valid.map(v => v.p
-      ? `<circle cx="${v.p.x}" cy="${v.p.y}" r="4.5" fill="#15805b" stroke="#fff" stroke-width="1.5"><title>${esc(v.label)}: ${Math.round(v.value)}%</title></circle>`
+      ? `<circle cx="${v.p.x}" cy="${v.p.y}" r="4.5" fill="${v.component === 'Theory' ? '#2563eb' : '#15805b'}" stroke="#fff" stroke-width="1.5"><title>${esc(v.label)}: ${Math.round(v.value)}%</title></circle>`
       : `<circle cx="${pointAt(v.i,100).x}" cy="${pointAt(v.i,100).y}" r="4" fill="#fff" stroke="#aab8b1" stroke-width="1.5"><title>${esc(v.label)}: ${esc(t('spider_not_taken'))}</title></circle>`
     ).join('');
     const labels = axes.map((a,i) => {
@@ -5948,19 +6273,25 @@ function renderParticipantAssessmentSpider(pid, modules) {
       const short = a.shortLabel.length > 27 ? a.shortLabel.slice(0,24) + '…' : a.shortLabel;
       return `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="${n>9?8:9}" fill="#52645c"><title>${esc(a.label)} · ${esc(a.activityTitle)}</title>${esc(short)}</text>`;
     }).join('');
-    const scoreRows = axes.map(a => `<tr><td><strong>${tce(a.label)}</strong><div class="muted" style="font-size:.72rem">${tce(a.activityTitle)}</div></td><td>${a.weight}%</td><td>${a.mark !== null ? `${a.mark} / ${a.maxMark}${a.level ? `<div class="muted" style="font-size:.72rem">${tce(a.level)}</div>` : ''}` : '—'}</td><td>${a.value !== null ? `<strong>${Math.round(a.value)}%</strong>` : `<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value !== null ? `<span class="badge ok">${t('spider_assessed')}</span>` : `<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
+    const scoreRows = axes.map(a => `<tr><td><strong>${tce(a.label)}</strong><div class="muted" style="font-size:.72rem">${tce(a.activityTitle)} · ${a.component}</div></td><td>${a.weight !== null ? `${a.weight}%` : '—'}</td><td>${a.mark !== null ? `${a.mark} / ${a.maxMark}${a.level ? `<div class="muted" style="font-size:.72rem">${tce(a.level)}</div>` : ''}` : '—'}</td><td>${a.value !== null ? `<strong>${Math.round(a.value)}%</strong>` : `<span class="muted">${t('spider_not_taken')}</span>`}</td><td>${a.value !== null ? `<span class="badge ok">${t('spider_assessed')}</span>` : `<span class="badge draft">${t('spider_not_taken')}</span>`}</td></tr>`).join('');
     const scoredCount = axes.filter(a => a.value !== null).length;
+    const theoryCount = axes.filter(a => a.component === 'Theory').length;
+    const practicalCount = axes.filter(a => a.component === 'Practical').length;
     return `<div class="spider-module">
       <div class="spider-module-head"><h3>${tce(mod.name)}</h3><span class="badge info">${scoredCount}/${axes.length} ${t('spider_assessed').toLowerCase()}</span></div>
+      <div class="spider-component-legend" style="display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;margin:8px 0;color:#52645c">
+        ${theoryCount ? `<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#2563eb;margin-right:5px"></i>Theory (${theoryCount})</span>` : ''}
+        ${practicalCount ? `<span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#15805b;margin-right:5px"></i>Practical (${practicalCount})</span>` : ''}
+      </div>
       <div class="spider-layout">
         <div class="spider-chart-wrap">
           <svg class="spider-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('spider_title'))}">
             ${grid}${spokes}${ticks}${segments.join('')}${markers}${labels}
           </svg>
-          <div class="spider-legend"><span class="spider-legend-dot"></span>${t('spider_legend')}</div>
+          <div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang === 'en' ? 'Theory and Practical achievement (%)' : 'Pencapaian Theory dan Practical (%)'}</div>
         </div>
         <div class="spider-data">
-          <div class="table-wrap"><table><thead><tr><th>${t('lbl_criteria')}</th><th>${t('lbl_weight')}</th><th>${t('spider_score')}</th><th>Pencapaian</th><th>${t('lbl_status')}</th></tr></thead><tbody>${scoreRows}</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>${t('lbl_criteria')} / Component</th><th>${t('lbl_weight')}</th><th>${t('spider_score')}</th><th>Pencapaian</th><th>${t('lbl_status')}</th></tr></thead><tbody>${scoreRows}</tbody></table></div>
           ${scoredCount === 0 ? `<p class="muted" style="font-size:.8rem">${t('spider_no_scores')}</p>` : ''}
         </div>
       </div>
@@ -5970,7 +6301,7 @@ function renderParticipantAssessmentSpider(pid, modules) {
   const overallModuleSpider = renderParticipantOverallModuleSpider(pid, modules);
   return `<section class="card spider-dashboard">
     <div class="card-head"><h2>🕸️ ${t('spider_title')}</h2><button class="btn btn-primary" data-act="spider-print-self" data-pid="${esc(state.user.id)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>
-    <p class="muted" style="font-size:.84rem;margin:-4px 0 14px">${t('spider_hint')}</p>
+    <p class="muted" style="font-size:.84rem;margin:-4px 0 14px">${currentLang === 'en' ? 'Combined Theory Quiz and Practical Test performance by module.' : 'Prestasi gabungan Quiz Theory dan Practical Test mengikut modul.'}</p>
     ${overallModuleSpider}
     ${moduleCards}
   </section>`;
@@ -8807,32 +9138,93 @@ function reportsView() {
 
 function overallSpiderDataset(moduleScope, participantScope) {
   const modules = (moduleScope || sortModules(DB.modules)).slice();
-  const participants = (participantScope || allParticipants()).filter(p => p && p.role === 'participant' && p.status === 'approved');
+  const participants = (participantScope || allParticipants()).filter(
+    p => p && p.role === 'participant' && p.status === 'approved'
+  );
+
   return modules.map(mod => {
     const enrolled = participants.filter(p => isEnrolled(mod.id, p.id));
     const acts = moduleActivitiesList(mod.id).filter(a => a.published);
     const perParticipant = [];
+
     enrolled.forEach(p => {
-      const vals = [];
+      const theoryValues = [];
+      const practicalValues = [];
+
       acts.forEach(act => {
+        // THEORY: include only quizzes with an actual recorded attempt.
+        if (Array.isArray(act.quiz) && act.quiz.length) {
+          const attempt = getAttempt(act.id, p.id);
+          const total = attempt ? Number(attempt.total) : 0;
+          const score = attempt ? Number(attempt.score) : NaN;
+          if (attempt && total > 0 && Number.isFinite(score)) {
+            theoryValues.push(Math.max(0, Math.min(100, score / total * 100)));
+          }
+        }
+
+        // PRACTICAL: include only criteria with an actual recorded score.
         const criteria = getRubricCriteria(act);
         if (!criteria.length) return;
         const practical = getPractical(act.id, p.id);
+
         criteria.forEach((criterion, ci) => {
-          const raw = practical && Array.isArray(practical.scores) && practical.scores[ci] !== undefined ? Number(practical.scores[ci]) : NaN;
+          const raw = practical && Array.isArray(practical.scores) &&
+            practical.scores[ci] !== undefined
+              ? Number(practical.scores[ci]) : NaN;
           const max = Math.max(0, ...(criterion.levels || []).map(level => Number(level.mark) || 0));
-          if (Number.isFinite(raw) && max > 0) vals.push(Math.max(0, Math.min(100, raw / max * 100)));
+          if (Number.isFinite(raw) && max > 0) {
+            practicalValues.push({
+              value: Math.max(0, Math.min(100, raw / max * 100)),
+              weight: Math.max(0, Number(criterion.weight) || 0)
+            });
+          }
         });
       });
-      if (vals.length) perParticipant.push({ id:p.id, name:p.name, score:avg(vals), criteriaCount:vals.length });
+
+      const theoryScore = theoryValues.length ? avg(theoryValues) : null;
+      const practicalWeightTotal = practicalValues.reduce((sum, item) => sum + item.weight, 0);
+      const practicalScore = practicalValues.length
+        ? (practicalWeightTotal > 0
+            ? practicalValues.reduce((sum, item) => sum + item.value * item.weight, 0) / practicalWeightTotal
+            : avg(practicalValues.map(item => item.value)))
+        : null;
+
+      // Dynamic inclusion:
+      // Quiz only = Theory score; Practical only = Practical score;
+      // both assessed = equal 50:50 component average.
+      const available = [theoryScore, practicalScore].filter(value => value !== null);
+      if (!available.length) return;
+
+      const moduleScore = avg(available);
+      perParticipant.push({
+        id: p.id,
+        name: p.name,
+        score: moduleScore,
+        theoryScore,
+        practicalScore,
+        theoryCount: theoryValues.length,
+        practicalCount: practicalValues.length
+      });
     });
-    return { id:mod.id, name:mod.name, enrolled:enrolled.length, assessed:perParticipant.length,
-      value:perParticipant.length ? avg(perParticipant.map(x => x.score)) : null, participants:perParticipant };
-  }).filter(m => moduleActivitiesList(m.id).some(a => a.published && getRubricCriteria(a).length));
+
+    return {
+      id: mod.id,
+      name: mod.name,
+      enrolled: enrolled.length,
+      assessed: perParticipant.length,
+      value: perParticipant.length ? avg(perParticipant.map(item => item.score)) : null,
+      participants: perParticipant
+    };
+  }).filter(mod => {
+    const hasQuiz = moduleActivitiesList(mod.id).some(a => a.published && Array.isArray(a.quiz) && a.quiz.length);
+    const hasPractical = moduleActivitiesList(mod.id).some(a => a.published && getRubricCriteria(a).length);
+    return hasQuiz || hasPractical;
+  });
 }
+
 function renderOverallSpider(moduleScope, participantScope, printMode=false) {
   const rows = overallSpiderDataset(moduleScope, participantScope);
-  if (!rows.length) return `<div class="empty">${currentLang === 'en' ? 'No published practical assessment rubric criteria found for the selected modules.' : 'Tiada kriteria rubrik penilaian praktikal yang telah diterbitkan bagi modul yang dipilih.'}</div>`;
+  if (!rows.length) return `<div class="empty">${currentLang === 'en' ? 'No published Quiz or Practical assessment found for the selected modules.' : 'Tiada penilaian Quiz atau Practical yang telah diterbitkan bagi modul yang dipilih.'}</div>`;
   const W=760,H=560,cx=380,cy=245,R=165,n=rows.length;
   const point=(i,v)=>{const a=-Math.PI/2+2*Math.PI*i/n,r=R*(Math.max(0,Math.min(100,v||0))/100);return{x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),a};};
   const grid=[20,40,60,80,100].map(v=>`<polygon points="${rows.map((_,i)=>{const q=point(i,v);return `${q.x.toFixed(1)},${q.y.toFixed(1)}`}).join(' ')}" fill="none" stroke="#d8e4de"/>`).join('');
@@ -8845,12 +9237,12 @@ function renderOverallSpider(moduleScope, participantScope, printMode=false) {
   const table=rows.map(r=>`<tr><td>${tce(r.name)}</td><td>${r.enrolled}</td><td>${r.assessed}</td><td>${r.value===null?'—':r.value.toFixed(1)+'%'}</td></tr>`).join('');
   const assessedValues=rows.filter(r=>r.value!==null).map(r=>r.value);
   const overall=assessedValues.length?avg(assessedValues):null;
-  return `<div class="overall-spider-block"><div class="overall-spider-summary"><div><small>${currentLang==='en'?'Modules included':'Jumlah modul'}</small><strong>${rows.length}</strong></div><div><small>${currentLang==='en'?'Participants included':'Jumlah peserta'}</small><strong>${new Set(rows.flatMap(r=>r.participants.map(p=>p.id))).size}</strong></div><div><small>${currentLang==='en'?'Overall cohort average':'Purata keseluruhan peserta'}</small><strong>${overall===null?'—':overall.toFixed(1)+'%'}</strong></div></div><div class="overall-spider-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall cohort spider web">${grid}${spokes}${ticks}${polygon}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Average Practical Assessment score across assessed participants (%)':'Purata skor Penilaian Praktikal bagi peserta yang telah dinilai (%)'}</div></div><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module / Training Day':'Modul / Hari Latihan'}</th><th>${currentLang==='en'?'Enrolled':'Berdaftar'}</th><th>${currentLang==='en'?'Assessed':'Dinilai'}</th><th>${currentLang==='en'?'Average score':'Purata skor'}</th></tr></thead><tbody>${table}</tbody></table></div><p class="muted" style="font-size:10px">${currentLang==='en'?'Each axis represents one module/day. The value is the average of each assessed participant’s normalised rubric-criterion scores in that module. Unassessed participants are excluded from that module average.':'Setiap paksi mewakili satu modul/hari. Nilai ialah purata skor kriteria rubrik yang dinormalkan bagi peserta yang telah dinilai dalam modul tersebut. Peserta yang belum dinilai tidak dimasukkan dalam purata modul berkenaan.'}</p></div>`;
+  return `<div class="overall-spider-block"><div class="overall-spider-summary"><div><small>${currentLang==='en'?'Modules included':'Jumlah modul'}</small><strong>${rows.length}</strong></div><div><small>${currentLang==='en'?'Participants included':'Jumlah peserta'}</small><strong>${new Set(rows.flatMap(r=>r.participants.map(p=>p.id))).size}</strong></div><div><small>${currentLang==='en'?'Overall cohort average':'Purata keseluruhan peserta'}</small><strong>${overall===null?'—':overall.toFixed(1)+'%'}</strong></div></div><div class="overall-spider-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall cohort spider web">${grid}${spokes}${ticks}${polygon}${markers}${labels}</svg><div class="spider-legend"><span class="spider-legend-dot"></span>${currentLang==='en'?'Average available assessment score (Theory, Practical, or both) across assessed participants (%)':'Purata skor penilaian yang tersedia (Theory, Practical atau kedua-duanya) bagi peserta yang telah dinilai (%)'}</div></div><div class="table-wrap"><table><thead><tr><th>${currentLang==='en'?'Module / Training Day':'Modul / Hari Latihan'}</th><th>${currentLang==='en'?'Enrolled':'Berdaftar'}</th><th>${currentLang==='en'?'Assessed':'Dinilai'}</th><th>${currentLang==='en'?'Average score':'Purata skor'}</th></tr></thead><tbody>${table}</tbody></table></div><p class="muted" style="font-size:10px">${currentLang==='en'?'Each axis represents one module/day. Each participant’s module score uses Theory only when only a Quiz is assessed, Practical only when only Practical is assessed, or the 50:50 average when both are assessed. Participants with no recorded assessment are excluded from that module average.':'Setiap paksi mewakili satu modul/hari. Skor peserta menggunakan Theory sahaja jika hanya Quiz dinilai, Practical sahaja jika hanya Practical dinilai, atau purata 50:50 jika kedua-duanya dinilai. Peserta tanpa rekod penilaian tidak dimasukkan dalam purata modul.'}</p></div>`;
 }
 function overallSpiderReportHTML(moduleScope, participantScope) {
   const modules = moduleScope || sortModules(DB.modules);
   const participants = participantScope || allParticipants();
-  const title=currentLang==='en'?'Overall Practical Assessment Performance — All Modules':'Prestasi Keseluruhan Penilaian Praktikal — Semua Modul';
+  const title=currentLang==='en'?'Overall Assessment Performance — All Modules':'Prestasi Keseluruhan Penilaian — Semua Modul';
   const date=new Date().toLocaleString(locale(),{dateStyle:'long',timeStyle:'short'});
   const body=renderOverallSpider(modules,participants,true);
   const css=`*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24332d;margin:0;padding:24px;font-size:11px;line-height:1.45}.head{border-bottom:4px solid #0b6b53;padding-bottom:13px;margin-bottom:16px}.brand{font-size:10px;letter-spacing:2px;color:#0b6b53;font-weight:bold}.head h1{font-size:20px;color:#0b6b53;margin:5px 0}.head p{margin:0;color:#65736c}.overall-spider-summary{display:flex;gap:10px;margin:12px 0}.overall-spider-summary>div{flex:1;padding:10px;border:1px solid #dce6e1;border-radius:8px;background:#f7faf8}.overall-spider-summary small{display:block;color:#68766f;font-size:9px;text-transform:uppercase}.overall-spider-summary strong{display:block;font-size:17px;color:#0b6b53;margin-top:3px}.overall-spider-chart{text-align:center}.overall-spider-chart svg{width:100%;max-width:700px;height:auto;max-height:520px}.spider-legend{font-size:9px;color:#607068;margin:3px 0 12px}.table-wrap table{width:100%;border-collapse:collapse}.table-wrap th,.table-wrap td{border:1px solid #d6dfda;padding:7px;text-align:left;font-size:10px}.table-wrap th{background:#eaf3ee;color:#244c3b}.muted{color:#6b7771}.foot{margin-top:18px;border-top:1px solid #dce4df;padding-top:8px;color:#78837d;font-size:9px}@media print{@page{size:A4 portrait;margin:12mm}body{padding:0}.overall-spider-chart svg{max-height:440px}}`;
@@ -8865,8 +9257,8 @@ function spiderReportHTML(pid, moduleScope) {
   const chart = renderParticipantAssessmentSpider(pid, modules);
   const ds = new Date().toLocaleString(locale(), { dateStyle:'long', timeStyle:'short' });
   const labels = currentLang === 'en'
-    ? {title:'Assessment Performance by Module',subtitle:'Practical Assessment — Individual Spider Web Report',student:'Participant',organisation:'Organisation',id:'Participant ID',date:'Generated on',note:'Scores are normalised against the maximum mark for each rubric criterion. Unassessed criteria are shown as not assessed.'}
-    : {title:'Prestasi Penilaian Mengikut Modul',subtitle:'Penilaian Praktikal — Laporan Spider Web Individu',student:'Nama Peserta',organisation:'Organisasi',id:'ID Peserta',date:'Dijana pada',note:'Skor dinormalkan berdasarkan markah maksimum bagi setiap kriteria rubrik. Kriteria yang belum dinilai ditandakan sebagai belum dinilai.'};
+    ? {title:'Assessment Performance by Module',subtitle:'Theory Quiz + Practical Assessment — Individual Spider Web Report',student:'Participant',organisation:'Organisation',id:'Participant ID',date:'Generated on',note:'Theory quiz scores use the participant’s best recorded attempt. Practical scores are normalised against the maximum mark for each rubric criterion. The overall module score combines Theory and Practical equally when both are available.'}
+    : {title:'Prestasi Penilaian Mengikut Modul',subtitle:'Penilaian Theory Quiz + Practical — Laporan Spider Web Individu',student:'Nama Peserta',organisation:'Organisasi',id:'ID Peserta',date:'Dijana pada',note:'Skor Theory menggunakan percubaan kuiz terbaik yang direkodkan. Skor Practical dinormalkan berdasarkan markah maksimum setiap kriteria rubrik. Skor keseluruhan modul menggabungkan Theory dan Practical secara sama rata apabila kedua-duanya tersedia.'};
   const reportCss = `*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#24332d;margin:0;padding:24px;font-size:11px;line-height:1.45;background:#fff}.report-head{display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid #0b6b53;padding:0 0 14px;margin-bottom:16px}.brand{font-size:10px;letter-spacing:2px;color:#0b6b53;font-weight:800}.report-head h1{font-size:21px;margin:4px 0;color:#0b6b53}.report-head p{margin:0;color:#66736d}.logo{width:54px;height:54px;border-radius:12px;background:#0b6b53;color:#fff;display:grid;place-items:center;font-weight:900;font-size:19px}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 18px}.meta div{padding:9px 11px;border:1px solid #dce6e1;border-radius:8px;background:#f7faf8}.meta b{display:block;color:#68766f;font-size:9px;text-transform:uppercase;letter-spacing:.5px}.meta span{font-size:12px;font-weight:700}.spider-dashboard{border:0!important;padding:0!important;margin:0!important}.spider-dashboard>.card-head{display:none}.spider-module{border:1px solid #d8e3dd;border-radius:10px;padding:12px;margin:14px 0;break-inside:avoid;page-break-inside:avoid}.spider-module-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e3ebe6;padding-bottom:7px}.spider-module-head h3{font-size:14px;color:#0b6b53;margin:0}.spider-layout{display:grid;grid-template-columns:42% 58%;gap:10px;align-items:center}.spider-chart-wrap{text-align:center;min-width:0}.spider-svg{width:100%;max-width:420px;height:auto;max-height:340px}.spider-data table{width:100%;border-collapse:collapse}.spider-data th,.spider-data td{border:1px solid #d6dfda;padding:6px;text-align:left;font-size:9px}.spider-data th{background:#eaf3ee;color:#244c3b}.spider-legend{font-size:9px;color:#607068;margin-top:3px}.badge{display:inline-block;padding:2px 6px;border-radius:12px;font-size:9px}.badge.ok{background:#e3f5ec;color:#1e7d4f}.badge.draft{background:#f3f4f6;color:#5c6670}.muted{color:#6b7771}.empty{padding:12px;color:#6b7771}.report-note{margin-top:12px;padding:9px 12px;background:#f5f8f6;border-left:3px solid #0b6b53;color:#53625a;font-size:10px}.foot{margin-top:22px;padding-top:8px;border-top:1px solid #dce4df;color:#78837d;font-size:9px;display:flex;justify-content:space-between}@media print{@page{size:A4 portrait;margin:12mm}body{padding:0}.spider-module{break-inside:avoid;page-break-inside:avoid}.spider-layout{grid-template-columns:40% 60%}.spider-svg{max-height:300px}}`;
   return `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${esc(labels.title)} - ${esc(p.name)}</title><style>${reportCss}</style></head><body>
     <header class="report-head"><div><div class="brand">CFTP TRAINING MANAGEMENT</div><h1>${esc(labels.title)}</h1><p>${esc(labels.subtitle)}</p></div><div class="logo">CFTP</div></header>
@@ -9570,9 +9962,20 @@ document.addEventListener('click', async (e) => {
       document.getElementById('programMemoryFile')?.click();
       break;
     }
+    case 'memory-add-photo-trigger': {
+      const post = programMemoryPhotos.find(x => String(x.id) === String(tgt.dataset.pid));
+      if (!post || !state.user || state.user.role === 'vip') break;
+      if (state.user.role !== 'admin' && String(post.userId || '') !== String(state.user.id)) {
+        toast(programMemoryText('Hanya pemilik hantaran boleh menambah gambar.','Only the post owner can add photos.'),'warn');
+        break;
+      }
+      document.getElementById('pm-add-photo-' + tgt.dataset.pid)?.click();
+      break;
+    }
     case 'memory-comment': submitProgramMemoryComment(tgt.dataset.pid); break;
     case 'memory-delete-comment': deleteProgramMemoryComment(tgt.dataset.pid, tgt.dataset.cid); break;
     case 'memory-edit-description': editProgramMemoryDescription(tgt.dataset.pid); break;
+    case 'memory-edit-date': editProgramMemoryDate(tgt.dataset.pid); break;
     case 'memory-delete': deleteProgramMemoryAlbum(tgt.dataset.pid); break;
     case 'memory-react': submitProgramMemoryReaction(tgt.dataset.pid, tgt.dataset.reaction); break;
     case 'memory-open-image': { const url = tgt.dataset.url || ''; if (url) window.open(url, '_blank', 'noopener'); break; }
