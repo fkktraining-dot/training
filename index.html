@@ -824,83 +824,34 @@ html, body {
 }
 
 
-
-/* =========================================================
-   MOBILE LOGOUT VISIBILITY — ALL USER ROLES
-   UI-only enhancement: keep existing logout action/handler.
-   Prevent the topbar controls from pushing Logout off-screen
-   on narrow phones, and keep the sidebar logout accessible.
-   ========================================================= */
+/* MOBILE LOGOUT VISIBILITY — ALL USER ROLES (CSS only) */
 @media screen and (max-width: 900px) {
-  .shell .topbar {
-    flex-wrap: wrap !important;
-    align-items: center !important;
-  }
-
+  .shell .topbar { flex-wrap: wrap !important; align-items: center !important; }
   .shell .topbar .tb-right {
-    display: flex !important;
-    flex: 1 1 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    flex-wrap: wrap !important;
-    justify-content: flex-end !important;
-    gap: 6px !important;
+    display:flex !important; flex:1 1 100% !important; min-width:0 !important;
+    max-width:100% !important; flex-wrap:wrap !important; justify-content:flex-end !important; gap:6px !important;
   }
-
   .shell .topbar-logout {
-    display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    flex: 0 0 auto !important;
-    order: 999 !important;
-    min-height: 40px !important;
-    padding: 8px 12px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 6px !important;
-    white-space: nowrap !important;
-    background: #fff !important;
-    border: 1px solid #e8c4bf !important;
-    color: #a83226 !important;
+    display:inline-flex !important; visibility:visible !important; opacity:1 !important;
+    flex:0 0 auto !important; order:999 !important; min-height:40px !important;
+    padding:8px 12px !important; align-items:center !important; justify-content:center !important;
+    gap:6px !important; white-space:nowrap !important; background:#fff !important;
+    border:1px solid #e8c4bf !important; color:#a83226 !important;
   }
-
-  .shell:not(.admin-shell) > .sidebar {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
+  .shell:not(.admin-shell) > .sidebar { max-height:none !important; overflow:visible !important; }
   .shell:not(.admin-shell) .sidebar-foot {
-    display: flex !important;
-    visibility: visible !important;
-    flex: 0 0 auto !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    margin-top: 10px !important;
-    padding-top: 10px !important;
+    display:flex !important; visibility:visible !important; flex:0 0 auto !important;
+    flex-direction:column !important; width:100% !important; margin-top:10px !important; padding-top:10px !important;
   }
-
   .shell:not(.admin-shell) .sidebar-foot > button[data-act="logout"] {
-    display: inline-flex !important;
-    width: 100% !important;
-    min-height: 42px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: rgba(255,255,255,.06) !important;
-    border: 1px solid rgba(255,255,255,.18) !important;
-    color: #fff !important;
+    display:inline-flex !important; width:100% !important; min-height:42px !important;
+    align-items:center !important; justify-content:center !important;
+    background:rgba(255,255,255,.06) !important; border:1px solid rgba(255,255,255,.18) !important; color:#fff !important;
   }
 }
-
 @media screen and (max-width: 560px) {
-  .shell .topbar .tb-right {
-    gap: 5px !important;
-  }
-
-  .shell .topbar-logout {
-    min-height: 42px !important;
-    padding: 8px 11px !important;
-    font-size: .8rem !important;
-  }
+  .shell .topbar .tb-right { gap:5px !important; }
+  .shell .topbar-logout { min-height:42px !important; padding:8px 11px !important; font-size:.8rem !important; }
 }
 
 </style>
@@ -3081,8 +3032,22 @@ const SESSION_KEY = 'cftpmy_session_v1';
 // Keep an active login when a background server refresh returns a temporarily
 // incomplete users list. A refresh is not an explicit logout operation.
 function restoreActiveSessionUser() {
-  const sid = localStorage.getItem(SESSION_KEY);
-  if (!sid) { state.user = null; return false; }
+  let sid = null;
+  try { sid = localStorage.getItem(SESSION_KEY); }
+  catch (storageError) {
+    console.warn('[session] Browser storage is temporarily unavailable; preserving the active in-memory session.', storageError);
+    return !!(state.user && state.user.id);
+  }
+  // A missing storage key must not erase a user who has already authenticated
+  // successfully in this page. On a fresh page load state.user is still null.
+  if (!sid) {
+    if (state.user && state.user.id) {
+      console.warn('[session] Session key unavailable; preserving the authenticated in-memory user.');
+      return false;
+    }
+    state.user = null;
+    return false;
+  }
   const serverUser = Array.isArray(DB?.users) ? DB.users.find(u => String(u.id) === String(sid)) : null;
   if (serverUser) { state.user = serverUser; return false; }
   if (state.user && String(state.user.id) === String(sid)) {
@@ -4880,7 +4845,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', feedback: currentLang === 'en' ? 'Training Program Feedback' : 'Maklum Balas Program Latihan', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
@@ -5102,7 +5067,6 @@ function viewContent() {
     case 'materials-library': return materialsLibraryView();
     case 'system-information': return systemInformationView();
     case 'memory': return programMemoryView();
-    case 'feedback': return state.user.role === 'participant' ? participantFeedbackView() : (state.user.role === 'admin' ? adminFeedbackView() : `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`);
     case 'module': return moduleDetailView();
     case 'programs': return programsView();
     case 'enrolled-programs': return enrolledProgramsView();
@@ -5132,159 +5096,6 @@ function viewContent() {
 }
 
 
-
-/* =========================================================
-   TRAINING PROGRAM FEEDBACK — isolated FeedbackResponses sheet
-   Participant submissions are stored separately from the core CFTP DB.
-   ========================================================= */
-const FEEDBACK_SECTIONS = [
-  {id:'content',title:'Section 1: Program Content',items:[
-    'The program content was clear and easy to understand.',
-    'The content was relevant to my job/role.',
-    'The program objectives were clear from the start.',
-    'The difficulty level of the content was appropriate for participants.',
-    'The content met my expectations.'
-  ],comment:'Most useful topic',extra:'Topic/content that should be added or improved'},
-  {id:'facilitator',title:'Section 2: Facilitator',items:[
-    'The facilitator managed the program well.',
-    'The facilitator gave clear instructions.',
-    'The facilitator encouraged active participant involvement.',
-    'The facilitator managed time and session flow smoothly.',
-    'The facilitator was responsive to participants’ questions/issues.'
-  ],comment:'Comments about the facilitator'},
-  {id:'trainer',title:'Section 3: Trainer / Speaker',items:[
-    'The trainer mastered the content/topic presented.',
-    'The trainer presented the content clearly and engagingly.',
-    'The trainer encouraged Q&A and discussion.',
-    'The trainer provided examples/explanations that were easy to understand.',
-    'The trainer kept participants engaged throughout the session.'
-  ],comment:'Comments about the trainer/speaker'},
-  {id:'materials',title:'Section 4: Handouts / Program Materials',items:[
-    'The handouts/program materials were complete and well-organized.',
-    'The handouts were easy to read and understand.',
-    'The materials helped during the training session.',
-    'The handouts are suitable for reference after the program.'
-  ],comment:'Suggestions for improving the handouts'},
-  {id:'food',title:'Section 5: Food / Refreshments',items:[
-    'The food quality was satisfactory.',
-    'The amount of food was sufficient.',
-    'The menu variety was appropriate.',
-    'Meal times fit well with the program flow.',
-    'Food hygiene and presentation were satisfactory.'
-  ],comment:'Menu suggestions / food-related improvements'},
-  {id:'flow',title:'Section 6: Program Flow / Agenda',items:[
-    'The program flow was well-organized and smooth.',
-    'Time management throughout the program was good.',
-    'The duration of each session was appropriate.',
-    'Breaks/rest periods were sufficient.',
-    'The program started and ended on schedule.'
-  ],comment:'Parts of the program flow that need improvement'},
-  {id:'venue',title:'Section 7: Venue / Location',items:[
-    'The venue was comfortable and suitable.',
-    'There was enough space for participants.',
-    'Basic facilities (toilets, prayer room, parking, etc.) were satisfactory.',
-    'Audio-visual and technical equipment worked well.',
-    'The location was easy to access.'
-  ],comment:'Suggestions for improving the venue/location'}
-];
-let feedbackAdminRecords = [];
-let feedbackAdminLoaded = false;
-let feedbackAdminLoading = false;
-function feedbackEscape(v){ return esc(String(v == null ? '' : v)); }
-function feedbackModuleOptions(){
-  const mods = participantModules(String(state.user.id || ''));
-  return mods.map(m=>`<option value="${feedbackEscape(m.id)}">${feedbackEscape(m.name)}</option>`).join('');
-}
-function feedbackRatingRows(section){
-  return `<div class="feedback-rating-list">${section.items.map((q,i)=>{
-    const key = `${section.id}_${i+1}`;
-    return `<div class="feedback-question"><div class="feedback-question-text">${i+1}. ${feedbackEscape(q)}</div><div class="feedback-scale" role="radiogroup" aria-label="${feedbackEscape(q)}">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="rating_${key}" value="${n}" required><span>${n}</span></label>`).join('')}</div></div>`;
-  }).join('')}</div>`;
-}
-function feedbackComment(section, idx){
-  const labels = section.id==='content' ? [section.comment,section.extra] : [section.comment];
-  return labels.map((label,i)=>`<label class="feedback-field"><span>${feedbackEscape(label)}</span><textarea name="comment_${section.id}_${i+1}" rows="2" placeholder="${currentLang==='en'?'Write your comments here…':'Tulis komen anda di sini…'}"></textarea></label>`).join('');
-}
-function participantFeedbackView(){
-  if (!state.user || state.user.role !== 'participant') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  const options = feedbackModuleOptions();
-  const noProgram = !options;
-  return `<div class="feedback-page">
-    <div class="feedback-hero"><div class="feedback-hero-icon">💬</div><div><div class="feedback-kicker">CFTP · CONTINUOUS IMPROVEMENT</div><h2>TRAINING PROGRAM FEEDBACK FORM</h2><p>Please provide honest feedback. Your responses will be used to improve future training programs.</p></div></div>
-    <form data-form="training-feedback" id="trainingFeedbackForm">
-      <section class="card feedback-meta"><div class="feedback-section-head"><span>PROGRAM DETAILS</span><small>Participant: ${feedbackEscape(state.user.name)}</small></div>
-        ${noProgram?`<div class="feedback-empty">No enrolled programme is currently linked to your account. Please contact the programme administrator.</div>`:`<div class="feedback-meta-grid"><label class="feedback-field"><span>Program Name *</span><select name="moduleId" id="feedbackModule" required><option value="">Select programme</option>${options}</select></label>
-        <label class="feedback-field"><span>Date *</span><input type="date" name="date" required value="${new Date().toLocaleDateString('en-CA')}"></label>
-        <label class="feedback-field"><span>Facilitator</span><input name="facilitator" type="text" maxlength="160" placeholder="Facilitator name"></label>
-        <label class="feedback-field"><span>Trainer/Speaker</span><input name="trainerSpeaker" type="text" maxlength="160" placeholder="Trainer/Speaker name"></label></div>`}
-      </section>
-      <div class="feedback-instructions"><strong>Instructions</strong><p>Please provide honest feedback. Your responses will be used to improve future training programs.</p><div><strong>Scale:</strong> 1 = Strongly Disagree / Very Unsatisfactory &nbsp;·&nbsp; 5 = Strongly Agree / Very Satisfactory</div></div>
-      ${FEEDBACK_SECTIONS.map((sec,idx)=>`<section class="card feedback-section"><div class="feedback-section-head"><span>${feedbackEscape(sec.title)}</span><small>${sec.items.length} statements</small></div>${feedbackRatingRows(sec)}${feedbackComment(sec,idx)}</section>`).join('')}
-      <section class="card feedback-section"><div class="feedback-section-head"><span>Section 8: Overall Feedback</span></div>
-        <fieldset class="feedback-choice"><legend>Overall, how satisfied are you with this program? *</legend>${['Very Satisfied','Satisfied','Neutral','Dissatisfied','Very Dissatisfied'].map((v,i)=>`<label><input type="radio" name="overall" value="${v}" required><span>${v}</span></label>`).join('')}</fieldset>
-        <fieldset class="feedback-choice"><legend>Would you recommend this program to a colleague? *</legend>${['Yes','No','Maybe'].map(v=>`<label><input type="radio" name="recommend" value="${v}" required><span>${v}</span></label>`).join('')}</fieldset>
-        <label class="feedback-field"><span>One thing that most needs improvement</span><textarea name="improvement" rows="3"></textarea></label>
-        <label class="feedback-field"><span>Other comments</span><textarea name="otherComments" rows="3"></textarea></label>
-      </section>
-      <div class="feedback-submit-row">${noProgram?'':`<button class="btn btn-primary feedback-submit" type="submit">Submit Feedback <span>→</span></button>`}<p>Thank you for your feedback.</p></div>
-    </form>
-  </div>`;
-}
-function adminFeedbackView(){
-  if (!state.user || state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  return `<div class="feedback-admin-page"><div class="feedback-hero"><div class="feedback-hero-icon">📊</div><div><div class="feedback-kicker">QUALITY & PROGRAMME IMPROVEMENT</div><h2>TRAINING PROGRAM FEEDBACK</h2><p>Review participant responses and identify areas for improvement.</p></div></div>
-    <div class="feedback-admin-toolbar"><div><strong id="feedbackCount">${feedbackAdminLoaded?feedbackAdminRecords.length:'—'}</strong><span> responses received</span></div><button type="button" class="btn" data-act="feedback-refresh">↻ Refresh</button></div>
-    <form class="feedback-filter card" data-form="feedback-filter"><label><span>Search programme / participant</span><input id="feedbackSearch" type="search" placeholder="Type to filter…"></label><label><span>From date</span><input id="feedbackFrom" type="date"></label><label><span>To date</span><input id="feedbackTo" type="date"></label><button class="btn btn-primary" type="submit">Apply filter</button></form>
-    <div id="feedbackAdminResults"><div class="card"><div class="empty">${feedbackAdminLoading?'Loading feedback records…':'Press Refresh to load feedback records.'}</div></div></div>
-  </div>`;
-}
-async function loadFeedbackAdminRecords(force){
-  if (!state.user || state.user.role!=='admin' || feedbackAdminLoading || (feedbackAdminLoaded && !force)) { if(feedbackAdminLoaded) renderFeedbackAdminTable(); return; }
-  feedbackAdminLoading=true;
-  const target=document.getElementById('feedbackAdminResults'); if(target) target.innerHTML='<div class="card"><div class="empty">Loading feedback records…</div></div>';
-  try{
-    const res=await driveAPI('listFeedback',{actorId:String(state.user.id)},60000);
-    if(!res || !res.ok) throw new Error(res?.error || 'Unable to load feedback');
-    feedbackAdminRecords=Array.isArray(res.records)?res.records:[]; feedbackAdminLoaded=true;
-    renderFeedbackAdminTable();
-  }catch(err){ const root=document.getElementById('feedbackAdminResults'); if(root) root.innerHTML=`<div class="card"><div class="empty">${feedbackEscape(err.message)} <button class="btn" data-act="feedback-refresh">Retry</button></div></div>`; }
-  finally{ feedbackAdminLoading=false; }
-}
-function feedbackCommentLabel(key){
-  const labels={content_1:'Most useful topic',content_2:'Topic/content to be added or improved',facilitator_1:'Comments about the facilitator',trainer_1:'Comments about the trainer/speaker',materials_1:'Suggestions for improving the handouts',food_1:'Menu suggestions / food-related improvements',flow_1:'Parts of the program flow that need improvement',venue_1:'Suggestions for improving the venue/location'};
-  return labels[key] || String(key||'').replace(/_/g,' ');
-}
-function renderFeedbackAdminTable(){
-  const root=document.getElementById('feedbackAdminResults'); if(!root)return;
-  const q=(document.getElementById('feedbackSearch')?.value||'').trim().toLowerCase();
-  const from=document.getElementById('feedbackFrom')?.value||''; const to=document.getElementById('feedbackTo')?.value||'';
-  const rows=feedbackAdminRecords.filter(r=>{
-    const hay=[r.programName,r.participantName,r.facilitator,r.trainerSpeaker].join(' ').toLowerCase();
-    const day=String(r.date||r.submittedAt||'').slice(0,10);
-    return (!q||hay.includes(q))&&(!from||day>=from)&&(!to||day<=to);
-  }).sort((a,b)=>String(b.submittedAt||'').localeCompare(String(a.submittedAt||'')));
-  const count=document.getElementById('feedbackCount'); if(count)count.textContent=rows.length+(rows.length!==feedbackAdminRecords.length?` / ${feedbackAdminRecords.length}`:'');
-  if(!rows.length){root.innerHTML=`<div class="card"><div class="empty">${feedbackAdminLoaded?'No feedback responses match the selected filter.':'No feedback records loaded yet.'}</div></div>`;return;}
-  root.innerHTML=rows.map(r=>{
-    const avgVals=Object.values(r.ratings||{}).map(Number).filter(n=>n>=1&&n<=5); const avg=avgVals.length?(avgVals.reduce((a,b)=>a+b,0)/avgVals.length).toFixed(2):'—';
-    const ratingsHtml=FEEDBACK_SECTIONS.map(sec=>{const vals=sec.items.map((_,i)=>Number((r.ratings||{})[`${sec.id}_${i+1}`])).filter(n=>n>=1&&n<=5);const mean=vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2):'—';return `<div class="feedback-admin-score"><span>${feedbackEscape(sec.title.replace(/^Section \d: /,''))}</span><strong>${mean}/5</strong></div>`;}).join('');
-    const comments=Object.entries(r.comments||{}).filter(([k,v])=>String(v||'').trim()).map(([k,v])=>`<div class="feedback-admin-comment"><strong>${feedbackEscape(feedbackCommentLabel(k))}</strong><p>${feedbackEscape(v)}</p></div>`).join('');
-    return `<article class="card feedback-response"><div class="feedback-response-head"><div><h3>${feedbackEscape(r.programName||'Programme')}</h3><p>${feedbackEscape(r.participantName||'Participant')} · ${feedbackEscape(r.date||'')} · Submitted ${feedbackEscape(r.submittedAt||'')}</p></div><div class="feedback-overall-score"><strong>${avg}</strong><span>Average / 5</span></div></div><div class="feedback-response-meta"><span>Facilitator: <b>${feedbackEscape(r.facilitator||'—')}</b></span><span>Trainer/Speaker: <b>${feedbackEscape(r.trainerSpeaker||'—')}</b></span><span>Overall: <b>${feedbackEscape(r.overall||'—')}</b></span><span>Recommend: <b>${feedbackEscape(r.recommend||'—')}</b></span></div><div class="feedback-admin-scores">${ratingsHtml}</div>${r.improvement?`<div class="feedback-admin-comment"><strong>One thing that most needs improvement</strong><p>${feedbackEscape(r.improvement)}</p></div>`:''}${comments}${r.otherComments?`<div class="feedback-admin-comment"><strong>Other comments</strong><p>${feedbackEscape(r.otherComments)}</p></div>`:''}</article>`;
-  }).join('');
-}
-async function handleSubmitTrainingFeedback(form){
-  if(!state.user||state.user.role!=='participant'){toast('Only participants can submit feedback.','bad');return;}
-  const fd=new FormData(form); const moduleId=String(fd.get('moduleId')||'');
-  const mod=participantModules(String(state.user.id||'')).find(m=>String(m.id)===moduleId);
-  if(!mod){toast('Please select one of your enrolled programmes.','warn');return;}
-  const ratings={}; FEEDBACK_SECTIONS.forEach(sec=>sec.items.forEach((_,i)=>{ratings[`${sec.id}_${i+1}`]=Number(fd.get(`rating_${sec.id}_${i+1}`)||0);}));
-  const comments={}; FEEDBACK_SECTIONS.forEach(sec=>{const count=sec.id==='content'?2:1;for(let i=1;i<=count;i++)comments[`${sec.id}_${i}`]=String(fd.get(`comment_${sec.id}_${i}`)||'').trim();});
-  const payload={id:'fb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),actorId:String(state.user.id),moduleId,programName:String(mod.name||''),date:String(fd.get('date')||''),facilitator:String(fd.get('facilitator')||'').trim(),trainerSpeaker:String(fd.get('trainerSpeaker')||'').trim(),ratings,comments,overall:String(fd.get('overall')||''),recommend:String(fd.get('recommend')||''),improvement:String(fd.get('improvement')||'').trim(),otherComments:String(fd.get('otherComments')||'').trim()};
-  if(Object.values(ratings).some(n=>!(n>=1&&n<=5))){toast('Please complete all rating statements.','warn');return;}
-  const btn=form.querySelector('button[type="submit"]'); if(btn){btn.disabled=true;btn.textContent='Submitting…';}
-  try{const res=await driveAPI('submitFeedback',{actorId:payload.actorId,feedback:payload},60000);if(!res||!res.ok)throw new Error(res?.error||'Submission failed');toast('Thank you. Your feedback has been submitted successfully.','ok');state.view='dashboard';render();}
-  catch(err){toast('Unable to submit feedback: '+err.message,'bad');if(btn){btn.disabled=false;btn.innerHTML='Submit Feedback <span>→</span>';}}
-}
 
 /* =========================================================
    PROGRAMME MEMORY — Drive gallery + isolated metadata sheet
@@ -6404,7 +6215,14 @@ async function handleLogin(form) {
     } catch (_) {}
     state.view = 'dashboard';
     state.params = {};
-    localStorage.setItem(SESSION_KEY, u.id);
+    try {
+      localStorage.setItem(SESSION_KEY, u.id);
+    } catch (storageError) {
+      console.warn('[login] Could not persist the session key in browser storage; keeping the authenticated session active in memory.', storageError);
+      toast(currentLang === 'en'
+        ? 'Login successful, but this browser could not save the session. Keep this tab open.'
+        : 'Log masuk berjaya, tetapi pelayar tidak dapat menyimpan sesi. Sila kekalkan tab ini terbuka.', 'warn');
+    }
     try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
     logAudit('Login', 'Sesi', u.id, u.name);
     try {
@@ -10353,55 +10171,6 @@ function printActivityMaster(aid) {
 .pm-delete-comment{flex:0 0 auto;border:0;border-radius:8px;background:transparent;color:#94a3b8;padding:9px;min-width:36px;min-height:36px;cursor:pointer}
 .pm-delete-comment:hover,.pm-delete-comment:focus-visible{background:#fee2e2;color:#b91c1c;outline:none}
 @media(max-width:420px){.pm-reaction-picker{gap:6px}.pm-reaction-choice{min-height:58px;border-radius:10px}.pm-reaction-emoji{font-size:1.55rem}}
-
-/* TRAINING PROGRAM FEEDBACK — responsive, isolated feature */
-.feedback-page,.feedback-admin-page{max-width:1080px;margin:0 auto;color:var(--text)}
-.feedback-hero{display:flex;gap:18px;align-items:center;padding:24px 26px;margin-bottom:18px;border-radius:18px;background:linear-gradient(120deg,#073d31,#0b6b53 62%,#15936f);color:#fff;box-shadow:0 10px 28px rgba(5,55,42,.16)}
-.feedback-hero-icon{width:58px;height:58px;flex:0 0 58px;border-radius:16px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:28px}
-.feedback-kicker{font-size:.68rem;letter-spacing:.15em;font-weight:800;opacity:.78;margin-bottom:5px}
-.feedback-hero h2{font-size:1.25rem;margin:0 0 6px;color:#fff;letter-spacing:.015em}
-.feedback-hero p{margin:0;color:rgba(255,255,255,.84);font-size:.88rem}
-.feedback-section,.feedback-meta{padding:20px 22px;margin-bottom:15px}
-.feedback-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding-bottom:11px;border-bottom:1px solid var(--line)}
-.feedback-section-head>span{font-size:.9rem;font-weight:850;color:var(--brand);letter-spacing:.025em}
-.feedback-section-head small{color:var(--muted);font-size:.72rem}
-.feedback-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.feedback-field{display:flex;flex-direction:column;gap:6px;margin:12px 0;color:var(--text);font-size:.84rem;font-weight:700}
-.feedback-field>span{line-height:1.35}
-.feedback-field input,.feedback-field select,.feedback-field textarea,.feedback-filter input{width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;padding:10px 11px;background:#fff;color:var(--text);font:inherit;font-weight:400;box-sizing:border-box}
-.feedback-field textarea{resize:vertical;min-height:58px}
-.feedback-instructions{border:1px solid #cfe7dd;background:#f2faf6;border-radius:12px;padding:15px 18px;margin:0 0 15px;color:#174d3d;font-size:.84rem}
-.feedback-instructions p{margin:5px 0 8px}.feedback-instructions>div{font-size:.8rem}
-.feedback-rating-list{display:flex;flex-direction:column}
-.feedback-question{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #edf1ef}
-.feedback-question:last-child{border-bottom:0}
-.feedback-question-text{font-size:.84rem;line-height:1.45}
-.feedback-scale{display:flex;gap:6px;align-items:center}
-.feedback-scale label{cursor:pointer}.feedback-scale input{position:absolute;opacity:0;pointer-events:none}
-.feedback-scale span{width:32px;height:32px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:750;background:#fff;color:var(--muted);transition:.15s}
-.feedback-scale input:checked+span{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 0 0 3px rgba(11,107,83,.12)}
-.feedback-choice{border:0;border-top:1px solid var(--line);padding:15px 0 8px;margin:10px 0 0;display:flex;gap:10px 18px;flex-wrap:wrap}
-.feedback-choice legend{font-size:.88rem;font-weight:800;padding:0 0 8px}
-.feedback-choice label{display:flex;align-items:center;gap:7px;font-size:.83rem;cursor:pointer}
-.feedback-choice input{accent-color:var(--brand)}
-.feedback-submit-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 2px 20px}
-.feedback-submit-row p{margin:0;color:var(--muted);font-size:.82rem}.feedback-submit{min-height:44px;padding:0 20px}
-.feedback-empty{padding:12px;background:#fff7e8;border:1px solid #f0d9a9;border-radius:9px;color:#8a5b13;font-size:.84rem}
-.feedback-admin-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:14px 18px;background:#fff;border:1px solid var(--line);border-radius:12px}
-.feedback-admin-toolbar strong{font-size:1.35rem;color:var(--brand)}.feedback-admin-toolbar span{color:var(--muted);font-size:.83rem}
-.feedback-filter{display:grid;grid-template-columns:2fr 1fr 1fr auto;align-items:end;gap:10px;padding:14px;margin-bottom:16px}
-.feedback-filter label{display:flex;flex-direction:column;gap:5px;font-size:.75rem;font-weight:750;color:var(--muted)}
-.feedback-response{padding:20px;margin-bottom:14px}
-.feedback-response-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.feedback-response-head h3{margin:0 0 5px;font-size:1rem}.feedback-response-head p{margin:0;color:var(--muted);font-size:.76rem}
-.feedback-overall-score{min-width:76px;text-align:center;border-radius:12px;padding:8px;background:#eff8f3;color:var(--brand)}.feedback-overall-score strong{display:block;font-size:1.35rem}.feedback-overall-score span{font-size:.65rem}
-.feedback-response-meta{display:flex;flex-wrap:wrap;gap:7px 18px;margin:14px 0;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:.77rem;color:var(--muted)}.feedback-response-meta b{color:var(--text)}
-.feedback-admin-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 18px}
-.feedback-admin-score{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #eff2f0;font-size:.78rem}.feedback-admin-score strong{color:var(--brand);white-space:nowrap}
-.feedback-admin-comment{margin-top:12px;padding:10px 12px;border-radius:9px;background:#f7faf8;font-size:.78rem}.feedback-admin-comment strong{text-transform:capitalize;color:#285c4a}.feedback-admin-comment p{white-space:pre-wrap;margin:5px 0 0;line-height:1.5;color:var(--text)}
-@media(max-width:700px){.feedback-hero{padding:18px;gap:12px}.feedback-hero-icon{width:46px;height:46px;flex-basis:46px;font-size:23px}.feedback-hero h2{font-size:1.02rem}.feedback-hero p{font-size:.78rem}.feedback-section,.feedback-meta{padding:15px 13px}.feedback-meta-grid{grid-template-columns:1fr;gap:0}.feedback-question{grid-template-columns:1fr;gap:8px}.feedback-scale{justify-content:flex-start}.feedback-scale span{width:36px;height:36px}.feedback-filter{grid-template-columns:1fr 1fr}.feedback-filter label:first-child{grid-column:1/-1}.feedback-filter button{grid-column:1/-1}.feedback-admin-scores{grid-template-columns:1fr}.feedback-response{padding:14px}.feedback-submit-row{align-items:flex-start;flex-direction:column}.feedback-choice{gap:10px 14px}}
-@media(max-width:420px){.feedback-filter{grid-template-columns:1fr}.feedback-filter label:first-child,.feedback-filter button{grid-column:auto}.feedback-response-head{gap:8px}.feedback-overall-score{min-width:65px}.feedback-response-meta{display:grid;grid-template-columns:1fr}}
-
 </style></head><body>
     <section class="cover">
       <div class="brand">CFTP MALAYSIA</div>
@@ -10712,8 +10481,6 @@ document.addEventListener('submit', (e) => {
   else if (k === 'fe-bank-picker') handleFeBankPickerSubmit(form);
   else if (k === 'final-practical') handleSaveFinalPractical(form);
   else if (k === 'final-theory-mark') handleSaveFinalTheoryMark(form);
-  else if (k === 'training-feedback') handleSubmitTrainingFeedback(form);
-  else if (k === 'feedback-filter') { e.preventDefault(); renderFeedbackAdminTable(); }
 });
 
 document.addEventListener('click', async (e) => {
@@ -10738,7 +10505,6 @@ document.addEventListener('click', async (e) => {
     }
     case 'manual-sync': manualSyncNow(); break;
     case 'memory-refresh': loadProgramMemory(true); break;
-    case 'feedback-refresh': loadFeedbackAdminRecords(true); break;
     case 'memory-upload-trigger': {
       if (state.user.role === 'vip') { toast(currentLang === 'en' ? 'VIP access is read-only.' : 'Akses VIP ialah baca sahaja.','warn'); break; }
       document.getElementById('programMemoryFile')?.click();
@@ -10878,7 +10644,6 @@ document.addEventListener('click', async (e) => {
       if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true);
       if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true);
       if (tgt.dataset.view === 'memory') loadProgramMemory();
-      if (tgt.dataset.view === 'feedback' && state.user.role === 'admin') loadFeedbackAdminRecords();
       break;
     }
     case 'open-audit-notification': {
