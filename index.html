@@ -1045,13 +1045,20 @@ function downloadQuestionBankTemplate() {
   const isAdmin = state.user.role === 'admin';
   const mods = isAdmin ? sortModules(DB.modules) : myModules();
   const headers = [
-    'Modul', 'Soalan', 'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
-    'Jawapan (A/B/C/D)', 'Kategori', 'Tahap (Mudah/Sederhana/Sukar)'
+    'Modul', 'Soalan', 'Jenis Soalan (Multiple Choice/True-False)',
+    'Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D',
+    'Jawapan (A/B/C/D atau True/False)', 'Kategori', 'Tahap (Mudah/Sederhana/Sukar)'
   ];
   // Blank template only: all actual module/question data must come from Google Sheets.
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
-  ws['!cols'] = [{wch:28},{wch:50},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:20},{wch:26}];
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['Arahan: Gantikan contoh di bawah dengan soalan sebenar anda. Baris bermula [CONTOH] akan diabaikan semasa import. Pilih Multiple Choice atau True-False. Untuk True-False, pilihan dijana automatik; isi jawapan True/False atau Betul/Salah.'],
+    headers,
+    ['PILIH MODUL ANDA', '[CONTOH] Apakah formula kimia bagi air?', 'Multiple Choice', 'H2O', 'CO2', 'O2', 'NaCl', 'A', 'Kimia Asas', 'Mudah'],
+    ['PILIH MODUL ANDA', '[CONTOH] Air mendidih pada 100°C pada tekanan atmosfera standard.', 'True-False', '', '', '', '', 'True', 'Kimia Asas', 'Mudah']
+  ]);
+  ws['!cols'] = [{wch:28},{wch:50},{wch:34},{wch:18},{wch:18},{wch:18},{wch:18},{wch:32},{wch:20},{wch:30}];
+  ws['!autofilter'] = {ref:'A2:J2'};
   XLSX.utils.book_append_sheet(wb, ws, 'Soalan');
   const refWs = XLSX.utils.aoa_to_sheet([
     ['Senarai Modul Yang Sah (salin ke kolum "Modul")'],
@@ -1070,9 +1077,12 @@ async function importQuestionBankExcel(file) {
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
-  const headers = rows[0];
+  const headerRow = getColIndex(rows[0], 'Soalan', 'Question') !== -1 ? 0 : (rows.findIndex(r => getColIndex(r, 'Soalan', 'Question') !== -1));
+  if (headerRow < 0) { toast('⚠️ Header template Bank Soalan tidak sah.', 'bad'); return; }
+  const headers = rows[headerRow];
   const iMod  = getColIndex(headers, 'Modul', 'Module');
   const iQ    = getColIndex(headers, 'Soalan', 'Question');
+  const iType = getColIndex(headers, 'Jenis Soalan', 'Question Type', 'Type');
   const iA    = getColIndex(headers, 'Pilihan A', 'Option A', 'A');
   const iB    = getColIndex(headers, 'Pilihan B', 'Option B', 'B');
   const iC    = getColIndex(headers, 'Pilihan C', 'Option C', 'C');
@@ -1093,10 +1103,11 @@ async function importQuestionBankExcel(file) {
   let added = 0, skipped = 0;
   const errors = [];
 
-  for (let r = 1; r < rows.length; r++) {
+  for (let r = headerRow + 1; r < rows.length; r++) {
     const row = rows[r];
     const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
     const q = String(row[iQ] || '').trim();
+    if (/^\[(CONTOH|EXAMPLE)\]/i.test(q)) { skipped++; continue; }
     const a = iA !== -1 ? String(row[iA] || '').trim() : '';
     const b = iB !== -1 ? String(row[iB] || '').trim() : '';
     const c = iC !== -1 ? String(row[iC] || '').trim() : '';
@@ -1112,22 +1123,31 @@ async function importQuestionBankExcel(file) {
 
     if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
 
+    const typeRaw = iType === -1 ? '' : String(row[iType] || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    const isTF = ['truefalse','tf','betulsalah','benarsalah'].includes(typeRaw);
+    const questionType = isTF ? 'true-false' : 'multiple-choice';
     const rawAns = String(row[iAns] || '').trim().toUpperCase();
-    const ansMap = { A: 0, B: 1, C: 2, D: 3 };
-    let ansIdx = ansMap[rawAns];
-    if (ansIdx === undefined) {
-      const cleaned = rawAns.replace(/^[\[(]+/, '').replace(/[\])).:;,\s]+$/, '').trim();
-      if (ansMap[cleaned] !== undefined) ansIdx = ansMap[cleaned];
+    let ansIdx;
+    let options;
+    if (isTF) {
+      options = ['True', 'False'];
+      if (['TRUE','T','BETUL','BENAR','1','A'].includes(rawAns)) ansIdx = 0;
+      else if (['FALSE','F','SALAH','2','B'].includes(rawAns)) ansIdx = 1;
+    } else {
+      const ansMap = { A: 0, B: 1, C: 2, D: 3 };
+      ansIdx = ansMap[rawAns];
+      if (ansIdx === undefined) {
+        const cleaned = rawAns.replace(/^[\[(]+/, '').replace(/[\])).:;,\s]+$/, '').trim();
+        if (ansMap[cleaned] !== undefined) ansIdx = ansMap[cleaned];
+      }
+      if (ansIdx === undefined) {
+        const n = Number(rawAns);
+        if (n >= 1 && n <= 4) ansIdx = n - 1;
+      }
+      options = [a, b, c, d];
     }
-    if (ansIdx === undefined) {
-      const n = Number(rawAns);
-      if (n >= 1 && n <= 4) ansIdx = n - 1;
-    }
-
-    const options = [a, b, c, d];
     const validOpts = options.filter(Boolean).length;
-
-    if (validOpts < 2 || ansIdx === undefined) {
+    if ((isTF && ansIdx === undefined) || (!isTF && (validOpts < 2 || ansIdx === undefined || !options[ansIdx]))) {
       errors.push(`Baris ${r + 1}: pilihan/jawapan tidak sah (jawapan: "${rawAns}")`);
       skipped++; continue;
     }
@@ -1141,6 +1161,7 @@ async function importQuestionBankExcel(file) {
       q,
       options,
       answer: ansIdx,
+      questionType,
       category: iCat !== -1 ? String(row[iCat] || '').trim() : '',
       difficulty: diffVal,
       createdAt: nowISO()
@@ -4436,7 +4457,6 @@ function navItemsBase() {
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_all'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
-      { v:'final', label:t('nav_final'), icon:'🎓' },
       { v:'grading', label:t('nav_grading'), icon:'✅' },
       { v:'reports', label:t('nav_reports'), icon:'📄' },
       { v:'profile', label:t('nav_profile'), icon:'👤' }
@@ -4472,7 +4492,6 @@ function navItemsBase() {
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_own'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
-      { v:'final', label:t('nav_final'), icon:'🎓' },
       { v:'grading', label:t('nav_grading') + (pend ? ` (${pend})` : ''), icon:'✅' },
       { v:'participant-assessment', label:t('nav_participant_assessment'), icon:'📊' },
       { v:'attendance', label:t('nav_attendance'), icon:'☑️' },
@@ -4493,7 +4512,6 @@ function navItemsBase() {
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules_own'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
-      { v:'final', label:t('nav_final') + (pq ? ` (${pq})` : ''), icon:'🎓' },
       { v:'grading', label:t('nav_grading'), icon:'✅' },
       { v:'participant-assessment', label:t('nav_participant_assessment'), icon:'📊' },
       { v:'attendance', label:t('nav_attendance'), icon:'☑️' },
@@ -4650,6 +4668,7 @@ function shell() {
       <header class="topbar">
         <h1>${esc(titleFor(state.view))}</h1>
         <div class="tb-right">
+          ${['trainer','facilitator'].includes(u.role) ? (() => { const n = pendingFinalQuestionTasksForTrainer().length; return `<button class="btn btn-sm ${n ? 'btn-primary' : ''}" data-act="open-final-question-bell" title="${currentLang === 'en' ? 'Final test questions requiring submission' : 'Soalan final test yang perlu dihantar'}" aria-label="Final test notifications">🔔${n ? ` <span class="badge bad">${n}</span>` : ''}</button>`; })() : ''}
           <label class="module-filter-top" style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted,#667085)">📦 <span>${currentLang === 'en' ? 'Module' : 'Modul'}</span><select class="select" style="max-width:190px;min-width:120px;padding:.38rem .5rem" aria-label="${currentLang === 'en' ? 'Filter all tabs by module' : 'Tapis semua tab mengikut modul'}" onchange="window.globalModuleFilter=this.value;render()"><option value="all">${currentLang === 'en' ? 'All modules' : 'Semua modul'}</option>${availableModulesForFilter().map(m=>`<option value="${esc(m.id)}" ${String(window.globalModuleFilter||'all')===String(m.id)?'selected':''}>${tce(m.name)}</option>`).join('')}</select></label>
           <button class="btn btn-sm btn-primary" id="syncAllNowBtn" data-act="sync-all-now" title="${currentLang === 'en' ? 'Check Google Drive and Google Sheets, then upload pending changes' : 'Semak Google Drive dan Google Sheets, kemudian muat naik perubahan'}">☁️ ${currentLang === 'en' ? 'Check & Sync' : 'Semak & Sync'}</button>
           ${u.role === 'admin' ? `<button class="btn btn-sm" data-act="print-system-book" title="${currentLang === 'en' ? 'Print all system information as a book' : 'Cetak semua maklumat sistem sebagai buku'}">📚 ${currentLang === 'en' ? 'Print All' : 'Cetak Semua'}</button>` : ''}
@@ -6019,7 +6038,6 @@ function vipDashboard() {
       <button class="btn btn-primary" data-act="nav" data-view="modules">📦 ${t('nav_modules_all')}</button>
       <button class="btn" data-act="nav" data-view="activities">📋 ${t('nav_activities')}</button>
       <button class="btn" data-act="nav" data-view="grading">✅ ${t('nav_grading')}</button>
-      <button class="btn" data-act="nav" data-view="final">🎓 ${t('nav_final')}</button>
       <button class="btn" data-act="nav" data-view="reports">📄 ${t('nav_reports')}</button>
       <button class="btn btn-primary" data-act="vip-export-participants">📥 ${currentLang === 'en' ? 'Export Participant Data (Excel)' : 'Eksport Data Peserta (Excel)'}</button>
     </div>
@@ -6964,9 +6982,45 @@ function deleteTimetableEntry(tid) {
 /* =========================================================
    FINAL EXAM
    ========================================================= */
+function pendingFinalQuestionTasksForTrainer() {
+  if (!state.user || !['trainer','facilitator'].includes(state.user.role)) return [];
+  const tasks = [];
+  (DB.finalExams || []).filter(fe => fe.type === 'theory').forEach(fe => {
+    (fe.moduleConfigs || []).forEach(mc => {
+      const m = getModule(mc.moduleId);
+      const assigned = m && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id));
+      const target = Number(mc.questionCount || 0);
+      const count = (mc.questions || []).length;
+      if (assigned && target > count) tasks.push({ fe, mc, m, remaining: target - count });
+    });
+  });
+  return tasks;
+}
+function openFinalQuestionBell() {
+  if (!state.user || !['trainer','facilitator'].includes(state.user.role)) return;
+  const tasks = pendingFinalQuestionTasksForTrainer();
+  openModal(`<div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Final Test Question Submission' : 'Penghantaran Soalan Final Test'}</h2><p class="muted" style="margin:0">${currentLang === 'en' ? 'Submit the required questions for your assigned modules.' : 'Sila hantar soalan yang diperlukan bagi modul yang ditugaskan kepada anda.'}</p></div><button class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button></div>
+    ${tasks.length ? tasks.map(({fe,mc,m,remaining}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · ${remaining} ${currentLang === 'en' ? 'more required' : 'lagi diperlukan'}</div></div><button class="btn btn-primary btn-sm" data-act="bell-submit-final-questions" data-feid="${esc(fe.id)}" data-mid="${esc(mc.moduleId)}">${currentLang === 'en' ? 'Submit Questions' : 'Hantar Soalan'} →</button></div>`).join('') : `<div class="empty">✓ ${currentLang === 'en' ? 'No pending final test question submissions.' : 'Tiada penghantaran soalan final test yang tertunggak.'}</div>`}`, 'modal-lg');
+}
+function isQuestionUsedInActivityQuiz(bankQuestion, moduleId) {
+  const qText = String(bankQuestion.q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (DB.activities || []).some(act => {
+    if (moduleId && String(act.moduleId) !== String(moduleId)) return false;
+    return (act.quiz || []).some(q =>
+      (q.sourceBankId && String(q.sourceBankId) === String(bankQuestion.id)) ||
+      (String(q.q || '').trim().toLowerCase().replace(/\s+/g, ' ') === qText)
+    );
+  });
+}
+function quizOptionLabel(q, index) {
+  return q && q.questionType === 'true-false'
+    ? (index === 0 ? (currentLang === 'en' ? 'True' : 'Betul') : (currentLang === 'en' ? 'False' : 'Salah'))
+    : `${'ABCD'[index]}. ${tce((q.options || [])[index] || '')}`;
+}
 function finalExamsView() {
   if (state.user.role === 'participant') return participantFinalView();
-  const isAdmin = state.user.role === 'admin';
+  if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  const isAdmin = true;
   const isVip = state.user.role === 'vip';
   const allExams = (DB.finalExams || []).slice().sort((a, b) => (a.openAt || '').localeCompare(b.openAt || ''));
   let exams = allExams;
@@ -7246,7 +7300,7 @@ function renderFeQuestionsBuilder() {
   const bankCount = DB.questionBank.filter(b => b.moduleId === state.editingModuleId).length;
   c.innerHTML = `<div class="quiz-builder">
     <div class="info-box ${qs.length >= target ? 'ok' : 'warn'}" style="margin-bottom:12px"><p style="margin:0">${qs.length} / ${target} ${t('lbl_questions')} ${qs.length >= target && target > 0 ? '✓' : (remaining > 0 ? '— ' + remaining + ' ' + t('lbl_questions').toLowerCase() + ' lagi diperlukan' : '')}</p></div>
-    ${qs.length ? qs.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="fe-q-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="fe-q-down" data-idx="${i}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="fe-q-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="fe-q-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${'ABCD'[oi]}. ${tce(o)} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('fe_no_questions')}</p>`}
+    ${qs.length ? qs.map((q, i) => `<div class="quiz-item"><div class="quiz-item-head"><strong>${i+1}. ${tce(q.q)}</strong><div class="toolbar" style="flex-wrap:nowrap"><button type="button" class="iconbtn" data-act="fe-q-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>▲</button><button type="button" class="iconbtn" data-act="fe-q-down" data-idx="${i}" ${i === qs.length - 1 ? 'disabled' : ''}>▼</button><button type="button" class="iconbtn" data-act="fe-q-edit" data-idx="${i}">✏️</button><button type="button" class="iconbtn" data-act="fe-q-del" data-idx="${i}">🗑️</button></div></div><ul class="quiz-options">${q.options.filter(Boolean).map((o, oi) => `<li class="${oi === q.answer ? 'correct' : ''}">${q.questionType === 'true-false' ? tce(o) : `${'ABCD'[oi]}. ${tce(o)}`} ${oi === q.answer ? '✓' : ''}</li>`).join('')}</ul></div>`).join('') : `<p class="muted" style="font-size:.85rem">${t('fe_no_questions')}</p>`}
     <div class="toolbar" style="margin-top:8px"><button type="button" class="btn btn-sm btn-primary" data-act="fe-q-add-new">➕ ${t('qb_add_question')}</button><button type="button" class="btn btn-sm" data-act="fe-q-pick-bank">🗂️ ${t('qb_pick_bank')} (${bankCount})</button><span class="pill" style="margin-left:auto">${qs.length} / ${target}</span></div>
   </div>`;
 }
@@ -7291,7 +7345,7 @@ function handleSaveFeInlineQuestion(form) {
 function openFeBankPicker() {
   const fe = getFinalExam(state.editingFinalExamId);
   state.fePickerModuleId = state.editingModuleId || (fe ? (fe.moduleConfigs[0] || {}).moduleId : null);
-  const pool = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId);
+  const pool = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId));
   const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
   openModal2(`<h2>${t('qb_pick_from_bank')}</h2>
     <div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.fePickerModuleId))}</strong> — ${pool.length} ${t('lbl_questions')}</p></div>
@@ -7303,7 +7357,7 @@ function openFeBankPicker() {
 function renderFePickerList() {
   const q = (($('#fePickerSearch') || {}).value || '').toLowerCase();
   const cat = ($('#fePickerCategory') || {}).value || '';
-  const list = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId).filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat);
+  const list = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId)).filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat);
   const c = $('#fePickerList'); if (!c) return;
   c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="fepick" value="${b.id}" data-fe-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i === b.answer ? 'color:var(--ok);font-weight:700' : ''}">${'ABCD'[i]}. ${tce(o)}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
   updateFePickerCount();
@@ -7312,8 +7366,9 @@ function updateFePickerCount() { const n = $$('input[name="fepick"]:checked').le
 function handleFeBankPickerSubmit(form) {
   const ids = $$('input[name="fepick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
-  const picked = DB.questionBank.filter(b => ids.includes(b.id));
-  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId }));
+  const picked = DB.questionBank.filter(b => ids.includes(b.id) && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId));
+  if (!picked.length) { toast(currentLang === 'en' ? 'These questions are already used in an activity quiz.' : 'Soalan ini telah digunakan dalam kuiz aktiviti.', 'warn'); return; }
+  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId, questionType: b.questionType || 'multiple-choice' }));
   closeModal2(); renderFeQuestionsBuilder(); toast(t('qb_pick_added', picked.length));
 }
 
@@ -8073,7 +8128,7 @@ function openActivityForm(act, presetModuleId) {
           <div class="field"><label>${t('schedule_close_at')}</label><input class="input" type="datetime-local" name="quizCloseAt" value="${esc(toLocalInput(a.quizOpenAt ? a.quizCloseAt : a.quizCloseAt))}" /><small class="muted">${t('schedule_close_hint')}</small></div>
           <div class="field"><label>${t('qb_duration')}</label><input class="input" type="number" min="0" step="1" name="quizDuration" value="${a.quizDuration != null ? a.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted">${t('qb_duration_hint')}</small></div>
         </div>
-        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div class="toolbar" style="margin:10px 0"><button type="button" class="btn btn-sm" data-act="quiz-template-download">⬇️ Download Question Template (Excel)</button><button type="button" class="btn btn-sm" data-act="quiz-template-upload">⬆️ Upload Question Template</button></div><div class="info-box" style="margin-bottom:10px"><p style="margin:0;font-size:.8rem">Quiz only. Complete Question, Options A–D, and Correct Answer (A/B/C/D or 1/2/3/4). Uploading adds questions to the current quiz.</p></div><div id="activityQuizBuilderSection"></div></div>
+        <div id="activityQuizQuestions" style="margin-top:14px"><h4>📝 ${t('qb_title')}</h4><p class="muted" style="font-size:.82rem">${t('qb_settings_hint')}</p><div class="toolbar" style="margin:10px 0"><button type="button" class="btn btn-sm" data-act="quiz-template-download">⬇️ Download Question Template (Excel)</button><button type="button" class="btn btn-sm" data-act="quiz-template-upload">⬆️ Upload Question Template</button></div><div class="info-box" style="margin-bottom:10px"><p style="margin:0;font-size:.8rem">Quiz only. The Excel template supports Multiple Choice and True / False. Select the Question Type for each row. For Multiple Choice, complete Options A–D and enter the correct answer as A/B/C/D or 1/2/3/4. For True / False, enter True or False (or Betul/Salah) in Correct Answer. Uploading adds questions to the current quiz.</p></div><div id="activityQuizBuilderSection"></div></div>
         </div>
         <div id="practicalScheduleFields" style="display:${isPractical ? 'block' : 'none'};margin-top:10px"><strong>${t('schedule_practical_title')}</strong><div class="grid2" style="margin-top:8px">
           <div class="field"><label>${t('schedule_open_at')}</label><input class="input" type="datetime-local" name="practicalOpenAt" value="${esc(toLocalInput(a.practicalOpenAt))}" /><small class="muted">${t('schedule_open_hint')}</small></div>
@@ -8090,24 +8145,27 @@ function openActivityForm(act, presetModuleId) {
 }
 function downloadActivityQuizTemplate() {
   if (!ensureXLSX()) return;
-  const headers = ['Question','Option A','Option B','Option C','Option D','Correct Answer','Category','Difficulty'];
+  const headers = ['Question','Question Type','Option A','Option B','Option C','Option D','Correct Answer','Category','Difficulty'];
   const ws = XLSX.utils.aoa_to_sheet([
     ['QUIZ QUESTION TEMPLATE'],
-    ['Instructions: Enter one question per row. Correct Answer must be A/B/C/D or 1/2/3/4. This template contains no sample questions.'],
-    [], headers
+    ['Instructions: Replace the [EXAMPLE] rows with your own questions. Rows beginning [EXAMPLE] are ignored during upload. Choose Multiple Choice or True/False. For Multiple Choice, enter at least two options and Correct Answer A/B/C/D or 1/2/3/4. For True/False, options are automatic; enter True or False (or Betul/Salah) as Correct Answer.'],
+    [], headers,
+    ['[EXAMPLE] What is the chemical formula of water?','Multiple Choice','H2O','CO2','O2','NaCl','A','Basic Chemistry','Easy'],
+    ['[EXAMPLE] Water boils at 100°C at standard atmospheric pressure.','True/False','','','','','True','Basic Chemistry','Easy']
   ]);
-  ws['!cols'] = [{wch:42},{wch:28},{wch:28},{wch:28},{wch:28},{wch:18},{wch:22},{wch:16}];
-  ws['!autofilter'] = {ref:'A4:H4'};
+  ws['!cols'] = [{wch:42},{wch:20},{wch:28},{wch:28},{wch:28},{wch:28},{wch:20},{wch:22},{wch:16}];
+  ws['!autofilter'] = {ref:'A4:I4'};
   const guide = XLSX.utils.aoa_to_sheet([
     ['Field','Required','Instructions'],
     ['Question','Yes','Full question text. One question per row.'],
-    ['Option A–D','At least 2','Provide at least two answer choices.'],
-    ['Correct Answer','Yes','Use A, B, C, D or 1, 2, 3, 4.'],
+    ['Question Type','Yes','Enter Multiple Choice or True/False. If blank, it is treated as Multiple Choice for compatibility with older templates.'],
+    ['Option A–D','Multiple Choice only','Provide at least two answer choices for Multiple Choice. For True/False, leave these cells blank; the system creates True and False automatically.'],
+    ['Correct Answer','Yes','Multiple Choice: use A, B, C, D or 1, 2, 3, 4. True/False: use True or False, or Betul or Salah.'],
     ['Category','No','Optional category/topic.'],
     ['Difficulty','No','Optional: Easy, Medium, or Hard.'],
     ['Upload','—','Save as .xlsx or .xls, then use Upload Question Template in the activity form.']
   ]);
-  guide['!cols']=[{wch:22},{wch:14},{wch:88}];
+  guide['!cols']=[{wch:22},{wch:20},{wch:105}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Quiz Questions');
   XLSX.utils.book_append_sheet(wb, guide, 'Instructions');
@@ -8126,15 +8184,27 @@ async function importActivityQuizTemplate(file) {
   }
   if (headerRow < 0) { toast('⚠️ Invalid headers. Use the Quiz_Question_Template.xlsx template.', 'bad'); return; }
   const headers=rows[headerRow];
-  const iq=getColIndex(headers,'Question','Soalan'), ia=getColIndex(headers,'Option A','Pilihan A','A'), ib=getColIndex(headers,'Option B','Pilihan B','B'), ic=getColIndex(headers,'Option C','Pilihan C','C'), id=getColIndex(headers,'Option D','Pilihan D','D'), ians=getColIndex(headers,'Correct Answer','Answer','Jawapan','Jawapan Betul'), icat=getColIndex(headers,'Category','Kategori'), idiff=getColIndex(headers,'Difficulty','Tahap','Level');
+  const iq=getColIndex(headers,'Question','Soalan'), itype=getColIndex(headers,'Question Type','Type','Jenis Soalan','Jenis'), ia=getColIndex(headers,'Option A','Pilihan A','A'), ib=getColIndex(headers,'Option B','Pilihan B','B'), ic=getColIndex(headers,'Option C','Pilihan C','C'), id=getColIndex(headers,'Option D','Pilihan D','D'), ians=getColIndex(headers,'Correct Answer','Answer','Jawapan','Jawapan Betul'), icat=getColIndex(headers,'Category','Kategori'), idiff=getColIndex(headers,'Difficulty','Tahap','Level');
   const imported=[]; const errors=[];
   for(let r=headerRow+1;r<rows.length;r++) {
     const row=rows[r]; const q=String(row[iq]||'').trim(); if(!q) continue;
-    const options=[ia,ib,ic,id].map(i=>i<0?'':String(row[i]||'').trim());
+    if (/^\[(CONTOH|EXAMPLE)\]/i.test(q)) continue;
+    const typeRaw=itype<0?'':String(row[itype]||'').trim().toLowerCase().replace(/[\s_-]+/g,'');
+    const isTF=['truefalse','tf','betulsalah','benarsalah'].includes(typeRaw);
+    const questionType=isTF?'true-false':'multiple-choice';
     const raw=String(row[ians]||'').trim().toUpperCase();
-    let answer=/^[A-D]$/.test(raw)?raw.charCodeAt(0)-65:/^[1-4]$/.test(raw)?Number(raw)-1:-1;
-    if(options.filter(Boolean).length<2 || answer<0 || !options[answer]) { errors.push(r+1); continue; }
-    imported.push({q,options,answer,category:icat<0?'':String(row[icat]||'').trim(),difficulty:idiff<0?'Easy':(String(row[idiff]||'Easy').trim()||'Easy')});
+    let options, answer;
+    if(isTF) {
+      options=['True','False'];
+      if(['TRUE','T','BETUL','BENAR','1','A'].includes(raw)) answer=0;
+      else if(['FALSE','F','SALAH','2','B'].includes(raw)) answer=1;
+      else answer=-1;
+    } else {
+      options=[ia,ib,ic,id].map(i=>i<0?'':String(row[i]||'').trim());
+      answer=/^[A-D]$/.test(raw)?raw.charCodeAt(0)-65:/^[1-4]$/.test(raw)?Number(raw)-1:-1;
+    }
+    if((isTF ? answer<0 : options.filter(Boolean).length<2 || answer<0 || !options[answer])) { errors.push(r+1); continue; }
+    imported.push({q,options,answer,questionType,category:icat<0?'':String(row[icat]||'').trim(),difficulty:idiff<0?'Easy':(String(row[idiff]||'Easy').trim()||'Easy')});
   }
   if(!imported.length) { toast('⚠️ No valid questions were found.'+(errors.length?' Invalid rows: '+errors.join(', '):''), 'bad'); return; }
   if(!confirm(`Found ${imported.length} valid questions. Add them to the current quiz?${errors.length?'\n\nRows skipped because answers/options were invalid: '+errors.join(', '):''}`)) return;
@@ -8682,7 +8752,7 @@ function renderPickerList() {
   const diff = ($('#pickerDiff') || {}).value || '';
   const list = DB.questionBank.filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId).filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff);
   const c = $('#pickerList'); if (!c) return;
-  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="pick" value="${b.id}" data-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${'ABCD'[i]}. ${tce(o)}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
+  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="pick" value="${b.id}" data-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${b.questionType === 'true-false' ? tce(o) : `${'ABCD'[i]}. ${tce(o)}`}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
   updatePickerCount();
 }
 function updatePickerCount() { const n = $$('input[name="pick"]:checked').length; const el = $('#pickerCount'); if (el) el.textContent = t('qb_pick_count', n); }
@@ -8690,20 +8760,38 @@ function handleBankPickerSubmit(form) {
   const ids = $$('input[name="pick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
   const picked = DB.questionBank.filter(b => ids.includes(b.id));
-  picked.forEach(b => state.tempQuiz.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId, category: b.category, difficulty: b.difficulty }));
+  picked.forEach(b => state.tempQuiz.push({ q: b.q, options: [...b.options], answer: b.answer, questionType: b.questionType || 'multiple-choice', sourceBankId: b.id, moduleId: b.moduleId, category: b.category, difficulty: b.difficulty }));
   closeModal2(); renderQuizBuilder(); toast(t('qb_pick_added', picked.length));
 }
 function openInlineQuestionEditor(idx) {
   const isEdit = typeof idx === 'number';
-  const q = isEdit ? state.tempQuiz[idx] : { q:'', options:['','','',''], answer:0 };
-  openModal2(`<h2>${isEdit ? t('qb_edit_question') : t('qb_new_question')}</h2><form data-form="inline-question" data-idx="${isEdit ? idx : ''}"><div class="field"><label>${t('qb_question')} *</label><input class="input" name="question" required value="${esc(q.q)}" /></div><div class="field"><label>${t('bank_options')} *</label>${q.options.map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === q.answer ? 'checked' : ''} required /><span class="qopt-marker">${'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(o)}" /></div>`).join('')}</div>${isEdit ? '' : `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="saveToBank" style="accent-color:var(--brand)" /> ${t('qb_saved_to_bank')}</label></div><div class="grid2" id="inlineBankFields" style="display:none"><div class="field"><label>${t('bank_category')}</label><input class="input" name="category" /></div><div class="field"><label>${t('bank_level')}</label><select class="select" name="difficulty"><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div></div>`}<div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div></form>`);
+  const q = isEdit ? state.tempQuiz[idx] : { q:'', options:['','','',''], answer:0, questionType:'multiple-choice' };
+  const type = q.questionType || 'multiple-choice';
+  openModal2(`<h2>${isEdit ? t('qb_edit_question') : t('qb_new_question')}</h2><form data-form="inline-question" data-idx="${isEdit ? idx : ''}">
+    <div class="field"><label>${t('qb_question')} *</label><input class="input" name="question" required value="${esc(q.q)}" /></div>
+    <div class="field"><label>${currentLang === 'en' ? 'Question Type' : 'Jenis Soalan'}</label><select class="select" name="questionType"><option value="multiple-choice" ${type !== 'true-false' ? 'selected' : ''}>${currentLang === 'en' ? 'Multiple Choice' : 'Aneka Pilihan'}</option><option value="true-false" ${type === 'true-false' ? 'selected' : ''}>${currentLang === 'en' ? 'True / False' : 'Betul / Salah'}</option></select></div>
+    <div class="field" id="activityQuestionOptions"><label>${t('bank_options')} *</label>${(type === 'true-false' ? [currentLang === 'en' ? 'True' : 'Betul', currentLang === 'en' ? 'False' : 'Salah'] : ['A','B','C','D']).map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === q.answer ? 'checked' : ''} required /><span class="qopt-marker">${type === 'true-false' ? (i === 0 ? 'T' : 'F') : 'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(type === 'true-false' ? (q.options[i] || o) : (q.options[i] || ''))}" ${type === 'true-false' ? 'readonly' : ''} /></div>`).join('')}</div>
+    ${isEdit ? '' : `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" name="saveToBank" style="accent-color:var(--brand)" /> ${t('qb_saved_to_bank')}</label></div><div class="grid2" id="inlineBankFields" style="display:none"><div class="field"><label>${t('bank_category')}</label><input class="input" name="category" /></div><div class="field"><label>${t('bank_level')}</label><select class="select" name="difficulty"><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div></div>`}
+    <div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div></form>`);
+  const form = document.querySelector('#modalRoot form[data-form="inline-question"]');
+  const typeSelect = form && form.querySelector('[name="questionType"]');
+  if (typeSelect) typeSelect.addEventListener('change', () => {
+    const isTF = typeSelect.value === 'true-false';
+    const box = form.querySelector('#activityQuestionOptions');
+    box.innerHTML = `<label>${t('bank_options')} *</label>${(isTF ? [currentLang === 'en' ? 'True' : 'Betul', currentLang === 'en' ? 'False' : 'Salah'] : ['A','B','C','D']).map((o,i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i===0?'checked':''} required /><span class="qopt-marker">${isTF ? (i===0?'T':'F') : 'ABCD'[i]}</span><input class="input" name="opt${i}" value="${isTF ? o : ''}" ${isTF?'readonly':''} /></div>`).join('')}`;
+  });
 }
 function handleSaveInlineQuestion(form) {
   const idx = form.dataset.idx; const isEdit = idx !== '';
-  const options = [0,1,2,3].map(i => form[`opt${i}`].value.trim());
+  const questionType = form.questionType ? form.questionType.value : 'multiple-choice';
+  const options = questionType === 'true-false'
+    ? (currentLang === 'en' ? ['True','False'] : ['Betul','Salah'])
+    : [0,1,2,3].map(i => form[`opt${i}`].value.trim());
   if (options.filter(Boolean).length < 2) { toast(t('qb_options_required'), 'bad'); return; }
-  const answer = Number(form.querySelector('input[name="answer"]:checked').value);
-  const newQ = { q: form.question.value.trim(), options, answer };
+  const answerEl = form.querySelector('input[name="answer"]:checked');
+  if (!answerEl) { toast(t('qb_options_required'), 'bad'); return; }
+  const answer = Number(answerEl.value);
+  const newQ = { q: form.question.value.trim(), options, answer, questionType };
   if (isEdit) state.tempQuiz[Number(idx)] = Object.assign({}, state.tempQuiz[Number(idx)], newQ);
   else {
     const act = getActivity(state.editingActivityId);
@@ -9759,27 +9847,40 @@ function questionBankView() {
       <select class="select" style="max-width:150px" data-change="bank-diff"><option value="">${t('bank_all')}</option>${['Mudah','Sederhana','Sukar'].map(d => `<option value="${d}" ${diff === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select>
       <span class="pill">${filtered.length}</span>
     </div>
-    ${filtered.length ? `<div class="bank-list">${filtered.map(b => `<div class="bank-item"><div class="bank-item-head"><div style="flex:1"><div class="question-text">${tce(b.q)}</div><div class="opts">${b.options.map((o, i) => `<span class="${i === b.answer ? 'correct' : ''}">${'ABCD'[i]}. ${tce(o)}</span>`).join('')}</div><div class="bank-meta"><span class="badge info">📦 ${tce(moduleName(b.moduleId))}</span>${b.category ? `<span class="badge draft">${tce(b.category)}</span>` : ''}${b.difficulty ? `<span class="badge ${b.difficulty === 'Sukar' ? 'bad' : b.difficulty === 'Sederhana' ? 'warn' : 'ok'}">${tce(b.difficulty)}</span>` : ''}<span class="badge draft">${t('bank_used', usage(b.id))}</span></div></div><div class="toolbar"><button class="btn btn-sm" data-act="edit-question" data-id="${b.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-question" data-id="${b.id}">🗑️</button></div></div></div>`).join('')}</div>` : `<div class="empty">${t('bank_no_questions')}</div>`}</div>`;
+    ${filtered.length ? `<div class="bank-list">${filtered.map(b => `<div class="bank-item"><div class="bank-item-head"><div style="flex:1"><div class="question-text">${tce(b.q)}</div><div class="opts">${b.options.map((o, i) => `<span class="${i === b.answer ? 'correct' : ''}">${b.questionType === 'true-false' ? tce(o) : `${'ABCD'[i]}. ${tce(o)}`}</span>`).join('')}</div><div class="bank-meta"><span class="badge info">📦 ${tce(moduleName(b.moduleId))}</span>${b.category ? `<span class="badge draft">${tce(b.category)}</span>` : ''}${b.difficulty ? `<span class="badge ${b.difficulty === 'Sukar' ? 'bad' : b.difficulty === 'Sederhana' ? 'warn' : 'ok'}">${tce(b.difficulty)}</span>` : ''}<span class="badge draft">${t('bank_used', usage(b.id))}</span></div></div><div class="toolbar"><button class="btn btn-sm" data-act="edit-question" data-id="${b.id}">✏️</button><button class="btn btn-sm btn-danger" data-act="delete-question" data-id="${b.id}">🗑️</button></div></div></div>`).join('')}</div>` : `<div class="empty">${t('bank_no_questions')}</div>`}</div>`;
 }
 function openQuestionForm(bq) {
   const isEdit = !!bq;
   const isAdmin = state.user.role === 'admin';
   const modsAvail = isAdmin ? sortModules(DB.modules) : myModules();
   if (!modsAvail.length) { toast(t('msg_no_module'), 'bad'); return; }
-  const b = bq || { q:'', options:['','','',''], answer:0, category:'', difficulty:'Mudah', moduleId: state.params.bankModule || modsAvail[0].id };
+  const b = bq || { q:'', options:['','','',''], answer:0, questionType:'multiple-choice', category:'', difficulty:'Mudah', moduleId: state.params.bankModule || modsAvail[0].id };
+  const bankType = b.questionType || 'multiple-choice';
+  const bankOptions = bankType === 'true-false' ? ['True','False'] : ['','','',''];
   openModal2(`<h2>${isEdit ? t('bank_edit') : t('bank_new')}</h2><form data-form="bank-question" data-id="${isEdit ? b.id : ''}">
     <div class="field"><label>${t('bank_module')} *</label><select class="select" name="moduleId" required>${modsAvail.map(m => `<option value="${m.id}" ${b.moduleId === m.id ? 'selected' : ''}>${tce(m.name)}</option>`).join('')}</select></div>
     <div class="field"><label>${t('bank_question')} *</label><input class="input" name="question" required value="${esc(b.q)}" /></div>
-    <div class="field"><label>${t('bank_options')} *</label>${b.options.map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === b.answer ? 'checked' : ''} required /><span class="qopt-marker">${'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(o)}" /></div>`).join('')}</div>
+    <div class="field"><label>${currentLang === 'en' ? 'Question Type' : 'Jenis Soalan'}</label><select class="select" name="questionType"><option value="multiple-choice" ${bankType !== 'true-false' ? 'selected' : ''}>Multiple Choice</option><option value="true-false" ${bankType === 'true-false' ? 'selected' : ''}>True / False</option></select></div>
+    <div class="field"><label>${t('bank_options')} *</label><div id="bankQuestionOptions">${bankOptions.map((o, i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i === b.answer ? 'checked' : ''} required /><span class="qopt-marker">${bankType === 'true-false' ? (i === 0 ? 'T' : 'F') : 'ABCD'[i]}</span><input class="input" name="opt${i}" value="${esc(bankType === 'true-false' ? o : ((b.options || [])[i] || ''))}" ${bankType === 'true-false' ? 'readonly' : ''} /></div>`).join('')}</div></div>
     <div class="grid2"><div class="field"><label>${t('bank_category')}</label><input class="input" name="category" value="${esc(b.category||'')}" /></div><div class="field"><label>${t('bank_level')}</label><select class="select" name="difficulty">${['Mudah','Sederhana','Sukar'].map(d => `<option ${b.difficulty === d ? 'selected' : ''}>${t(d)}</option>`).join('')}</select></div></div>
     <div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div></form>`);
+  const form = document.querySelector('#modalRoot form[data-form="bank-question"]');
+  const typeSelect = form && form.querySelector('[name="questionType"]');
+  if (typeSelect) typeSelect.addEventListener('change', () => {
+    const isTF = typeSelect.value === 'true-false';
+    const box = form.querySelector('#bankQuestionOptions');
+    box.innerHTML = (isTF ? ['True','False'] : ['','','','']).map((o,i) => `<div class="qopt-row"><input type="radio" name="answer" value="${i}" ${i===0?'checked':''} required /><span class="qopt-marker">${isTF ? (i===0?'T':'F') : 'ABCD'[i]}</span><input class="input" name="opt${i}" value="${o}" ${isTF?'readonly':''} /></div>`).join('');
+  });
 }
 function handleSaveBankQuestion(form) {
   const id = form.dataset.id;
-  const options = [0,1,2,3].map(i => form[`opt${i}`].value.trim());
+  const questionType = form.questionType ? form.questionType.value : 'multiple-choice';
+  const options = questionType === 'true-false' ? ['True','False'] : [0,1,2,3].map(i => form[`opt${i}`].value.trim());
   if (options.filter(Boolean).length < 2) { toast(t('qb_options_required'), 'bad'); return; }
-  const answer = Number(form.querySelector('input[name="answer"]:checked').value);
-  const data = { q: form.question.value.trim(), options, answer, category: form.category.value.trim(), difficulty: form.difficulty.value, moduleId: form.moduleId.value };
+  const answerEl = form.querySelector('input[name="answer"]:checked');
+  if (!answerEl) { toast(t('qb_options_required'), 'bad'); return; }
+  const answer = Number(answerEl.value);
+  const data = { q: form.question.value.trim(), options, answer, questionType, category: form.category.value.trim(), difficulty: form.difficulty.value, moduleId: form.moduleId.value };
   if (id) { Object.assign(DB.questionBank.find(x => x.id === id), data); saveDB(); logAudit('Update Bank Question', 'Bank Soalan', id, 'Updated'); }
   else { const nq = Object.assign({ id: uid('qb'), createdAt: nowISO() }, data); DB.questionBank.push(nq); saveDB(); logAudit('Create Bank Question', 'Bank Soalan', nq.id, 'New'); }
   closeModal2(); toast(t('bank_saved')); render();
@@ -10127,6 +10228,13 @@ document.addEventListener('click', async (e) => {
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
     case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
+    case 'open-final-question-bell': openFinalQuestionBell(); break;
+    case 'bell-submit-final-questions': {
+      const feid = tgt.dataset.feid, mid = tgt.dataset.mid;
+      const m = getModule(mid);
+      if (!m || (!moduleHasTrainer(m, state.user.id) && !moduleHasFacilitator(m, state.user.id))) { toast(t('msg_no_access'), 'bad'); break; }
+      openModuleQuestionEditor(feid, mid); break;
+    }
     case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); if (tgt.dataset.view === 'memory') loadProgramMemory(); break;
     case 'open-audit-notification': {
       const entity = String(tgt.dataset.entity || '').toLowerCase();
