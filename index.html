@@ -4511,6 +4511,19 @@ async function submitQuizAttempt(act, pid, answers, isAuto) {
     saveDB();
     await saveCritical(baseMsg, isAuto ? 'warn' : 'ok');
   }
+  // Stop any delayed draft timer and let an already-started autosave finish
+  // before deleting the draft, so an older request cannot recreate it afterward.
+  if (quizDraftRemoteTimer_) {
+    clearTimeout(quizDraftRemoteTimer_);
+    quizDraftRemoteTimer_ = null;
+  }
+  try { await quizDraftRemoteQueue_; } catch (e) {}
+  try {
+    const draftDelete = await driveAPI('deleteQuizDraft', { actorId:pid, activityId:act.id }, 30000);
+    if (!draftDelete || !draftDelete.ok) console.warn('[quiz draft] Official attempt saved, but draft cleanup was not confirmed:', draftDelete && draftDelete.error);
+  } catch (draftErr) {
+    console.warn('[quiz draft] Official attempt saved, but draft cleanup failed:', draftErr);
+  }
   try { window.opener && window.opener.postMessage({ type:'quiz-submitted', activityId: act.id }, '*'); } catch(e) {}
   clearQuizDraft(act.id, pid);
   try { localStorage.removeItem(startKeyFor(act.id, pid)); } catch(e) {}
@@ -4521,10 +4534,127 @@ function handleStandaloneQuizSubmit(act, pid, form) {
   submitQuizAttempt(act, pid, answers, false);
 }
 function autoSubmitQuiz(act, pid) {
+  quizDraftSubmitting_ = true;
   const form = document.getElementById('standalone-quiz-form');
   const answers = act.quiz.map((q, qi) => { if (!form) return -1; const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
   submitQuizAttempt(act, pid, answers, true);
 }
+let quizDraftRemoteTimer_ = null;
+let quizDraftRemoteQueue_ = Promise.resolve();
+let quizDraftRemoteVersion_ = 0;
+let quizDraftLatestPayload_ = null;
+let quizDraftSubmitting_ = false;
+
+function setQuizDraftStatus_(message, color) {
+  const el = document.getElementById('quizDraftStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = color || 'var(--muted)';
+}
+
+function scheduleQuizDraftRemoteSave_(activityId, participantId, answers) {
+  const version = ++quizDraftRemoteVersion_;
+  quizDraftLatestPayload_ = {
+    activityId:String(activityId),
+    participantId:String(participantId),
+    answers:Object.assign({}, answers || {}),
+    version:version
+  };
+  setQuizDraftStatus_(currentLang === 'en' ? '⟳ Saving to Google Sheets…' : '⟳ Menyimpan ke Google Sheets…', 'var(--warn)');
+  if (quizDraftRemoteTimer_) clearTimeout(quizDraftRemoteTimer_);
+  quizDraftRemoteTimer_ = setTimeout(() => {
+    quizDraftRemoteTimer_ = null;
+    const payload = quizDraftLatestPayload_;
+    quizDraftRemoteQueue_ = quizDraftRemoteQueue_.catch(() => {}).then(async () => {
+      const result = await driveAPI('saveQuizDraft', {
+        actorId:payload.participantId,
+        activityId:payload.activityId,
+        answers:payload.answers
+      }, 30000);
+      if (!result || !result.ok) throw new Error(result && result.error || 'Draft save failed');
+      if (payload.version === quizDraftRemoteVersion_) {
+        setQuizDraftStatus_(
+          currentLang === 'en'
+            ? `✓ Saved to Google Sheets · ${result.answeredCount}/${result.questionCount}`
+            : `✓ Disimpan ke Google Sheets · ${result.answeredCount}/${result.questionCount}`,
+          'var(--ok)'
+        );
+      }
+    }).catch(err => {
+      console.warn('[quiz draft] Google Sheets auto-save failed:', err);
+      if (payload.version === quizDraftRemoteVersion_) {
+        setQuizDraftStatus_(
+          currentLang === 'en' ? '⚠ Save pending — check connection and select an answer again.'
+            : '⚠ Simpanan belum berjaya — semak sambungan dan pilih jawapan semula.',
+          'var(--warn)'
+        );
+      }
+    });
+  }, 250);
+}
+
+async function restoreQuizDraftFromServer_(activityId, participantId, form) {
+  try {
+    const local = readQuizDraft(activityId, participantId);
+    const hasLocal = local && Object.keys(local).length > 0;
+    const result = await driveAPI('getQuizDraft', {
+      actorId:participantId,
+      activityId:activityId
+    }, 30000);
+    if (!result || !result.ok) throw new Error(result && result.error || 'Could not load saved draft.');
+    const remote = result.draft && result.draft.answers && typeof result.draft.answers === 'object'
+      ? result.draft.answers : {};
+    if (!hasLocal && Object.keys(remote).length) {
+      Object.keys(remote).forEach(qi => {
+        const input = form.querySelector(`input[name="q${qi}"][value="${Number(remote[qi])}"]`);
+        if (input) input.checked = true;
+      });
+      saveQuizDraft(activityId, participantId, remote, { skipRemote:true });
+    }
+    const current = readQuizDraft(activityId, participantId);
+    const count = Object.keys(current || {}).length;
+    setQuizDraftStatus_(
+      currentLang === 'en'
+        ? `✓ Connected · ${count}/${form.querySelectorAll('.q').length} answers saved`
+        : `✓ Bersambung · ${count}/${form.querySelectorAll('.q').length} jawapan disimpan`,
+      'var(--ok)'
+    );
+  } catch (err) {
+    console.warn('[quiz draft] Could not restore server draft:', err);
+    setQuizDraftStatus_(
+      currentLang === 'en' ? '⚠ Could not check cloud draft. Local recovery is active.'
+        : '⚠ Tidak dapat menyemak draft awan. Simpanan setempat masih aktif.',
+      'var(--warn)'
+    );
+  }
+}
+
+function sendQuizDraftOnPageHide_(activityId, participantId, form) {
+  if (quizDraftSubmitting_ || !navigator.sendBeacon || !DRIVE_API_URL) return;
+  const answers = {};
+  const questions = form.querySelectorAll('.q');
+  questions.forEach((q, qi) => {
+    const selected = q.querySelector(`input[name="q${qi}"]:checked`);
+    if (selected) answers[qi] = Number(selected.value);
+  });
+  if (!Object.keys(answers).length) return;
+  try {
+    const body = {
+      action:'saveQuizDraft',
+      apiKey:DRIVE_API_KEY || undefined,
+      actorId:participantId,
+      activityId:activityId,
+      answers:answers
+    };
+    navigator.sendBeacon(
+      DRIVE_API_URL,
+      new Blob([JSON.stringify(body)], { type:'text/plain;charset=UTF-8' })
+    );
+  } catch (err) {
+    console.warn('[quiz draft] Final page-hide save could not be queued:', err);
+  }
+}
+
 function quizDraftKey(activityId, participantId) {
   return `cftpmy_quizdraft_${activityId}_${participantId}`;
 }
@@ -4534,11 +4664,15 @@ function readQuizDraft(activityId, participantId) {
     return raw ? JSON.parse(raw) : {};
   } catch (_) { return {}; }
 }
-function saveQuizDraft(activityId, participantId, answers) {
+function saveQuizDraft(activityId, participantId, answers, options) {
+  const cleanAnswers = Object.assign({}, answers || {});
   try {
-    sessionStorage.setItem(quizDraftKey(activityId, participantId), JSON.stringify(answers || {}));
+    sessionStorage.setItem(quizDraftKey(activityId, participantId), JSON.stringify(cleanAnswers));
   } catch (err) {
-    console.warn('[quiz draft] Could not save draft:', err);
+    console.warn('[quiz draft] Could not save local draft:', err);
+  }
+  if (!(options && options.skipRemote)) {
+    scheduleQuizDraftRemoteSave_(activityId, participantId, cleanAnswers);
   }
 }
 function clearQuizDraft(activityId, participantId) {
@@ -4547,6 +4681,7 @@ function clearQuizDraft(activityId, participantId) {
 
 function renderParticipantQuizTab(act, pid) {
   stopQuizTimer();
+  quizDraftSubmitting_ = false;
   const app = $('#app');
   const pendingRetest = hasPendingRetest(act.id, pid);
   const latest = getLatestAttempt(act.id, pid);
@@ -4587,7 +4722,7 @@ function renderParticipantQuizTab(act, pid) {
   const savedDraft = readQuizDraft(act.id, pid);
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     ${retestBanner}
-    <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(act.title)}</h1><p class="muted" style="margin:0">${tce(moduleName(act.moduleId))} · ${act.quiz.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
+    <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(act.title)}</h1><p class="muted" style="margin:0">${tce(moduleName(act.moduleId))} · ${act.quiz.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p><small id="quizDraftStatus" class="muted" style="display:block;margin-top:5px;font-size:.76rem">☁️ ${currentLang === 'en' ? 'Connecting to auto-save…' : 'Menyambung ke simpanan automatik…'}</small></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('quiz_timed_body', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div>
     <form id="standalone-quiz-form">${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${savedDraft[qi] === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
@@ -4599,12 +4734,17 @@ function renderParticipantQuizTab(act, pid) {
       if (selected) draft[qi] = Number(selected.value);
     });
     saveQuizDraft(act.id, pid, draft);
+    const status = document.getElementById('quizDraftStatus');
+    if (status) status.title = currentLang === 'en' ? 'Answers are being saved to Google Sheets.' : 'Jawapan sedang disimpan ke Google Sheets.';
   });
+  restoreQuizDraftFromServer_(act.id, pid, quizForm);
+  window.addEventListener('pagehide', () => sendQuizDraftOnPageHide_(act.id, pid, quizForm), { once:true });
   quizForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const submitBtn = quizForm.querySelector('button[type="submit"]');
     if (submitBtn && submitBtn.disabled) return;
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
+    quizDraftSubmitting_ = true;
     handleStandaloneQuizSubmit(act, pid, quizForm);
   });
   if (hasTimer) startQuizTimer(act, pid, remainingMs);
