@@ -7002,15 +7002,38 @@ function openFinalQuestionBell() {
   openModal(`<div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Final Test Question Submission' : 'Penghantaran Soalan Final Test'}</h2><p class="muted" style="margin:0">${currentLang === 'en' ? 'Submit the required questions for your assigned modules.' : 'Sila hantar soalan yang diperlukan bagi modul yang ditugaskan kepada anda.'}</p></div><button class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button></div>
     ${tasks.length ? tasks.map(({fe,mc,m,remaining}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · ${remaining} ${currentLang === 'en' ? 'more required' : 'lagi diperlukan'}</div></div><button class="btn btn-primary btn-sm" data-act="bell-submit-final-questions" data-feid="${esc(fe.id)}" data-mid="${esc(mc.moduleId)}">${currentLang === 'en' ? 'Submit Questions' : 'Hantar Soalan'} →</button></div>`).join('') : `<div class="empty">✓ ${currentLang === 'en' ? 'No pending final test question submissions.' : 'Tiada penghantaran soalan final test yang tertunggak.'}</div>`}`, 'modal-lg');
 }
+function normalizeQuestionText(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function sameModuleId(a, b) {
+  return a != null && b != null && String(a) === String(b);
+}
 function isQuestionUsedInActivityQuiz(bankQuestion, moduleId) {
-  const qText = String(bankQuestion.q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!bankQuestion) return false;
+  const qText = normalizeQuestionText(bankQuestion.q);
   return (DB.activities || []).some(act => {
-    if (moduleId && String(act.moduleId) !== String(moduleId)) return false;
-    return (act.quiz || []).some(q =>
-      (q.sourceBankId && String(q.sourceBankId) === String(bankQuestion.id)) ||
-      (String(q.q || '').trim().toLowerCase().replace(/\s+/g, ' ') === qText)
-    );
+    if (!sameModuleId(act.moduleId, moduleId || bankQuestion.moduleId)) return false;
+    return (act.quiz || []).some(q => {
+      if (q.sourceBankId && String(q.sourceBankId) === String(bankQuestion.id)) return true;
+      // Legacy quiz questions may not have sourceBankId; match their text within the same module.
+      return !!qText && normalizeQuestionText(q.q) === qText;
+    });
   });
+}
+function isQuestionAlreadyInCurrentFinalExam(bankQuestion) {
+  const text = normalizeQuestionText(bankQuestion && bankQuestion.q);
+  return (state.tempFeQuestions || []).some(q =>
+    (q.sourceBankId && bankQuestion && String(q.sourceBankId) === String(bankQuestion.id)) ||
+    (!!text && normalizeQuestionText(q.q) === text)
+  );
+}
+function availableFinalExamBankQuestions(moduleId) {
+  if (!moduleId) return [];
+  return (DB.questionBank || []).filter(b =>
+    sameModuleId(b.moduleId, moduleId) &&
+    !isQuestionUsedInActivityQuiz(b, moduleId) &&
+    !isQuestionAlreadyInCurrentFinalExam(b)
+  );
 }
 function quizOptionLabel(q, index) {
   return q && q.questionType === 'true-false'
@@ -7345,33 +7368,33 @@ function handleSaveFeInlineQuestion(form) {
 function openFeBankPicker() {
   const fe = getFinalExam(state.editingFinalExamId);
   state.fePickerModuleId = state.editingModuleId || (fe ? (fe.moduleConfigs[0] || {}).moduleId : null);
-  const pool = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId));
+  const pool = availableFinalExamBankQuestions(state.fePickerModuleId);
   const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
   openModal2(`<h2>${t('qb_pick_from_bank')}</h2>
-    <div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.fePickerModuleId))}</strong> — ${pool.length} ${t('lbl_questions')}</p></div>
-    <div class="picker-toolbar"><input class="input" id="fePickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="fePickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select></div>
-    <form data-form="fe-bank-picker"><div class="picker-list" id="fePickerList"></div><div class="modal-actions"><span class="pill" id="fePickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
-  renderFePickerList();
+    <div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${state.fePickerModuleId ? tce(moduleName(state.fePickerModuleId)) : (currentLang === 'en' ? 'Select a module first' : 'Pilih modul dahulu')}</strong> — ${pool.length} ${currentLang === 'en' ? 'available questions' : 'soalan yang tersedia'}</p><small>${currentLang === 'en' ? 'Only questions from this module that have not been used in an Activity Quiz are shown.' : 'Hanya soalan daripada modul ini yang belum digunakan dalam Activity Quiz akan dipaparkan.'}</small></div>
+    ${!state.fePickerModuleId ? `<div class="empty">${currentLang === 'en' ? 'Select a module in the Final Exam setup first.' : 'Pilih modul dalam tetapan Final Exam dahulu.'}</div>` : `<div class="picker-toolbar"><input class="input" id="fePickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="fePickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select></div>
+    <form data-form="fe-bank-picker"><div class="picker-list" id="fePickerList"></div><div class="modal-actions"><span class="pill" id="fePickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`}`);
+  if (state.fePickerModuleId) renderFePickerList();
 }
 
 function renderFePickerList() {
   const q = (($('#fePickerSearch') || {}).value || '').toLowerCase();
   const cat = ($('#fePickerCategory') || {}).value || '';
-  const list = DB.questionBank.filter(b => b.moduleId === state.fePickerModuleId && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId)).filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat);
+  const list = availableFinalExamBankQuestions(state.fePickerModuleId).filter(b => !q || String(b.q || '').toLowerCase().includes(q)).filter(b => !cat || b.category === cat);
   const c = $('#fePickerList'); if (!c) return;
-  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="fepick" value="${b.id}" data-fe-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i === b.answer ? 'color:var(--ok);font-weight:700' : ''}">${'ABCD'[i]}. ${tce(o)}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
+  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="fepick" value="${esc(b.id)}" data-fe-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${(b.options || []).map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i === b.answer ? 'color:var(--ok);font-weight:700' : ''}">${b.questionType === 'true-false' ? tce(o) : `${'ABCD'[i]}. ${tce(o)}`}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${currentLang === 'en' ? 'No available questions. Questions already used in Activity Quiz are excluded.' : 'Tiada soalan tersedia. Soalan yang telah digunakan dalam Activity Quiz tidak dipaparkan.'}</div>`;
   updateFePickerCount();
 }
 function updateFePickerCount() { const n = $$('input[name="fepick"]:checked').length; const el = $('#fePickerCount'); if (el) el.textContent = t('qb_pick_count', n); }
 function handleFeBankPickerSubmit(form) {
   const ids = $$('input[name="fepick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
-  const picked = DB.questionBank.filter(b => ids.includes(b.id) && !isQuestionUsedInActivityQuiz(b, state.fePickerModuleId));
-  if (!picked.length) { toast(currentLang === 'en' ? 'These questions are already used in an activity quiz.' : 'Soalan ini telah digunakan dalam kuiz aktiviti.', 'warn'); return; }
-  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...b.options], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId, questionType: b.questionType || 'multiple-choice' }));
+  // Recheck availability at submit time to prevent stale selections or duplicate use.
+  const picked = availableFinalExamBankQuestions(state.fePickerModuleId).filter(b => ids.includes(String(b.id)));
+  if (!picked.length) { toast(currentLang === 'en' ? 'The selected questions are no longer available. Refresh the list.' : 'Soalan yang dipilih tidak lagi tersedia. Sila segarkan senarai.', 'warn'); renderFePickerList(); return; }
+  picked.forEach(b => state.tempFeQuestions.push({ q: b.q, options: [...(b.options || [])], answer: b.answer, sourceBankId: b.id, moduleId: b.moduleId, questionType: b.questionType || 'multiple-choice' }));
   closeModal2(); renderFeQuestionsBuilder(); toast(t('qb_pick_added', picked.length));
 }
-
 function finalPracticalContext(feid) {
   const fe=getFinalExam(feid); if(!fe || fe.type!=='practical') throw new Error('Final practical exam not found.');
   const rb=getRubricById(fe.rubricId); const criteria=rb?.criteria||[];
@@ -8529,52 +8552,102 @@ function rubricView() {
     <div class="card"><div class="card-head"><h2>🎯 ${t('rb_assign_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('rb_assign_hint')}</p>${practicalActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th><th style="width:280px">${t('lbl_rubric')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${practicalActs.map(a => { const rb = getRubric(a); return `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${isReviewer ? `<select class="select" style="min-width:240px" data-change="activity-rubric" data-aid="${a.id}"><option value="">— ${t('act_rubric_none')} —</option>${approvedRubrics.map(r => `<option value="${r.id}" ${a.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select>` : `<span class="badge ${rb ? (rb.approvalStatus === 'approved' ? 'ok' : 'warn') : 'warn'}">${rb ? tce(rb.name) + (rb.approvalStatus !== 'approved' ? ' ⏳' : '') : t('act_rubric_none')}</span>`}</td><td>${rb ? (isReviewer || rb.createdBy === state.user.id ? `<button class="btn btn-sm" data-act="edit-rubric" data-id="${rb.id}">✏️ ${t('rb_edit')}</button>` : `<span class="badge draft">🔒</span>`) : (isReviewer ? `<button class="btn btn-sm btn-primary" data-act="new-rubric-and-assign" data-aid="${a.id}">+ ${t('rb_new_rubric')}</button>` : `<span class="badge draft">—</span>`)}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('rb_no_practical')}</div>`}</div>
 </div>`;
 }
-function attendanceDatesForModule(mid) {
-  if (!mid) return [];
-  return [...new Set(moduleTimetable(mid).map(x => x.date).filter(Boolean))].sort();
+function attendanceLocalTodayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function attendanceDateInput(mid, selectedDate) {
-  const dates = attendanceDatesForModule(mid);
-  const chosen = dates.includes(selectedDate) ? selectedDate : (dates[0] || '');
-  if (!dates.length) return `<div class="info-box warn" style="margin-bottom:14px">${currentLang==='ms'?'Tiada tarikh dijadualkan untuk modul ini. Sila lengkapkan tarikh dalam tab Timetable terlebih dahulu.':'No scheduled dates found for this module. Please add dates in the Timetable tab first.'}</div>`;
-  return `<div class="field" style="max-width:420px;margin-bottom:16px"><label>${currentLang==='ms'?'Tarikh latihan (daripada Timetable)':'Training date (from Timetable)'}</label><select class="input" data-change="attendance-date">${dates.map(d=>`<option value="${esc(d)}" ${d===chosen?'selected':''}>${esc(fmtDate(d))}</option>`).join('')}</select></div>`;
+function attendanceModulesForDate(date, moduleList) {
+  if (!date) return [];
+  const source = Array.isArray(moduleList) ? moduleList : (DB.modules || []);
+  return sortModules(source.filter(m => moduleTimetable(m.id).some(x => String(x.date || '') === String(date))));
+}
+function attendanceDateInput(selectedDate) {
+  const chosen = selectedDate || attendanceLocalTodayISO();
+  return `<div class="field" style="max-width:320px;margin-bottom:16px"><label>📅 ${currentLang==='ms'?'Tarikh kehadiran':'Attendance date'}</label><input class="input" type="date" data-change="attendance-date" value="${esc(chosen)}"></div>`;
+}
+function attendanceRecordFor(pid, mid, date) {
+  return (DB.attendance || []).find(x => String(x.participantId) === String(pid) && String(x.moduleId) === String(mid) && String(x.date || '') === String(date) && x.attendanceType === 'module-date') || null;
+}
+function attendanceStatusLabel(rec) {
+  if (rec && rec.verifiedAt && ['Hadir','Present'].includes(rec.status)) return `<span class="badge ok">✓ ${currentLang==='ms'?'Hadir · Disahkan':'Present · Verified'}</span>`;
+  if (rec && (rec.selfChecked || rec.status === 'Pending Verification')) return `<span class="badge warn">${currentLang==='ms'?'Menunggu pengesahan':'Pending verification'}</span>`;
+  return `<span class="badge draft">${currentLang==='ms'?'Belum direkod':'Not recorded'}</span>`;
 }
 function participantAttendanceView() {
   const pid = state.user.id;
   const modules = participantModules(pid).filter(m => m.published !== false);
-  const selectedModule = state.params.attendanceModule || (modules[0] && modules[0].id) || '';
-  const availableDates = attendanceDatesForModule(selectedModule);
-  const selectedDate = availableDates.includes(state.params.attendanceDate) ? state.params.attendanceDate : (availableDates[0] || '');
-  const rec = (DB.attendance||[]).find(x => x.participantId === pid && x.moduleId === selectedModule && x.date === selectedDate && x.attendanceType === 'module-date');
-  const checked = !!(rec && (rec.selfChecked || ['Hadir','Present','Pending Verification'].includes(rec.status)));
-  const verified = !!(rec && rec.verifiedAt && ['Hadir','Present'].includes(rec.status));
+  const selectedDate = state.params.attendanceDate || attendanceLocalTodayISO();
+  const scheduledModules = attendanceModulesForDate(selectedDate, modules);
   const day = selectedDate ? new Date(selectedDate+'T12:00:00').toLocaleDateString(currentLang==='en'?'en-MY':'ms-MY',{weekday:'long'}) : '';
-  return `<div class="card"><div class="card-head"><div><h2>☑️ ${currentLang==='en'?'My Attendance':'Kehadiran Saya'}</h2><p class="muted">${currentLang==='en'?'Check in separately for each enrolled module and training date. A trainer or facilitator will verify your attendance.':'Tandakan kehadiran secara berasingan bagi setiap modul dan tarikh latihan. Kehadiran akan disahkan oleh trainer atau fasilitator.'}</p></div></div>
-  ${modules.length ? `<div class="field" style="max-width:520px;margin-bottom:14px"><label>${currentLang==='en'?'Training module':'Modul latihan'}</label><select class="input" data-change="attendance-module"><option value="">— ${currentLang==='en'?'Select module':'Pilih modul'} —</option>${modules.map(m=>`<option value="${m.id}" ${m.id===selectedModule?'selected':''}>${tce(m.title||m.name||moduleName(m.id))}</option>`).join('')}</select></div>` : ''}
-  ${attendanceDateInput(selectedModule, selectedDate)}
-  ${selectedDate ? `<div class="info-box" style="margin-bottom:14px"><strong>${esc(day)}, ${esc(fmtDate(selectedDate))}</strong></div>` : ''}
-  ${selectedModule && selectedDate ? `<label style="display:inline-flex;align-items:center;gap:8px;margin:8px 0 14px"><input type="checkbox" style="width:20px;height:20px" data-change="attendance-self" data-mid="${selectedModule}" data-date="${esc(selectedDate)}" ${checked?'checked':''} ${verified?'disabled':''}> ${currentLang==='en'?'I am present for this module today':'Saya hadir untuk modul ini pada hari ini'}</label><div>${verified?`<span class="badge ok">✓ ${currentLang==='en'?'Verified':'Disahkan'}</span>`:checked?`<span class="badge warn">${currentLang==='en'?'Pending verification':'Menunggu pengesahan'}</span>`:`<span class="badge draft">${currentLang==='en'?'Not checked in':'Belum ditandakan'}</span>`}</div>` : `<div class="empty">${currentLang==='en'?'Please select a module.':'Sila pilih modul.'}</div>`}
+  return `<div class="card"><div class="card-head"><div><h2>☑️ ${currentLang==='en'?'My Attendance':'Kehadiran Saya'}</h2><p class="muted">${currentLang==='en'?'Only modules scheduled on the selected date are displayed.':'Hanya modul yang dijadualkan pada tarikh dipilih akan dipaparkan.'}</p></div></div>
+  ${attendanceDateInput(selectedDate)}
+  <div class="info-box" style="margin-bottom:14px"><strong>📅 ${esc(day)}, ${esc(fmtDate(selectedDate))}</strong></div>
+  ${scheduledModules.length ? scheduledModules.map(m => {
+    const rec = attendanceRecordFor(pid, m.id, selectedDate);
+    const checked = !!(rec && (rec.selfChecked || ['Hadir','Present','Pending Verification'].includes(rec.status)));
+    const verified = !!(rec && rec.verifiedAt && ['Hadir','Present'].includes(rec.status));
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 12px"><div style="font-weight:700;margin-bottom:10px">📚 ${tce(m.title||m.name||moduleName(m.id))}</div><label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" style="width:20px;height:20px" data-change="attendance-self" data-mid="${esc(m.id)}" data-date="${esc(selectedDate)}" ${checked?'checked':''} ${verified?'disabled':''}> ${currentLang==='en'?'I am present for this module today':'Saya hadir untuk modul ini pada hari ini'}</label><div style="margin-top:8px">${attendanceStatusLabel(rec)}</div></div>`;
+  }).join('') : `<div class="empty">${currentLang==='en'?'No module is scheduled for this date.':'Tiada modul dijadualkan pada tarikh ini.'}</div>`}
   </div>`;
 }
 function attendanceView() {
   if (state.user.role === 'participant') return participantAttendanceView();
   if (!['admin','trainer','facilitator'].includes(state.user.role)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  const modules = sortModules(DB.modules.filter(m => state.user.role === 'admin' || canTrainerAccessModule(m.id)));
-  const selectedModule = state.params.attendanceModule || (modules[0] && modules[0].id) || '';
-  const availableDates = attendanceDatesForModule(selectedModule);
-  const selectedDate = availableDates.includes(state.params.attendanceDate) ? state.params.attendanceDate : (availableDates[0] || '');
-  const day = selectedDate ? new Date(selectedDate+'T12:00:00').toLocaleDateString(currentLang==='en'?'en-MY':'ms-MY',{weekday:'long'}) : '';
-  const participants = selectedModule ? enrolledParticipants(selectedModule).map(x=>x.user).sort((a,b)=>(a.name||'').localeCompare(b.name||'')) : [];
-  return `<div class="card"><div class="card-head"><div><h2>☑️ ${t('title_attendance')}</h2><p class="muted">${currentLang==='ms'?'Kehadiran direkod mengikut modul dan tarikh. Tiada pecahan mengikut masa atau sesi.':'Attendance is recorded by module and date, without time slots or sessions.'}</p></div></div>
-  <div class="field" style="max-width:520px;margin-bottom:14px"><label>${currentLang==='ms'?'Modul latihan':'Training module'}</label><select class="input" data-change="attendance-module"><option value="">— ${currentLang==='ms'?'Pilih modul':'Select module'} —</option>${modules.map(m=>`<option value="${m.id}" ${m.id===selectedModule?'selected':''}>${tce(m.title||m.name||moduleName(m.id))}</option>`).join('')}</select></div>
-  ${attendanceDateInput(selectedModule, selectedDate)}
-  ${selectedModule && selectedDate ? `<div class="info-box" style="margin-bottom:14px"><strong>📚 ${tce(moduleName(selectedModule))}</strong><br><strong>📅 ${esc(day)}, ${esc(fmtDate(selectedDate))}</strong></div>` : ''}
-  ${selectedModule && selectedDate ? (participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_org')}</th><th style="text-align:center">${currentLang==='ms'?'Tindakan':'Action'}</th><th>Status</th></tr></thead><tbody>${participants.map(user=>{
-    const rec=DB.attendance.find(x=>x.participantId===user.id && x.moduleId===selectedModule && x.date===selectedDate && x.attendanceType==='module-date');
-    const present=!!(rec && ['Hadir','Present'].includes(rec.status) && rec.verifiedAt);
-    const pending=!!(rec && (rec.selfChecked || rec.status==='Pending Verification') && !rec.verifiedAt);
-    return `<tr><td><strong>${tce(user.name)}</strong></td><td>${tce(user.org||'—')}</td><td style="text-align:center">${pending?`<button class="btn btn-sm btn-primary" data-act="verify-attendance" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}">✓ ${currentLang==='ms'?'Sahkan':'Verify'}</button> <button class="btn btn-sm" data-act="reject-attendance" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}">✕ ${currentLang==='ms'?'Tolak':'Reject'}</button>`:`<label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" data-change="attendance-present" data-pid="${user.id}" data-mid="${selectedModule}" data-date="${esc(selectedDate)}" ${present?'checked':''}> ${currentLang==='ms'?'Hadir':'Present'}</label>`}</td><td>${present?`<span class="badge ok">✓ ${currentLang==='ms'?'Disahkan':'Verified'}</span>`:pending?`<span class="badge warn">${currentLang==='ms'?'Menunggu pengesahan':'Pending verification'}</span>`:`<span class="badge draft">—</span>`}</td></tr>`;
-  }).join('')}</tbody></table></div>`:`<div class="empty">${t('grad_no_participants')}</div>`) : `<div class="empty">${currentLang==='ms'?'Sila pilih modul untuk melihat peserta.':'Select a module to view participants.'}</div>`}</div>`;
+  const allowedModules = sortModules(DB.modules.filter(m => state.user.role === 'admin' || canTrainerAccessModule(m.id)));
+  const selectedDate = state.params.attendanceDate || attendanceLocalTodayISO();
+  const modules = attendanceModulesForDate(selectedDate, allowedModules);
+  const isAdmin = state.user.role === 'admin';
+  return `<div class="card"><div class="card-head"><div><h2>☑️ ${t('title_attendance')}</h2><p class="muted">${currentLang==='ms'?'Paparan hanya menunjukkan modul yang mempunyai jadual pada tarikh dipilih. Modul pada tarikh lain tidak akan dipaparkan.':'Only modules scheduled on the selected date are shown. Modules scheduled on other dates are hidden.'}</p></div>${isAdmin ? `<button class="btn btn-primary" data-act="print-attendance-date" data-date="${esc(selectedDate)}">🖨️ ${currentLang==='ms'?'Cetak Kehadiran Keseluruhan':'Print Overall Attendance'}</button>` : ''}</div>
+  ${attendanceDateInput(selectedDate)}
+  <div class="info-box" style="margin-bottom:14px"><strong>📅 ${esc(fmtDate(selectedDate))}</strong><span class="muted"> · ${modules.length} ${currentLang==='ms'?'modul dijadualkan':'scheduled modules'}</span></div>
+  ${modules.length ? modules.map(m => {
+    const participants = enrolledParticipants(m.id).map(x=>x.user).filter(Boolean).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:14px;margin:0 0 14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><div><strong>📚 ${tce(m.title||m.name||moduleName(m.id))}</strong><div class="muted" style="font-size:.8rem">${tce(moduleTrainerNames(m))}</div></div><span class="badge info">${participants.length} ${currentLang==='ms'?'peserta':'participants'}</span></div>
+    ${participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_org')}</th><th style="text-align:center">${currentLang==='ms'?'Tindakan':'Action'}</th><th>${currentLang==='ms'?'Status':'Status'}</th></tr></thead><tbody>${participants.map(user=>{
+      const rec=attendanceRecordFor(user.id,m.id,selectedDate);
+      const present=!!(rec && ['Hadir','Present'].includes(rec.status) && rec.verifiedAt);
+      const pending=!!(rec && (rec.selfChecked || rec.status==='Pending Verification') && !rec.verifiedAt);
+      return `<tr><td><strong>${tce(user.name)}</strong></td><td>${tce(user.org||'—')}</td><td style="text-align:center">${pending?`<button class="btn btn-sm btn-primary" data-act="verify-attendance" data-pid="${esc(user.id)}" data-mid="${esc(m.id)}" data-date="${esc(selectedDate)}">✓ ${currentLang==='ms'?'Sahkan':'Verify'}</button> <button class="btn btn-sm" data-act="reject-attendance" data-pid="${esc(user.id)}" data-mid="${esc(m.id)}" data-date="${esc(selectedDate)}">✕ ${currentLang==='ms'?'Tolak':'Reject'}</button>`:`<label style="display:inline-flex;align-items:center;gap:8px"><input type="checkbox" data-change="attendance-present" data-pid="${esc(user.id)}" data-mid="${esc(m.id)}" data-date="${esc(selectedDate)}" ${present?'checked':''}> ${currentLang==='ms'?'Hadir':'Present'}</label>`}</td><td>${attendanceStatusLabel(rec)}</td></tr>`;
+    }).join('')}</tbody></table></div>`:`<div class="empty">${t('grad_no_participants')}</div>`}</div>`;
+  }).join('') : `<div class="empty">${currentLang==='ms'?'Tiada modul dijadualkan pada tarikh ini. Sila pilih tarikh modul yang betul dalam pemilih tarikh.':'No modules are scheduled for this date. Select a date on which a module is scheduled.'}</div>`}
+  </div>`;
+}
+function printAttendanceByDate(date) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'),'bad'); return; }
+  const endDate = String(date || state.params.attendanceDate || attendanceLocalTodayISO());
+  // Overall report: include every scheduled module date from the earliest timetable date
+  // through the selected end date (inclusive), not only the selected day.
+  const allModules = DB.modules || [];
+  const scheduledDates = [...new Set(allModules.flatMap(m =>
+    (moduleTimetable(m.id) || []).map(x => String(x.date || '').trim()).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= endDate)
+  ))].sort();
+  if (!scheduledDates.length) {
+    toast(currentLang==='ms'?'Tiada tarikh modul dijadualkan sehingga tarikh dipilih.':'No module dates are scheduled up to the selected date.','warn');
+    return;
+  }
+  const dateSections = scheduledDates.map((reportDate, di) => {
+    const modules = attendanceModulesForDate(reportDate, allModules);
+    const moduleRows = modules.map((m, mi) => {
+      const participants = enrolledParticipants(m.id).map(x=>x.user).filter(Boolean).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+      const presentCount = participants.filter(p=>{const r=attendanceRecordFor(p.id,m.id,reportDate);return !!(r && r.verifiedAt && ['Hadir','Present'].includes(r.status));}).length;
+      const body = participants.map((p, i) => {
+        const rec = attendanceRecordFor(p.id,m.id,reportDate);
+        const status = rec && rec.verifiedAt && ['Hadir','Present'].includes(rec.status)
+          ? (currentLang==='ms'?'HADIR':'PRESENT')
+          : rec && (rec.selfChecked || rec.status==='Pending Verification')
+            ? (currentLang==='ms'?'MENUNGGU PENGESAHAN':'PENDING VERIFICATION')
+            : (currentLang==='ms'?'TIDAK HADIR / BELUM DIREKOD':'ABSENT / NOT RECORDED');
+        return `<tr><td>${i+1}</td><td>${tce(p.name||'—')}</td><td>${tce(p.org||'—')}</td><td>${status}</td><td style="width:110px"></td></tr>`;
+      }).join('');
+      return `<section class="att-module"><h3>${di+1}.${mi+1} ${tce(m.title||m.name||moduleName(m.id))}</h3><p><b>${currentLang==='ms'?'Trainer':'Trainer'}:</b> ${tce(moduleTrainerNames(m)||'—')} &nbsp; <b>${currentLang==='ms'?'Jumlah peserta':'Participants'}:</b> ${participants.length} &nbsp; <b>${currentLang==='ms'?'Hadir disahkan':'Verified present'}:</b> ${presentCount}</p><table><thead><tr><th style="width:34px">#</th><th>${currentLang==='ms'?'Nama peserta':'Participant name'}</th><th>${currentLang==='ms'?'Syarikat':'Company'}</th><th>${currentLang==='ms'?'Status kehadiran':'Attendance status'}</th><th>${currentLang==='ms'?'Tandatangan':'Signature'}</th></tr></thead><tbody>${body || `<tr><td colspan="5">${currentLang==='ms'?'Tiada peserta berdaftar':'No enrolled participants'}</td></tr>`}</tbody></table></section>`;
+    }).join('');
+    const dateParticipantCount = modules.reduce((n,m)=>n+enrolledParticipants(m.id).length,0);
+    return `<section class="att-date"><h2>${currentLang==='ms'?'Tarikh':'Date'}: ${esc(fmtDate(reportDate))}</h2><p class="date-summary">${modules.length} ${currentLang==='ms'?'modul':'modules'} · ${dateParticipantCount} ${currentLang==='ms'?'pendaftaran peserta':'participant enrolments'}</p>${moduleRows || `<p>${currentLang==='ms'?'Tiada modul pada tarikh ini':'No modules on this date'}</p>`}</section>`;
+  }).join('');
+  const totalModuleDates = scheduledDates.length;
+  const totalModuleSessions = scheduledDates.reduce((n,d)=>n+attendanceModulesForDate(d,allModules).length,0);
+  const html = `<!doctype html><html lang="${currentLang}"><head><meta charset="utf-8"><title>${currentLang==='ms'?'Laporan Kehadiran Keseluruhan':'Overall Attendance Report'} - ${esc(fmtDate(scheduledDates[0]))} - ${esc(fmtDate(endDate))}</title><style>body{font-family:Arial,sans-serif;color:#172b24;font-size:11px;margin:22px}h1{font-size:20px;color:#0b6b53;border-bottom:2px solid #0b6b53;padding-bottom:8px}h2{font-size:16px;color:#0b6b53;margin:22px 0 5px;border-bottom:1px solid #9db8aa;padding-bottom:5px}h3{font-size:13px;color:#245b49;margin:14px 0 5px}.meta{display:flex;gap:20px;flex-wrap:wrap;margin:10px 0 18px}.meta span{border:1px solid #cbd8d2;padding:7px 10px;border-radius:5px}.date-summary{margin:3px 0 8px;color:#53665d}table{width:100%;border-collapse:collapse;margin:7px 0 18px}th,td{border:1px solid #cbd8d2;padding:6px;text-align:left;vertical-align:top}th{background:#edf5f1}.att-module{break-inside:avoid;page-break-inside:avoid}.att-date{break-before:page;page-break-before:always}.att-date:first-of-type{break-before:auto;page-break-before:auto}.foot{margin-top:22px;color:#68766f;font-size:10px}@media print{@page{size:A4 portrait;margin:14mm}}</style></head><body><h1>CFTP Malaysia — ${currentLang==='ms'?'Laporan Kehadiran Keseluruhan':'Overall Attendance Report'}</h1><div class="meta"><span><b>${currentLang==='ms'?'Tempoh':'Date range'}:</b> ${esc(fmtDate(scheduledDates[0]))} – ${esc(fmtDate(endDate))}</span><span><b>${currentLang==='ms'?'Jumlah tarikh modul':'Module dates'}:</b> ${totalModuleDates}</span><span><b>${currentLang==='ms'?'Jumlah sesi modul':'Module sessions'}:</b> ${totalModuleSessions}</span></div>${dateSections}<div class="foot">${currentLang==='ms'?'Dijana pada':'Generated'} ${esc(new Date().toLocaleString(locale(),{dateStyle:'medium',timeStyle:'short'}))}</div><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`;
+  printHTML(html);
 }
 
 function participantAssessmentView() {
@@ -8741,25 +8814,26 @@ function openBankPicker() {
   const act = getActivity(state.editingActivityId);
   const draftForm = document.querySelector('#modalRoot form[data-form="activity"]');
   state.pickerModuleId = act ? act.moduleId : (draftForm && draftForm.moduleId ? draftForm.moduleId.value : state.activityDraftModuleId || null);
-  const pool = DB.questionBank.filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId);
+  const pool = state.pickerModuleId ? (DB.questionBank || []).filter(b => sameModuleId(b.moduleId, state.pickerModuleId)) : [];
   const cats = [...new Set(pool.map(b => b.category).filter(Boolean))].sort();
-  openModal2(`<h2>${t('qb_pick_from_bank')}</h2><div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${tce(moduleName(state.pickerModuleId))}</strong> — ${pool.length} ${t('lbl_questions')}</p></div><div class="picker-toolbar"><input class="input" id="pickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="pickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select><select class="select" id="pickerDiff"><option value="">${t('qb_pick_all')}</option><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div><form data-form="bank-picker"><div class="picker-list" id="pickerList"></div><div class="modal-actions"><span class="pill" id="pickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`);
-  renderPickerList();
+  openModal2(`<h2>${t('qb_pick_from_bank')}</h2><div class="info-box" style="margin-bottom:12px"><p style="margin:0">📦 <strong>${state.pickerModuleId ? tce(moduleName(state.pickerModuleId)) : (currentLang === 'en' ? 'Select a module first' : 'Pilih modul dahulu')}</strong> — ${pool.length} ${t('lbl_questions')}</p></div>${!state.pickerModuleId ? `<div class="empty">${currentLang === 'en' ? 'Choose the activity module before selecting bank questions.' : 'Pilih modul aktiviti dahulu sebelum memilih soalan daripada bank.'}</div>` : `<div class="picker-toolbar"><input class="input" id="pickerSearch" placeholder="${t('qb_pick_search')}" /><select class="select" id="pickerCategory"><option value="">${t('qb_pick_all')}</option>${cats.map(c => `<option>${tce(c)}</option>`).join('')}</select><select class="select" id="pickerDiff"><option value="">${t('qb_pick_all')}</option><option>${t('Mudah')}</option><option>${t('Sederhana')}</option><option>${t('Sukar')}</option></select></div><form data-form="bank-picker"><div class="picker-list" id="pickerList"></div><div class="modal-actions"><span class="pill" id="pickerCount" style="margin-right:auto">0</span><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('qb_pick_apply')}</button></div></form>`}`);
+  if (state.pickerModuleId) renderPickerList();
 }
 function renderPickerList() {
   const q = (($('#pickerSearch') || {}).value || '').toLowerCase();
   const cat = ($('#pickerCategory') || {}).value || '';
   const diff = ($('#pickerDiff') || {}).value || '';
-  const list = DB.questionBank.filter(b => !state.pickerModuleId || b.moduleId === state.pickerModuleId).filter(b => !q || b.q.toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff);
+  const list = state.pickerModuleId ? (DB.questionBank || []).filter(b => sameModuleId(b.moduleId, state.pickerModuleId)).filter(b => !q || String(b.q || '').toLowerCase().includes(q)).filter(b => !cat || b.category === cat).filter(b => !diff || b.difficulty === diff) : [];
   const c = $('#pickerList'); if (!c) return;
-  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="pick" value="${b.id}" data-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${b.options.map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${b.questionType === 'true-false' ? tce(o) : `${'ABCD'[i]}. ${tce(o)}`}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
+  c.innerHTML = list.length ? list.map(b => `<label class="picker-item"><input type="checkbox" name="pick" value="${esc(b.id)}" data-pick-toggle /><div style="flex:1"><div style="font-weight:600;font-size:.88rem">${tce(b.q)}</div>${(b.options || []).map((o, i) => `<div style="font-size:.78rem;padding:1px 0;${i===b.answer?'color:var(--ok);font-weight:700':''}">${b.questionType === 'true-false' ? tce(o) : `${'ABCD'[i]}. ${tce(o)}`}</div>`).join('')}</div></label>`).join('') : `<div class="empty">${t('qb_pick_none')}</div>`;
   updatePickerCount();
 }
 function updatePickerCount() { const n = $$('input[name="pick"]:checked').length; const el = $('#pickerCount'); if (el) el.textContent = t('qb_pick_count', n); }
 function handleBankPickerSubmit(form) {
   const ids = $$('input[name="pick"]:checked').map(x => x.value);
   if (!ids.length) { toast(t('qb_pick_none_selected'), 'bad'); return; }
-  const picked = DB.questionBank.filter(b => ids.includes(b.id));
+  const picked = DB.questionBank.filter(b => ids.includes(b.id) && state.pickerModuleId && sameModuleId(b.moduleId, state.pickerModuleId));
+  if (!picked.length) { toast(currentLang === 'en' ? 'No valid questions for the selected module.' : 'Tiada soalan sah bagi modul yang dipilih.', 'bad'); return; }
   picked.forEach(b => state.tempQuiz.push({ q: b.q, options: [...b.options], answer: b.answer, questionType: b.questionType || 'multiple-choice', sourceBankId: b.id, moduleId: b.moduleId, category: b.category, difficulty: b.difficulty }));
   closeModal2(); renderQuizBuilder(); toast(t('qb_pick_added', picked.length));
 }
@@ -10116,6 +10190,7 @@ document.addEventListener('click', async (e) => {
   if (!tgt) return;
   const act = tgt.dataset.act, id = tgt.dataset.id;
   switch (act) {
+    case 'print-attendance-date': printAttendanceByDate(tgt.dataset.date); break;
     case 'verify-attendance':
     case 'reject-attendance': {
       if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'),'bad'); break; }
