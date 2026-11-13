@@ -993,24 +993,6 @@ html, body {
   .mobile-nav-panel{max-height:60vh;}
   .shell:not(.admin-shell) .nav-item,.admin-shell .nav-item{min-height:44px;padding:9px 11px;}
 }
-
-/* ADMIN TAB CONTROL — independent role-based menu visibility */
-.tab-control-page{display:grid;gap:14px;max-width:1200px;margin:0 auto}
-.tab-control-intro{border-left:4px solid var(--brand-2)}
-.tab-control-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
-.tab-control-role{min-width:0}
-.tab-control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
-.tab-control-option{display:flex;align-items:center;gap:9px;min-width:0;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);text-align:left;font:inherit;font-size:.82rem;cursor:pointer}
-.tab-control-option.is-visible{border-color:#8bc9b4;background:#f0faf5}
-.tab-control-option.is-hidden{opacity:.68;background:#f7f8f8}
-.tab-control-option:disabled{cursor:not-allowed;opacity:.8}
-.tab-control-check{display:grid;place-items:center;flex:0 0 20px;width:20px;height:20px;border:1.5px solid #9aa9a3;border-radius:5px;font-size:.8rem;font-weight:900}
-.tab-control-option.is-visible .tab-control-check{border-color:var(--brand);background:var(--brand);color:#fff}
-.tab-control-option-label{flex:1;min-width:0;overflow-wrap:anywhere}
-.tab-control-lock{font-size:.68rem;white-space:nowrap}
-.tab-control-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-@media(max-width:760px){.tab-control-roles{grid-template-columns:1fr}.tab-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tab-control-actions{align-items:stretch}.tab-control-actions .toolbar{width:100%;display:flex;flex-wrap:wrap}.tab-control-actions .toolbar .btn{flex:1}}
-@media(max-width:420px){.tab-control-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1026,14 +1008,6 @@ html, body {
 const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzwuWLsDVDCN20VkUu5MNmj84o_dHj361ICec9rq7HRsHk2kJMUfdpivICHtvMJTJEb9Q/exec';
 const DRIVE_API_KEY = '';
 const DRIVE_TIMEOUT_MS = 120000; // Allow time for Apps Script lock contention under concurrent use.
-
-// Role-based tab visibility is stored separately in Apps Script Properties.
-// It does not alter programme records, user roles, or existing permissions.
-let tabVisibilityConfig = null;
-let tabVisibilityLoadPromise = null;
-let tabVisibilityDraft = null;
-const TAB_CONTROL_ROLES = ['participant','trainer','facilitator','vip'];
-const TAB_CONTROL_LOCKED = new Set(['dashboard','profile']);
 
 async function driveAPI(action, data, timeoutMs) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
@@ -4840,7 +4814,6 @@ function navItemsBase() {
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
     { v:'feedback', label:currentLang === 'en' ? 'Feedback' : 'Maklum Balas', icon:'💬' },
-    { v:'tab-control', label:currentLang === 'en' ? 'Admin Tab Control' : 'Kawalan Tab Admin', icon:'🎛️' },
     { v:'profile', label:t('nav_profile'), icon:'👤' }
   ];
 }
@@ -4854,135 +4827,7 @@ function navItems() {
       icon:'📸'
     });
   }
-  if (state.user && state.user.role !== 'admin' && tabVisibilityConfig) {
-    const hidden = new Set((tabVisibilityConfig[state.user.role] && tabVisibilityConfig[state.user.role].hidden) || []);
-    return items.filter(item => !hidden.has(item.v) || TAB_CONTROL_LOCKED.has(item.v));
-  }
   return items;
-}
-
-function getRoleTabCatalog(role) {
-  const originalUser = state.user;
-  try {
-    state.user = Object.assign({}, originalUser || {}, { role });
-    const items = navItemsBase();
-    if (!items.some(x => x.v === 'memory')) items.splice(1, 0, {
-      v:'memory', label:currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', icon:'📸'
-    });
-    return items.filter(item => item.v !== 'tab-control');
-  } finally {
-    state.user = originalUser;
-  }
-}
-
-function normalizeTabVisibilityConfig(config) {
-  const clean = {};
-  TAB_CONTROL_ROLES.forEach(role => {
-    const allowed = new Set(getRoleTabCatalog(role).map(item => item.v));
-    const raw = config && config[role] && Array.isArray(config[role].hidden) ? config[role].hidden : [];
-    clean[role] = { hidden: [...new Set(raw.map(String).filter(id => allowed.has(id) && !TAB_CONTROL_LOCKED.has(id)))] };
-  });
-  return clean;
-}
-
-async function loadTabVisibilityConfig() {
-  if (tabVisibilityLoadPromise) return tabVisibilityLoadPromise;
-  tabVisibilityLoadPromise = (async () => {
-    try {
-      const result = await driveAPI('getTabVisibility');
-      tabVisibilityConfig = normalizeTabVisibilityConfig(result && result.config ? result.config : {});
-    } catch (error) {
-      console.warn('Tab visibility settings could not be loaded; showing default navigation.', error);
-      tabVisibilityConfig = normalizeTabVisibilityConfig({});
-    }
-    if (state.user) {
-      const allowedViews = new Set(navItems().map(item => item.v));
-      if (state.view !== 'module' && state.view !== 'activity' && !allowedViews.has(state.view)) {
-        state.view = 'dashboard'; state.params = {};
-      }
-      render();
-    }
-    return tabVisibilityConfig;
-  })();
-  return tabVisibilityLoadPromise;
-}
-
-function adminTabControlView() {
-  if (!state.user || state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
-  if (!tabVisibilityDraft) tabVisibilityDraft = JSON.parse(JSON.stringify(tabVisibilityConfig || normalizeTabVisibilityConfig({})));
-  const roleNames = {
-    participant: currentLang === 'en' ? 'Participant' : 'Peserta',
-    trainer: currentLang === 'en' ? 'Trainer' : 'Jurulatih',
-    facilitator: currentLang === 'en' ? 'Facilitator' : 'Fasilitator',
-    vip: 'VIP / Company'
-  };
-  const intro = currentLang === 'en'
-    ? 'Choose which navigation tabs are visible to each user role. This changes menu visibility only; it does not delete records or change the existing role permissions.'
-    : 'Pilih tab navigasi yang boleh dilihat oleh setiap kategori pengguna. Tetapan ini hanya mengawal paparan menu; ia tidak memadam rekod atau mengubah kebenaran role sedia ada.';
-  const lockedNote = currentLang === 'en' ? 'Dashboard and Profile are kept available.' : 'Dashboard dan Profil dikekalkan supaya pengguna sentiasa mempunyai akses asas.';
-  const roleCards = TAB_CONTROL_ROLES.map(role => {
-    const hidden = new Set((tabVisibilityDraft[role] && tabVisibilityDraft[role].hidden) || []);
-    const catalog = getRoleTabCatalog(role);
-    return `<section class="card tab-control-role">
-      <div class="card-head"><div><h3>${roleNames[role]}</h3><small class="muted">${catalog.length} ${currentLang === 'en' ? 'available tabs' : 'tab tersedia'}</small></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="badge info">${catalog.filter(item => !hidden.has(item.v)).length} ${currentLang === 'en' ? 'visible' : 'dipaparkan'}</span><button type="button" class="btn btn-sm" data-act="hide-role-tabs" data-role="${role}">${currentLang === 'en' ? 'Hide all' : 'Sembunyi semua'}</button><button type="button" class="btn btn-sm" data-act="show-role-tabs" data-role="${role}">${currentLang === 'en' ? 'Show all' : 'Papar semua'}</button></div></div>
-      <div class="tab-control-grid">${catalog.map(item => {
-        const locked = TAB_CONTROL_LOCKED.has(item.v);
-        const visible = !hidden.has(item.v);
-        return `<button type="button" class="tab-control-option ${visible ? 'is-visible' : 'is-hidden'}" data-act="toggle-role-tab" data-role="${role}" data-tab="${esc(item.v)}" aria-pressed="${visible}" ${locked ? 'disabled title="' + esc(lockedNote) + '"' : ''}>
-          <span class="tab-control-check" aria-hidden="true">${visible ? '✓' : ''}</span><span class="tab-control-option-label">${item.icon} ${tce(item.label)}</span>${locked ? `<small class="tab-control-lock">🔒</small>` : ''}
-        </button>`;
-      }).join('')}</div>
-    </section>`;
-  }).join('');
-  return `<div class="tab-control-page">
-    <div class="card tab-control-intro"><div class="card-head"><div><h2>🎛️ ${currentLang === 'en' ? 'Admin Tab Control' : 'Kawalan Tab Admin'}</h2><p class="muted" style="margin:6px 0 0">${intro}</p></div></div><small class="muted">ℹ️ ${lockedNote}</small></div>
-    <div class="tab-control-roles">${roleCards}</div>
-    <div class="card tab-control-actions"><div><strong>${currentLang === 'en' ? 'Apply navigation settings' : 'Gunakan tetapan navigasi'}</strong><small class="muted" style="display:block">${currentLang === 'en' ? 'Changes take effect after saving and when users refresh or sign in again.' : 'Perubahan berkuat kuasa selepas disimpan dan pengguna refresh atau log masuk semula.'}</small></div><div class="toolbar"><button class="btn" data-act="reset-tab-control">${currentLang === 'en' ? 'Show all tabs' : 'Paparkan semua tab'}</button><button class="btn btn-primary" data-act="save-tab-control">💾 ${currentLang === 'en' ? 'Save Settings' : 'Simpan Tetapan'}</button></div></div>
-  </div>`;
-}
-
-function toggleRoleTabVisibility(role, tab) {
-  if (!state.user || state.user.role !== 'admin' || !TAB_CONTROL_ROLES.includes(role) || TAB_CONTROL_LOCKED.has(tab)) return;
-  if (!tabVisibilityDraft) tabVisibilityDraft = JSON.parse(JSON.stringify(tabVisibilityConfig || normalizeTabVisibilityConfig({})));
-  const allowed = new Set(getRoleTabCatalog(role).map(item => item.v));
-  if (!allowed.has(tab)) return;
-  const hidden = new Set((tabVisibilityDraft[role] && tabVisibilityDraft[role].hidden) || []);
-  if (hidden.has(tab)) hidden.delete(tab); else hidden.add(tab);
-  tabVisibilityDraft[role] = { hidden: [...hidden] };
-  render();
-}
-
-function resetTabControlDraft() {
-  if (!state.user || state.user.role !== 'admin') return;
-  tabVisibilityDraft = normalizeTabVisibilityConfig({});
-  render();
-}
-
-function setRoleTabsVisibility(role, visible) {
-  if (!state.user || state.user.role !== 'admin' || !TAB_CONTROL_ROLES.includes(role)) return;
-  if (!tabVisibilityDraft) tabVisibilityDraft = JSON.parse(JSON.stringify(tabVisibilityConfig || normalizeTabVisibilityConfig({})));
-  const hidden = visible ? [] : getRoleTabCatalog(role).map(item => item.v).filter(id => !TAB_CONTROL_LOCKED.has(id));
-  tabVisibilityDraft[role] = { hidden };
-  render();
-}
-
-async function saveTabControlSettings() {
-  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
-  const config = normalizeTabVisibilityConfig(tabVisibilityDraft || {});
-  const button = document.querySelector('[data-act="save-tab-control"]');
-  if (button) { button.disabled = true; button.textContent = currentLang === 'en' ? 'Saving…' : 'Menyimpan…'; }
-  try {
-    const result = await driveAPI('saveTabVisibility', { userId: state.user.id, config });
-    if (!result || !result.ok) throw new Error((result && result.error) || 'Save failed');
-    tabVisibilityConfig = normalizeTabVisibilityConfig(result.config || config);
-    tabVisibilityDraft = null;
-    toast(currentLang === 'en' ? 'Tab visibility settings saved.' : 'Tetapan paparan tab berjaya disimpan.', 'ok');
-    render();
-  } catch (error) {
-    console.error(error);
-    toast((currentLang === 'en' ? 'Could not save tab settings: ' : 'Tetapan tab tidak dapat disimpan: ') + (error.message || error), 'bad');
-    render();
-  }
 }
 
 function tabNotificationCount(view) {
@@ -5037,7 +4882,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', 'tab-control': currentLang === 'en' ? 'Admin Tab Control' : 'Kawalan Tab Admin', feedback: currentLang === 'en' ? 'Training Program Feedback' : 'Maklum Balas Program Latihan', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', feedback: currentLang === 'en' ? 'Training Program Feedback' : 'Maklum Balas Program Latihan', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
@@ -5213,9 +5058,6 @@ function render() {
 
   const app = $('#app');
   if (!state.user) { app.innerHTML = loginView(); return; }
-  if (tabVisibilityConfig === null) {
-    loadTabVisibilityConfig();
-  }
   app.innerHTML = shell();
   const v = $('#view');
   if (v) {
@@ -5258,7 +5100,6 @@ function viewContent() {
   try {
   switch (state.view) {
     case 'dashboard': return dashboardView();
-    case 'tab-control': return adminTabControlView();
     case 'modules': return modulesView();
     case 'materials-library': return materialsLibraryView();
     case 'system-information': return systemInformationView();
@@ -11007,11 +10848,6 @@ document.addEventListener('click', async (e) => {
       if (!m || (!moduleHasTrainer(m, state.user.id) && !moduleHasFacilitator(m, state.user.id))) { toast(t('msg_no_access'), 'bad'); break; }
       openModuleQuestionEditor(feid, mid); break;
     }
-    case 'toggle-role-tab': toggleRoleTabVisibility(tgt.dataset.role, tgt.dataset.tab); break;
-    case 'reset-tab-control': resetTabControlDraft(); break;
-    case 'hide-role-tabs': setRoleTabsVisibility(tgt.dataset.role, false); break;
-    case 'show-role-tabs': setRoleTabsVisibility(tgt.dataset.role, true); break;
-    case 'save-tab-control': saveTabControlSettings(); break;
     case 'toggle-mobile-nav': {
       const panel = document.getElementById('mobileNavPanel');
       const btn = tgt.closest('.mobile-nav-toggle');
@@ -11022,15 +10858,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'nav': {
-      const requestedView = tgt.dataset.view;
-      if (state.user && state.user.role !== 'admin' && tabVisibilityConfig) {
-        const visibleViews = new Set(navItems().map(item => item.v));
-        if (!visibleViews.has(requestedView) && requestedView !== 'module' && requestedView !== 'activity') {
-          toast(currentLang === 'en' ? 'This tab is currently hidden by the administrator.' : 'Tab ini sedang disembunyikan oleh pentadbir.', 'warn');
-          break;
-        }
-      }
-      state.view = requestedView;
+      state.view = tgt.dataset.view;
       markTabRead(state.view);
       state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {};
       const mobileNavPanel = document.getElementById('mobileNavPanel');
