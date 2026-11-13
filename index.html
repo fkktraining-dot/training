@@ -755,7 +755,28 @@ html, body {
   .mobile-nav-toggle .mobile-nav-arrow{transition:transform .2s ease;}
   .mobile-nav-toggle.is-open .mobile-nav-arrow{transform:rotate(180deg);}
   .mobile-nav-panel{display:none!important;width:100%;max-height:55vh;overflow-y:auto;overflow-x:hidden;padding:4px 0;}
-  .mobile-nav-panel.is-open{display:flex!important;}
+  .mobile-nav-panel.is-open{display:block!important;}
+  /* Keep phone navigation items stacked vertically, overriding older horizontal-nav rules. */
+  .mobile-nav-panel .nav{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    gap:5px!important;
+    margin:0!important;
+    padding:0!important;
+    overflow:visible!important;
+  }
+  .mobile-nav-panel .nav-item{
+    display:flex!important;
+    flex:0 0 auto!important;
+    width:100%!important;
+    max-width:100%!important;
+    white-space:normal!important;
+    text-align:left!important;
+  }
   .shell:not(.admin-shell)>.sidebar,.admin-shell>.sidebar{
     position:relative!important;
     width:100%!important;
