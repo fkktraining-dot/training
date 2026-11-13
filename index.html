@@ -823,6 +823,86 @@ html, body {
   }
 }
 
+
+
+/* =========================================================
+   MOBILE LOGOUT VISIBILITY — ALL USER ROLES
+   UI-only enhancement: keep existing logout action/handler.
+   Prevent the topbar controls from pushing Logout off-screen
+   on narrow phones, and keep the sidebar logout accessible.
+   ========================================================= */
+@media screen and (max-width: 900px) {
+  .shell .topbar {
+    flex-wrap: wrap !important;
+    align-items: center !important;
+  }
+
+  .shell .topbar .tb-right {
+    display: flex !important;
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+  }
+
+  .shell .topbar-logout {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex: 0 0 auto !important;
+    order: 999 !important;
+    min-height: 40px !important;
+    padding: 8px 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    background: #fff !important;
+    border: 1px solid #e8c4bf !important;
+    color: #a83226 !important;
+  }
+
+  .shell:not(.admin-shell) > .sidebar {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .shell:not(.admin-shell) .sidebar-foot {
+    display: flex !important;
+    visibility: visible !important;
+    flex: 0 0 auto !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+    padding-top: 10px !important;
+  }
+
+  .shell:not(.admin-shell) .sidebar-foot > button[data-act="logout"] {
+    display: inline-flex !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(255,255,255,.06) !important;
+    border: 1px solid rgba(255,255,255,.18) !important;
+    color: #fff !important;
+  }
+}
+
+@media screen and (max-width: 560px) {
+  .shell .topbar .tb-right {
+    gap: 5px !important;
+  }
+
+  .shell .topbar-logout {
+    min-height: 42px !important;
+    padding: 8px 11px !important;
+    font-size: .8rem !important;
+  }
+}
+
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
