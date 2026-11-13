@@ -727,7 +727,7 @@ html, body {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>.reaction-bar{transition:all .2s cubic-bezier(.175,.885,.32,1.275)}.emoji-btn{transition:transform .15s ease}.emoji-btn:hover{transform:scale(1.4) translateY(-4px)}#view .max-w-2xl{max-width:42rem}</style>
-</head>
+\n<style>\n/* MOBILE COLLAPSIBLE NAVIGATION\n   Desktop navigation remains unchanged.\n   On mobile, the navigation is hidden until the Navigation button is tapped. */\n.mobile-nav-toggle{display:none;}\n@media screen and (max-width:900px){\n  .mobile-nav-toggle{\n    display:flex!important;\n    width:100%;\n    min-height:44px;\n    align-items:center;\n    justify-content:space-between;\n    gap:10px;\n    margin:0 0 8px;\n    padding:10px 13px;\n    border:1px solid var(--line);\n    border-radius:10px;\n    background:var(--card,#fff);\n    color:var(--text,#24332d);\n    font-size:.9rem;\n    font-weight:700;\n    cursor:pointer;\n  }\n  .mobile-nav-toggle:hover{background:#f3f8f5;}\n  .mobile-nav-toggle .mobile-nav-arrow{transition:transform .2s ease;}\n  .mobile-nav-toggle.is-open .mobile-nav-arrow{transform:rotate(180deg);}\n  .mobile-nav-panel{display:none!important;width:100%;max-height:55vh;overflow-y:auto;overflow-x:hidden;padding:4px 0;}\n  .mobile-nav-panel.is-open{display:flex!important;}\n  .shell:not(.admin-shell)>.sidebar,.admin-shell>.sidebar{\n    position:relative!important;\n    width:100%!important;\n    min-width:0!important;\n    max-width:100%!important;\n    height:auto!important;\n    min-height:0!important;\n    max-height:none!important;\n    padding:10px!important;\n    overflow:visible!important;\n  }\n  .shell:not(.admin-shell) .nav,.admin-shell .nav{\n    width:100%!important;\n    max-height:none!important;\n    min-height:0!important;\n    padding:0!important;\n    margin:0!important;\n    overflow:visible!important;\n    display:flex;\n    flex-direction:column;\n    gap:4px;\n  }\n  .shell:not(.admin-shell) .nav-item,.admin-shell .nav-item{\n    width:100%!important;\n    min-height:42px;\n    flex:0 0 auto;\n  }\n  .shell:not(.admin-shell)>.main,.admin-shell>.main{width:100%!important;min-width:0;}\n}\n@media screen and (max-width:560px){\n  .mobile-nav-toggle{min-height:42px;font-size:.86rem;}\n  .mobile-nav-panel{max-height:60vh;}\n  .shell:not(.admin-shell) .nav-item,.admin-shell .nav-item{min-height:44px;padding:9px 11px;}\n}\n</style>\n</head>
 <body>
 <div id="app"></div>
 <div id="modalRoot"></div>
@@ -4658,7 +4658,13 @@ function shell() {
   return `<div class="shell ${u.role === 'admin' ? 'admin-shell' : ''}">
     <aside class="sidebar">
       <div class="brand"><div class="logo">CF</div><div><strong>${t('app_brand')}</strong><span>${t('app_brand_sub')}</span></div></div>
-      <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span>${navNotificationMarkup(n.v)}</button>`).join('')}</nav>
+      <button type="button" class="mobile-nav-toggle" data-act="toggle-mobile-nav" aria-expanded="false" aria-controls="mobileNavPanel">
+        <span>☰ ${currentLang === 'en' ? 'Navigation' : 'Navigasi'}</span>
+        <span class="mobile-nav-arrow">▼</span>
+      </button>
+      <div id="mobileNavPanel" class="mobile-nav-panel">
+        <nav class="nav">${navItems().map(n => `<button class="nav-item ${state.view === n.v ? 'active' : ''}" data-act="nav" data-view="${n.v}">${n.icon}<span>${n.label}</span>${navNotificationMarkup(n.v)}</button>`).join('')}</nav>
+      </div>
       <div class="sidebar-foot">
         <div class="userchip" data-act="nav" data-view="profile" title="${esc(t('nav_profile'))}"><div class="avatar">${esc(initials(u.name))}</div><div style="flex:1;min-width:0"><strong>${tce(u.name)}</strong><span>${roleLabel(u.role)}${u.role === 'vip' && u.org ? ' · ' + tce(u.org) : ''}</span></div></div>
         <button class="btn" data-act="logout" style="width:100%;background:transparent;border-color:transparent;color:#9ec6b8;padding:.34rem .6rem;font-size:.78rem">${t('logout')}</button>
@@ -10310,7 +10316,32 @@ document.addEventListener('click', async (e) => {
       if (!m || (!moduleHasTrainer(m, state.user.id) && !moduleHasFacilitator(m, state.user.id))) { toast(t('msg_no_access'), 'bad'); break; }
       openModuleQuestionEditor(feid, mid); break;
     }
-    case 'nav': state.view = tgt.dataset.view; markTabRead(state.view); state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {}; render(); if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true); if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true); if (tgt.dataset.view === 'memory') loadProgramMemory(); break;
+    case 'toggle-mobile-nav': {
+      const panel = document.getElementById('mobileNavPanel');
+      const btn = tgt.closest('.mobile-nav-toggle');
+      if (!panel || !btn) break;
+      const isOpen = panel.classList.toggle('is-open');
+      btn.classList.toggle('is-open', isOpen);
+      btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      break;
+    }
+    case 'nav': {
+      state.view = tgt.dataset.view;
+      markTabRead(state.view);
+      state.params = tgt.dataset.id && tgt.dataset.view === 'module' ? { moduleId: tgt.dataset.id } : {};
+      const mobileNavPanel = document.getElementById('mobileNavPanel');
+      if (mobileNavPanel) mobileNavPanel.classList.remove('is-open');
+      const mobileNavButton = document.querySelector('.mobile-nav-toggle');
+      if (mobileNavButton) {
+        mobileNavButton.classList.remove('is-open');
+        mobileNavButton.setAttribute('aria-expanded', 'false');
+      }
+      render();
+      if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true);
+      if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true);
+      if (tgt.dataset.view === 'memory') loadProgramMemory();
+      break;
+    }
     case 'open-audit-notification': {
       const entity = String(tgt.dataset.entity || '').toLowerCase();
       const entityId = String(tgt.dataset.entityid || '');
