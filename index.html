@@ -4536,7 +4536,7 @@ function navItems() {
   if (state.user && !items.some(x => x.v === 'memory')) {
     items.splice(1, 0, {
       v:'memory',
-      label: currentLang === 'en' ? 'Programme Memory' : 'Memory Program',
+      label: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti',
       icon:'📸'
     });
   }
@@ -4595,7 +4595,7 @@ function navNotificationMarkup(view) {
 
 function titleFor(v) {
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
-  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Programme Memory' : 'Memory Program', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
+  return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
 function availableModulesForFilter() {
   if (!state.user || !DB || !Array.isArray(DB.modules)) return [];
