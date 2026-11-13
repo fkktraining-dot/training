@@ -823,80 +823,6 @@ html, body {
   }
 }
 
-
-/* MOBILE LOGOUT VISIBILITY — ALL USER ROLES (CSS only) */
-@media screen and (max-width: 900px) {
-  .shell .topbar { flex-wrap: wrap !important; align-items: center !important; }
-  .shell .topbar .tb-right {
-    display:flex !important; flex:1 1 100% !important; min-width:0 !important;
-    max-width:100% !important; flex-wrap:wrap !important; justify-content:flex-end !important; gap:6px !important;
-  }
-  .shell .topbar-logout {
-    display:inline-flex !important; visibility:visible !important; opacity:1 !important;
-    flex:0 0 auto !important; order:999 !important; min-height:40px !important;
-    padding:8px 12px !important; align-items:center !important; justify-content:center !important;
-    gap:6px !important; white-space:nowrap !important; background:#fff !important;
-    border:1px solid #e8c4bf !important; color:#a83226 !important;
-  }
-  .shell:not(.admin-shell) > .sidebar { max-height:none !important; overflow:visible !important; }
-  .shell:not(.admin-shell) .sidebar-foot {
-    display:flex !important; visibility:visible !important; flex:0 0 auto !important;
-    flex-direction:column !important; width:100% !important; margin-top:10px !important; padding-top:10px !important;
-  }
-  .shell:not(.admin-shell) .sidebar-foot > button[data-act="logout"] {
-    display:inline-flex !important; width:100% !important; min-height:42px !important;
-    align-items:center !important; justify-content:center !important;
-    background:rgba(255,255,255,.06) !important; border:1px solid rgba(255,255,255,.18) !important; color:#fff !important;
-  }
-}
-@media screen and (max-width: 560px) {
-  .shell .topbar .tb-right { gap:5px !important; }
-  .shell .topbar-logout { min-height:42px !important; padding:8px 11px !important; font-size:.8rem !important; }
-}
-
-
-/* STANDALONE QUIZ SCROLL FIX
-   The main desktop layout locks document scrolling and scrolls .main instead.
-   A quiz opened in its own tab has no .main container, so restore page scrolling. */
-html.quiz-standalone,
-body.quiz-standalone {
-  height: auto !important;
-  min-height: 100% !important;
-  max-height: none !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  overscroll-behavior-y: auto !important;
-  -webkit-overflow-scrolling: touch;
-}
-body.quiz-standalone #app {
-  height: auto !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
-  max-height: none !important;
-  overflow: visible !important;
-}
-body.quiz-standalone .standalone-wrap {
-  height: auto !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
-  max-height: none !important;
-  overflow: visible !important;
-  align-items: flex-start !important;
-  padding-bottom: max(40px, env(safe-area-inset-bottom)) !important;
-}
-body.quiz-standalone .standalone-card {
-  flex: 0 0 auto;
-  min-height: 0;
-  overflow: visible !important;
-}
-body.quiz-standalone #standalone-quiz-form {
-  min-height: 0;
-  overflow: visible !important;
-}
-body.quiz-standalone .tab-actions {
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
-}
-
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -3075,22 +3001,8 @@ const SESSION_KEY = 'cftpmy_session_v1';
 // Keep an active login when a background server refresh returns a temporarily
 // incomplete users list. A refresh is not an explicit logout operation.
 function restoreActiveSessionUser() {
-  let sid = null;
-  try { sid = localStorage.getItem(SESSION_KEY); }
-  catch (storageError) {
-    console.warn('[session] Browser storage is temporarily unavailable; preserving the active in-memory session.', storageError);
-    return !!(state.user && state.user.id);
-  }
-  // A missing storage key must not erase a user who has already authenticated
-  // successfully in this page. On a fresh page load state.user is still null.
-  if (!sid) {
-    if (state.user && state.user.id) {
-      console.warn('[session] Session key unavailable; preserving the authenticated in-memory user.');
-      return false;
-    }
-    state.user = null;
-    return false;
-  }
+  const sid = localStorage.getItem(SESSION_KEY);
+  if (!sid) { state.user = null; return false; }
   const serverUser = Array.isArray(DB?.users) ? DB.users.find(u => String(u.id) === String(sid)) : null;
   if (serverUser) { state.user = serverUser; return false; }
   if (state.user && String(state.user.id) === String(sid)) {
@@ -4426,11 +4338,6 @@ function autoSubmitFinal(fe, pid) {
    QUIZ TAB
    ========================================================= */
 function renderStandaloneQuiz(aid) {
-  // Standalone quiz runs outside the normal .shell/.main scrolling frame.
-  // Release the desktop app's fixed-frame overflow lock so the entire quiz
-  // (including the final questions and submit button) remains reachable.
-  document.documentElement.classList.add('quiz-standalone');
-  document.body.classList.add('quiz-standalone');
   const app = $('#app');
   const act = getActivity(aid);
   if (!act) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_quiz_not_found')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
@@ -6403,14 +6310,7 @@ async function handleLogin(form) {
     } catch (_) {}
     state.view = 'dashboard';
     state.params = {};
-    try {
-      localStorage.setItem(SESSION_KEY, u.id);
-    } catch (storageError) {
-      console.warn('[login] Could not persist the session key in browser storage; keeping the authenticated session active in memory.', storageError);
-      toast(currentLang === 'en'
-        ? 'Login successful, but this browser could not save the session. Keep this tab open.'
-        : 'Log masuk berjaya, tetapi pelayar tidak dapat menyimpan sesi. Sila kekalkan tab ini terbuka.', 'warn');
-    }
+    localStorage.setItem(SESSION_KEY, u.id);
     try { sessionStorage.removeItem('cftpmy_login_draft'); } catch(e) {}
     logAudit('Login', 'Sesi', u.id, u.name);
     try {
@@ -10792,15 +10692,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
-    case 'logout': {
-      const confirmText = currentLang === 'en'
-        ? 'Are you sure you want to log out?'
-        : 'Adakah anda pasti mahu log keluar?';
-      if (!window.confirm(confirmText)) break;
-      try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {}
-      handleLogoutClick();
-      break;
-    }
+    case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
     case 'open-final-question-bell': openFinalQuestionBell(); break;
     case 'bell-submit-final-questions': {
       const feid = tgt.dataset.feid, mid = tgt.dataset.mid;
