@@ -854,6 +854,49 @@ html, body {
   .shell .topbar-logout { min-height:42px !important; padding:8px 11px !important; font-size:.8rem !important; }
 }
 
+
+/* STANDALONE QUIZ SCROLL FIX
+   The main desktop layout locks document scrolling and scrolls .main instead.
+   A quiz opened in its own tab has no .main container, so restore page scrolling. */
+html.quiz-standalone,
+body.quiz-standalone {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+body.quiz-standalone #app {
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+body.quiz-standalone .standalone-wrap {
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-items: flex-start !important;
+  padding-bottom: max(40px, env(safe-area-inset-bottom)) !important;
+}
+body.quiz-standalone .standalone-card {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible !important;
+}
+body.quiz-standalone #standalone-quiz-form {
+  min-height: 0;
+  overflow: visible !important;
+}
+body.quiz-standalone .tab-actions {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -4383,6 +4426,11 @@ function autoSubmitFinal(fe, pid) {
    QUIZ TAB
    ========================================================= */
 function renderStandaloneQuiz(aid) {
+  // Standalone quiz runs outside the normal .shell/.main scrolling frame.
+  // Release the desktop app's fixed-frame overflow lock so the entire quiz
+  // (including the final questions and submit button) remains reachable.
+  document.documentElement.classList.add('quiz-standalone');
+  document.body.classList.add('quiz-standalone');
   const app = $('#app');
   const act = getActivity(aid);
   if (!act) { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><h2>${t('msg_quiz_not_found')}</h2><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
