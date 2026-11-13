@@ -721,6 +721,108 @@ html, body {
   }
 }
 
+
+/* =========================================================
+   SAFE RESPONSIVE ENHANCEMENTS — UI ONLY
+   - Make the mobile logout action explicit and easy to find.
+   - Keep activity-feed reactions visually identifiable/tappable.
+   - Restore natural vertical scrolling on mobile landscape screens.
+   ========================================================= */
+.topbar-logout{display:none}
+@media screen and (max-width:1100px){
+  .topbar-logout{
+    display:inline-flex!important;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    min-height:38px;
+    padding:7px 11px!important;
+    background:#fff!important;
+    border:1px solid #e8c4bf!important;
+    color:#a83226!important;
+    white-space:nowrap;
+    flex:0 0 auto;
+  }
+  .topbar-logout-label{display:inline}
+}
+.pm-reaction-label{
+  display:inline-flex;
+  align-items:center;
+  margin-right:3px;
+  color:#475569;
+  font-size:11px;
+  font-weight:800;
+}
+.pm-reaction-button{
+  min-height:34px;
+  min-width:42px;
+  justify-content:center;
+  border:1px solid #e2e8f0!important;
+  background:#f8fafc!important;
+  touch-action:manipulation;
+}
+.pm-reaction-button:hover,.pm-reaction-button:focus-visible{
+  border-color:#86cdb2!important;
+  background:#ecfdf5!important;
+}
+.pm-reaction-button:active{transform:scale(.96)}
+@media screen and (max-width:900px) and (orientation:landscape){
+  html,body{
+    height:auto!important;
+    min-height:100%!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  #app{
+    height:auto!important;
+    min-height:100vh!important;
+    overflow:visible!important;
+  }
+  .shell,.shell:not(.admin-shell),.admin-shell{
+    height:auto!important;
+    min-height:100vh!important;
+    max-height:none!important;
+    overflow:visible!important;
+    align-items:stretch!important;
+  }
+  .shell>.main,.admin-shell>.main{
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  .shell>.sidebar,.admin-shell>.sidebar{
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+  #view{
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    overflow:visible!important;
+    padding-bottom:max(28px,env(safe-area-inset-bottom))!important;
+  }
+  .mobile-nav-panel{
+    max-height:45vh!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  .table-wrap,.modal,.picker-list{
+    max-width:100%;
+    -webkit-overflow-scrolling:touch;
+  }
+}
+@media screen and (max-width:900px) and (orientation:portrait){
+  html,body{overflow-x:hidden!important;overflow-y:auto!important}
+  #app,.shell,.admin-shell,.shell>.main,.admin-shell>.main{
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+}
+
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -4767,7 +4869,7 @@ function shell() {
           ${langToggleHtml()}
           <span id="syncBadge" class="pill" style="background:#e8f5ec;color:#1e7d4f" title="Sync status">✓</span>
           <span class="pill role-pill">${roleLabel(u.role)}</span>
-          <button class="btn btn-sm topbar-logout" data-act="logout" title="${esc(t('logout'))}" aria-label="${esc(t('logout'))}">🚪</button>
+          <button class="btn btn-sm topbar-logout" data-act="logout" title="${esc(t('logout'))}" aria-label="${esc(t('logout'))}"><span aria-hidden="true">🚪</span><span class="topbar-logout-label">${t('logout')}</span></button>
         </div>
       </header>
       <section id="transferMonitor" class="transfer-monitor" aria-live="polite">
@@ -4957,6 +5059,8 @@ let programMemoryPhotos = [];
 let programMemoryLoadedAt = 0;
 let programMemoryLoading = false;
 let programMemoryUploadInFlight = false;
+// Prevent duplicate in-flight writes for the same post while keeping the UI instant.
+const programMemoryReactionPending = new Set();
 const PROGRAM_MEMORY_MAX_BYTES = 8 * 1024 * 1024;
 
 function programMemoryText(ms, en) { return currentLang === 'en' ? en : ms; }
@@ -4977,7 +5081,8 @@ function programMemoryView() {
     const reactionCount = emoji => reactions.filter(r => String((r && (r.reaction || r.emoji || r.type)) || '') === emoji).length;
     // The single visible reaction row is also the direct-click reaction control.
     // Keep the existing reaction data and handler; only the duplicate lower row is removed.
-    const reactionSummary = reactionTypes.map(emoji => `<button type="button" data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${emoji}" class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 border-0 cursor-pointer hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-300" title="React ${emoji}" aria-label="React ${emoji}"><span>${emoji}</span><b class="text-slate-700">${reactionCount(emoji)}</b></button>`).join('');
+    const myReaction = reactions.find(r => String(r.userId || '') === String(state.user?.id || ''));
+    const reactionSummary = `<span class="pm-reaction-label">${programMemoryText('Reaksi','React')}</span>` + reactionTypes.map(emoji => `<button type="button" data-act="memory-react" data-pid="${esc(p.id)}" data-reaction="${emoji}" aria-pressed="${!!myReaction && String((myReaction.reaction || myReaction.emoji || myReaction.type) || '') === emoji}" class="pm-reaction-button inline-flex items-center gap-1 rounded-full ${myReaction && String((myReaction.reaction || myReaction.emoji || myReaction.type) || '') === emoji ? 'bg-emerald-100 ring-1 ring-emerald-400' : 'bg-slate-100'} px-2 py-1 border-0 cursor-pointer hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-300" title="${programMemoryText('Beri reaksi ','React ')}${emoji}" aria-label="${programMemoryText('Beri reaksi ','React ')}${emoji}"><span aria-hidden="true">${emoji}</span><b data-reaction-count="${emoji}" class="text-slate-700">${reactionCount(emoji)}</b></button>`).join('');
     const imageMarkup = images.length ? `<div class="bg-slate-900 cursor-pointer overflow-hidden max-h-[500px] ${images.length>1?'grid grid-cols-2':''}">${images.slice(0,6).map((im,i)=>`<div class="relative ${images.length===1?'w-full':''}" data-act="memory-open-image" data-url="${esc(im.viewUrl || im.imageUrl || '')}"><img src="${esc(im.imageUrl || '')}" alt="Gambar Hantaran" class="w-full ${images.length===1?'max-h-[500px] object-cover':'h-56 sm:h-64 object-cover'} hover:scale-[1.01] transition duration-300" loading="lazy">${i===5 && images.length>6?`<span class="absolute inset-0 bg-black/60 text-white text-2xl flex items-center justify-center">+${images.length-6}</span>`:''}</div>`).join('')}</div>` : '';
     const commentMarkup = comments.map(c=>{
       const commentOwner = String(c.userId || c.createdBy || c.participantId || c.authorId || '');
@@ -4990,7 +5095,7 @@ function programMemoryView() {
       ${p.text?`<div class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line">${tce(p.text)}</div>`:''}
       ${imageMarkup}
       ${!vip && state.user && (isAdmin || String(p.userId || '') === String(state.user.id)) ? `<div class="px-4 pt-3"><button type="button" data-act="memory-add-photo-trigger" data-pid="${esc(p.id)}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><i class="fa-regular fa-images"></i>${programMemoryText('Tambah gambar pada hantaran ini','Add photos to this post')}</button><input type="file" id="pm-add-photo-${esc(p.id)}" data-album-id="${esc(p.id)}" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden></div>` : ''}
-      <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
+      <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span id="pm-total-reactions-${esc(p.id)}" class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
       <div class="p-4 bg-slate-50/50 space-y-3"><div id="comments-list-${esc(p.id)}" class="space-y-3">${commentMarkup}</div>${!vip?`<form class="flex items-center gap-2" onsubmit="event.preventDefault();submitProgramMemoryComment('${esc(p.id)}')"><div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">${esc(String(displayName).charAt(0).toUpperCase())}</div><input id="memoryComment-${esc(p.id)}" maxlength="1000" placeholder="Tulis komen anda di sini..." aria-label="Tulis komen" class="flex-1 min-w-0 border border-slate-200 rounded-full bg-white py-2.5 px-4 text-sm outline-none focus:border-blue-400"><button type="submit" aria-label="Hantar komen" title="Hantar komen" class="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-paper-plane"></i></button></form>`:''}</div>
       ${isAdmin?`<div class="px-4 pb-3"><button class="btn btn-sm btn-danger" data-act="memory-delete" data-pid="${esc(p.id)}">🗑️ ${programMemoryText('Padam hantaran','Delete post')}</button></div>`:''}</article>`;
   }).join('');
@@ -5087,14 +5192,68 @@ async function copyProgramMemoryLink(url) {
   } catch (err) { toast(url); }
 }
 
+function updateProgramMemoryReactionUI(pictureId) {
+  const post = programMemoryPhotos.find(p => String(p.id) === String(pictureId));
+  const article = document.getElementById('pm-post-' + pictureId);
+  if (!post || !article) return;
+  const reactions = Array.isArray(post.reactions) ? post.reactions : [];
+  const myReaction = reactions.find(r => String(r.userId || '') === String(state.user?.id || ''));
+  article.querySelectorAll('[data-reaction-count]').forEach(node => {
+    const emoji = node.getAttribute('data-reaction-count');
+    node.textContent = String(reactions.filter(r => String((r.reaction || r.emoji || r.type) || '') === emoji).length);
+  });
+  article.querySelectorAll('[data-act="memory-react"]').forEach(button => {
+    const selected = !!myReaction && String((myReaction.reaction || myReaction.emoji || myReaction.type) || '') === button.dataset.reaction;
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.classList.toggle('bg-emerald-100', selected);
+    button.classList.toggle('ring-1', selected);
+    button.classList.toggle('ring-emerald-400', selected);
+    button.classList.toggle('bg-slate-100', !selected);
+  });
+  const total = article.querySelector('#pm-total-reactions-' + CSS.escape(String(pictureId)));
+  if (total) total.textContent = reactions.length + ' ' + programMemoryText('reaksi','reactions');
+}
+
 async function submitProgramMemoryReaction(pictureId, reaction) {
+  if (!state.user || state.user.role === 'vip') {
+    toast(programMemoryText('Akses ini hanya untuk melihat.','This account has view-only access.'),'warn');
+    return;
+  }
+  const key = String(pictureId);
+  if (programMemoryReactionPending.has(key)) return;
+  const post = programMemoryPhotos.find(p => String(p.id) === key);
+  if (!post) return;
+
+  const userId = String(state.user.id);
+  const previousReactions = Array.isArray(post.reactions) ? post.reactions.slice() : [];
+  const previous = previousReactions.find(r => String(r.userId || '') === userId);
+  const previousEmoji = previous && String((previous.reaction || previous.emoji || previous.type) || '');
+  if (previousEmoji === String(reaction)) return;
+
+  // Optimistic update: show the new count immediately without rebuilding the feed.
+  post.reactions = previousReactions.filter(r => String(r.userId || '') !== userId);
+  post.reactions.push({ userId, userName:state.user.name || state.user.fullName || '', reaction:String(reaction), createdAt:new Date().toISOString(), _optimistic:true });
+  updateProgramMemoryReactionUI(key);
+  programMemoryReactionPending.add(key);
+  const article = document.getElementById('pm-post-' + key);
+  article?.querySelectorAll('[data-act="memory-react"]').forEach(button => { button.disabled = true; button.setAttribute('aria-busy','true'); });
+
   try {
     const result = await driveAPI('reactProgramPicture', {
-      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:String(pictureId), reaction:String(reaction)
+      userId, token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:key, reaction:String(reaction)
     });
     if (!result?.ok) throw new Error(result?.error || 'Reaction failed.');
-    await loadProgramMemory(true);
-  } catch (err) { toast(err.message || 'Reaction failed.','bad'); }
+    // Keep the optimistic result; a later normal refresh will reconcile server data.
+    programMemoryLoadedAt = 0;
+  } catch (err) {
+    post.reactions = previousReactions;
+    updateProgramMemoryReactionUI(key);
+    toast(err.message || 'Reaction failed.','bad');
+  } finally {
+    programMemoryReactionPending.delete(key);
+    const currentArticle = document.getElementById('pm-post-' + key);
+    currentArticle?.querySelectorAll('[data-act="memory-react"]').forEach(button => { button.disabled = false; button.removeAttribute('aria-busy'); });
+  }
 }
 
 function updateProgramMemoryUploadProgress(percent, title, detail, countText, status) {
