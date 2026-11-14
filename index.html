@@ -4947,9 +4947,9 @@ function navItemsBase() {
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
-      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Module Assigned' : 'Modul Ditugaskan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
-      { v:'modules', label:t('nav_modules_own'), icon:'📦' },
+      { v:'modules', label:t('nav_modules'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
       { v:'grading', label:t('nav_grading') + (pend ? ` (${pend})` : ''), icon:'✅' },
       { v:'participant-assessment', label:t('nav_participant_assessment'), icon:'📊' },
@@ -4967,9 +4967,9 @@ function navItemsBase() {
       { v:'materials-library', label:currentLang === 'en' ? 'Learning Materials' : 'Bahan Pembelajaran', icon:'📚' },
       { v:'system-information', label:currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', icon:'🎬' },
       { v:'assessment-performance', label:currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', icon:'🕸️' },
-      { v:'enrolled-programs', label:currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', icon:'✅' },
+      { v:'enrolled-programs', label:currentLang === 'en' ? 'Module Assigned' : 'Modul Ditugaskan', icon:'✅' },
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
-      { v:'modules', label:t('nav_modules_own'), icon:'📦' },
+      { v:'modules', label:t('nav_modules'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
       { v:'grading', label:t('nav_grading'), icon:'✅' },
       { v:'participant-assessment', label:t('nav_participant_assessment'), icon:'📊' },
@@ -5071,6 +5071,8 @@ function navNotificationMarkup(view) {
 }
 
 function titleFor(v) {
+  if (state.user && ['trainer','facilitator'].includes(state.user.role) && v === 'modules') return currentLang === 'en' ? 'List All Modules' : 'Senarai Semua Modul';
+  if (state.user && ['trainer','facilitator'].includes(state.user.role) && v === 'enrolled-programs') return currentLang === 'en' ? 'Module Assigned' : 'Modul Ditugaskan';
   if (state.user && state.user.role === 'vip' && v === 'modules') return t('title_modules_all');
   return { dashboard: state.user && state.user.role === 'facilitator' ? t('title_portal') : t('title_dashboard'), modules: t('title_modules'), module: t('title_module'), programs: t('title_programs'), 'enrolled-programs': currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan', 'participant-timetable': currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', 'assessment-performance': currentLang === 'en' ? 'Assessment Performance by Module' : 'Prestasi Penilaian Mengikut Modul', 'system-information': currentLang === 'en' ? 'System Information' : 'Maklumat Sistem', memory: currentLang === 'en' ? 'Activity Feed' : 'Suapan Aktiviti', activities: state.user && state.user.role === 'participant' ? t('title_activities_mine') : t('title_activities'), activity: t('title_activity'), grading: t('title_grading'), 'participant-assessment': t('title_participant_assessment'), attendance: t('title_attendance'), 'practical-evaluation': t('title_practical_evaluation'), rubrik: t('title_rubrik'), bank: t('title_bank'), users: t('title_users'), companies: currentLang === 'en' ? 'Companies & Participants' : 'Pengurusan Syarikat & Peserta', sijil: t('title_sijil'), final: t('title_final'), audit: t('title_audit'), reports: t('title_reports'), profile: t('title_profile'), approvals: t('title_approvals') }[v] || t('app_brand');
 }
@@ -7169,17 +7171,18 @@ function rejectPendingApproval(paId, reason) {
 function modulesView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  const mods = (isAdmin || isVip) ? sortModules(DB.modules) : myModules();
+  const isReadOnlyStaff = ['trainer','facilitator'].includes(state.user.role);
+  const mods = (isAdmin || isVip || isReadOnlyStaff) ? sortModules(DB.modules) : myModules();
   return `<div class="card">
     <div class="card-head">
-      <div><h2>${isVip ? t('nav_modules_all') : (isAdmin ? t('modules_all') : t('modules_mine'))}</h2>${isVip ? `<small class="muted">${t('vip_all_modules_hint')}</small>` : ''}</div>
+      <div><h2>${isReadOnlyStaff ? (currentLang === 'en' ? 'List All Modules' : 'Senarai Semua Modul') : (isVip ? t('nav_modules_all') : (isAdmin ? t('modules_all') : t('modules_mine')))}</h2>${isVip ? `<small class="muted">${t('vip_all_modules_hint')}</small>` : isReadOnlyStaff ? `<small class="muted">${currentLang === 'en' ? 'View-only access to your assigned modules.' : 'Akses lihat sahaja untuk modul yang ditugaskan kepada anda.'}</small>` : ''}</div>
       <div class="toolbar">
         <button class="btn" data-act="print-all-modules">📄 ${t('modules_print_all')}</button>
         ${isAdmin ? `<button class="btn btn-primary" data-act="new-module">➕ ${t('lbl_module')}</button>` : ''}
-        ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
+        ${(isVip || isReadOnlyStaff) ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
     </div>
-    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')}</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${m.id}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${m.id}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
+    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card" data-act="open-module" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc((currentLang === 'en' ? 'Open module: ' : 'Buka modul: ') + m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${esc(m.id)}">${t('btn_open')}</button>${(isAdmin || (isReadOnlyStaff && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)))) ? `<button class="btn btn-sm" data-act="edit-module" data-id="${esc(m.id)}">✏️</button>` : ''}${isAdmin ? `<button class="btn btn-sm" data-act="toggle-publish-module" data-id="${esc(m.id)}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${esc(m.id)}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
   </div>`;
 }
 
@@ -7376,15 +7379,16 @@ function moduleDetailView() {
   const isOwner = moduleHasTrainer(m, state.user.id);
   const isFac = moduleHasFacilitator(m, state.user.id) && !isOwner;
   const isParticipant = state.user.role === 'participant';
-  if (!isAdmin && !isOwner && !isFac && !isParticipant && !isVip) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  const isAssignedStaff = ['trainer','facilitator'].includes(state.user.role) && (isOwner || isFac);
+  if (!isAdmin && !isOwner && !isFac && !isParticipant && !isVip && !['trainer','facilitator'].includes(state.user.role)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   if (isVip) return vipModuleDetailView(m);
   const modActs = moduleActivitiesList(m.id);
   const participants = enrolledParticipants(m.id);
   const enrolled = isParticipant ? isEnrolled(m.id, state.user.id) : false;
-  // Facilitators may manage learning activities within modules assigned to them.
-  const canEdit = isAdmin || isOwner || isFac;
-  const canEditMaterial = isAdmin || isOwner || isFac;
-  const canEditTT = canManageTimetable(m.id);
+  // Staff may edit only modules assigned to their account.
+  const canEdit = isAdmin || isAssignedStaff;
+  const canEditMaterial = canEdit;
+  const canEditTT = canEdit;
   if (isParticipant) {
     if (!enrolled) return `<div class="card"><div class="card-head"><h2>${tce(m.name)}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">←</button></div><p>${t('modules_no_modules_enrolled')}</p><button class="btn btn-primary" data-act="enroll-module" data-id="${m.id}">${t('modules_enroll_now')}</button></div>`;
     const myActs = modActs.filter(a => a.published);
@@ -7392,10 +7396,10 @@ function moduleDetailView() {
   }
   const drafts = modActs.filter(a => !a.published);
   const finals = moduleFinalExams(m.id);
-  return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</h2><small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="modules">←</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕ ${t('lbl_activity')}</button>` : ''}</div></div><p>${tce(m.description || '')}</p><div class="meta-grid"><div class="meta-item"><div class="k">📅 ${t('module_start_date')}</div><div class="v">${m.startDate ? fmtDate(m.startDate) : '—'}</div></div><div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div><div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div><div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${moduleTimetable(m.id).length}</div></div><div class="meta-item"><div class="k">🎓 ${t('fe_title')}</div><div class="v">${finals.length}</div></div><div class="meta-item"><div class="k">${t('lbl_materials')}</div><div class="v">${(m.materials||[]).length}</div></div><div class="meta-item"><div class="k">${t('lbl_draft')}</div><div class="v" style="${drafts.length ? 'color:var(--warn)' : ''}">${drafts.length}</div></div></div>${drafts.length ? `<div class="info-box warn" style="margin-bottom:0"><h4>⚠️ ${t('modules_draft_warn', drafts.length)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}</div>
+  return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</h2><small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="modules">←</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕ ${t('lbl_activity')}</button>` : `<span class="badge info">${t('vip_read_only')}</span>`}</div></div><p>${tce(m.description || '')}</p><div class="meta-grid"><div class="meta-item"><div class="k">📅 ${t('module_start_date')}</div><div class="v">${m.startDate ? fmtDate(m.startDate) : '—'}</div></div><div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div><div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div><div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${moduleTimetable(m.id).length}</div></div><div class="meta-item"><div class="k">🎓 ${t('fe_title')}</div><div class="v">${finals.length}</div></div><div class="meta-item"><div class="k">${t('lbl_materials')}</div><div class="v">${(m.materials||[]).length}</div></div><div class="meta-item"><div class="k">${t('lbl_draft')}</div><div class="v" style="${drafts.length ? 'color:var(--warn)' : ''}">${drafts.length}</div></div></div>${drafts.length ? `<div class="info-box warn" style="margin-bottom:0"><h4>⚠️ ${t('modules_draft_warn', drafts.length)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}</div>
   ${renderTimetableSection(m, canEditTT)}
   ${renderMaterialsSection(m, canEditMaterial)}
-  <div class="card"><div class="card-head"><h2>${t('modules_activity_section')} (${modActs.length})</h2><div class="toolbar">${drafts.length && canEdit ? `<button class="btn btn-sm btn-primary" data-act="publish-all-module" data-id="${m.id}">${t('act_publish_all')} (${drafts.length})</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕</button>` : ''}</div></div>${modActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${modActs.map(a => `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span> ${a.quizDuration ? `<small class="muted">⏱️ ${a.quizDuration}m</small>` : ''}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canEdit ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="print-activity-quiz" data-id="${a.id}" title="${currentLang === 'en' ? 'Print paper quiz PDF' : 'Cetak kuiz kertas PDF'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}" title="${t('quiz_preview')}">👁️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>
+  <div class="card"><div class="card-head"><h2>${t('modules_activity_section')} (${modActs.length})</h2><div class="toolbar">${drafts.length && canEdit ? `<button class="btn btn-sm btn-primary" data-act="publish-all-module" data-id="${m.id}">${t('act_publish_all')} (${drafts.length})</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕</button>` : ''}</div></div>${modActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${modActs.map(a => `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span> ${a.quizDuration ? `<small class="muted">⏱️ ${a.quizDuration}m</small>` : ''}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canEdit ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="print-activity-quiz" data-id="${a.id}" title="${currentLang === 'en' ? 'Print paper quiz PDF' : 'Cetak kuiz kertas PDF'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}" title="${t('quiz_preview')}">👁️</button>` : ''}${canEdit ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button><button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>
   <div class="card"><div class="card-head"><h2>🎓 ${t('fe_title')} (${finals.length})</h2>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-final-exam" data-module="${m.id}">➕ ${t('fe_new')}</button>` : ''}</div>${finals.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_title')}</th><th>${t('fe_type')}</th><th>${t('fe_open_at')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${finals.map(fe => { const w = feWindowStatus(fe); return `<tr><td><strong>${tce(fe.title)}</strong></td><td><span class="badge ${fe.type === 'theory' ? 'info' : 'ok'}">${fe.type === 'theory' ? t('fe_type_theory') : t('fe_type_practical')}</span></td><td>${fe.openAt ? fmtDT(fe.openAt) : '—'}</td><td><span class="badge ${!fe.published ? 'draft' : w.state === 'open' ? 'ok' : w.state === 'not-open' ? 'draft' : 'bad'}">${!fe.published ? t('lbl_draft') : w.state === 'open' ? t('fe_status_open') : w.state === 'not-open' ? t('fe_status_not_open') : t('fe_status_closed')}</span></td><td>${canEdit ? `<button class="btn btn-sm" data-act="edit-final-exam" data-id="${fe.id}">✏️</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('fe_no_exams')}</div>`}</div>
   <div class="card"><div class="card-head"><h2>${t('modules_participant_section')} (${participants.length})</h2>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="enroll-participants-modal" data-id="${m.id}">➕ ${t('btn_enroll')}</button>` : ''}</div>${participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('lbl_email')}</th><th>${t('lbl_date')}</th><th></th></tr></thead><tbody>${participants.map(({ enroll, user }) => `<tr><td><strong>${tce(user.name)}</strong></td><td>${esc(user.email)}</td><td>${fmtDate(enroll.enrolledAt)}</td><td>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="unenroll-module" data-mid="${m.id}" data-pid="${user.id}">${t('btn_unenroll')}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_participants')}</div>`}</div>`;
 }
@@ -8173,7 +8177,7 @@ function enrolledProgramsView() {
   if (me.role === 'participant') enrolled = participantModules(me.id);
   else if (me.role === 'vip') enrolled = sortModules(DB.modules).filter(m => DB.enrollments.some(e => e.moduleId === m.id && sameCompany((DB.users.find(u=>u.id===e.userId)||{}).org, me.org)));
   else enrolled = myModules();
-  return `<div class="card"><div class="card-head"><h2>🎓 ${currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan'}</h2><span class="pill">${enrolled.length}</span></div><p class="muted">${currentLang === 'en' ? 'A dedicated view of programmes linked to your account or assigned modules.' : 'Paparan khusus program latihan yang didaftarkan atau ditugaskan kepada akaun anda.'}</p>
+  return `<div class="card"><div class="card-head"><h2>🎓 ${['trainer','facilitator'].includes(me.role) ? (currentLang === 'en' ? 'Module Assigned' : 'Modul Ditugaskan') : (currentLang === 'en' ? 'Programmes Enrolled' : 'Program Latihan Didaftarkan')}</h2><span class="pill">${enrolled.length}</span></div><p class="muted">${currentLang === 'en' ? 'A dedicated view of programmes linked to your account or assigned modules.' : 'Paparan khusus program latihan yang didaftarkan atau ditugaskan kepada akaun anda.'}</p>
   ${enrolled.length ? `<div class="module-grid">${enrolled.map(m => {
     const acts = moduleActivitiesList(m.id).filter(a => a.published);
     const tt = moduleTimetable(m.id).length;
@@ -8204,6 +8208,9 @@ function programsView() {
 
 function openModuleForm(mod) {
   const isEdit = !!mod;
+  const isAdmin = state.user && state.user.role === 'admin';
+  if (isEdit && !isAdmin && !(state.user && ['trainer','facilitator'].includes(state.user.role) && (moduleHasTrainer(mod, state.user.id) || moduleHasFacilitator(mod, state.user.id)))) { toast(t('msg_no_access'), 'bad'); return; }
+  if (!isEdit && !isAdmin) { toast(t('msg_no_access'), 'bad'); return; }
   const m = mod || { name:'', description:'', trainerIds: (allTrainers()[0] || {}).id ? [(allTrainers()[0] || {}).id] : [], facilitatorIds: [], published: true, startDate: '' };
   const selectedTrainers = moduleTrainerIds(m);
   const selectedFacilitators = moduleFacilitatorIds(m);
@@ -8220,9 +8227,9 @@ function openModuleForm(mod) {
         <div class="field"><label>🕒 ${currentLang==='en'?'End Time':'Masa Tamat'}</label><input class="input" type="time" name="endTime" value="${esc(m.endTime || '')}" /></div>
         <div class="field"><label>${t('lbl_status')}</label><select class="select" name="published"><option value="true" ${m.published ? 'selected' : ''}>${t('lbl_active')}</option><option value="false" ${!m.published ? 'selected' : ''}>${t('lbl_draft')}</option></select></div>
       </div>
-      ${multiGroup('trainerIds', '👤 ' + t('lbl_trainer'), allTrainers(), selectedTrainers, true)}
+      ${isAdmin ? `${multiGroup('trainerIds', '👤 ' + t('lbl_trainer'), allTrainers(), selectedTrainers, true)}
       ${multiGroup('facilitatorIds', '🧑‍🏫 ' + t('lbl_facilitator'), facOptions, selectedFacilitators, false)}
-      <div class="info-box" style="font-size:.82rem"><p style="margin:0">💡 ${t('pa_facilitator_note')}</p></div>
+      <div class="info-box" style="font-size:.82rem"><p style="margin:0">💡 ${t('pa_facilitator_note')}</p></div>` : `<div class="info-box"><strong>${currentLang === 'en' ? 'Assigned staff' : 'Staf yang ditugaskan'}</strong><p style="margin:5px 0 0">${esc(moduleTrainerNames(m))}${moduleFacilitatorNames(m) ? ' · ' + esc(moduleFacilitatorNames(m)) : ''}</p><small class="muted">${currentLang === 'en' ? 'Only Admin can change module assignments.' : 'Hanya Admin boleh mengubah tugasan modul.'}</small></div>`}
       <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_save')}</button></div>
     </form>`);
   const modal = document.querySelector('#modalRoot form[data-form="module"]');
@@ -8255,8 +8262,12 @@ function openModuleForm(mod) {
 }
 function handleSaveModule(form) {
   const id = form.dataset.id;
-  const trainerIds = [...form.querySelectorAll('input[name="trainerIds"]:checked')].map(x => x.value);
-  const facilitatorIds = [...form.querySelectorAll('input[name="facilitatorIds"]:checked')].map(x => x.value);
+  const existing = id ? getModule(id) : null;
+  const isAdmin = state.user && state.user.role === 'admin';
+  if (id && !isAdmin && !(state.user && ['trainer','facilitator'].includes(state.user.role) && existing && (moduleHasTrainer(existing, state.user.id) || moduleHasFacilitator(existing, state.user.id)))) { toast(t('msg_no_access'), 'bad'); return; }
+  if (!id && !isAdmin) { toast(t('msg_no_access'), 'bad'); return; }
+  const trainerIds = isAdmin ? [...form.querySelectorAll('input[name="trainerIds"]:checked')].map(x => x.value) : moduleTrainerIds(existing);
+  const facilitatorIds = isAdmin ? [...form.querySelectorAll('input[name="facilitatorIds"]:checked')].map(x => x.value) : moduleFacilitatorIds(existing);
   const data = {
     name: form.name.value.trim(), description: form.description.value.trim(),
     trainerIds, facilitatorIds, trainerId: trainerIds[0] || null, facilitatorId: facilitatorIds[0] || null,
@@ -8418,6 +8429,7 @@ function activitiesView() {
         <td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>
+          ${['trainer','facilitator'].includes(state.user.role) && a.published && String(a.createdBy || '') !== String(state.user.id) ? `<button class="btn btn-sm" data-act="duplicate-activity" data-id="${a.id}">📄 ${currentLang === 'en' ? 'Duplicate to my module' : 'Duplicate ke modul saya'}</button>` : ''}
           ${canCreate ? `<button class="btn btn-sm" data-act="print-activity-master" data-id="${a.id}" title="${currentLang === 'en' ? 'Print activity master paper' : 'Cetak master aktiviti'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
@@ -8430,6 +8442,158 @@ function activitiesView() {
     }).join('')}</tbody></table></div>`;
     })() : `<div class="empty">${t('msg_no_activity')}</div>`}
   </div>`;
+}
+
+
+/* =========================================================
+   SAFE ADD-ON: ACTIVITY DUPLICATION & DUPLICATE-PUBLISH GUARD
+   Original activities and their related records are never modified.
+   ========================================================= */
+function normaliseActivityCheckValue(value) {
+  return String(value == null ? '' : value)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function activityContentCheckSignature(activity) {
+  const quiz = (activity.quiz || []).map(q => ({
+    q: normaliseActivityCheckValue(q.q || q.question || ''),
+    options: (q.options || []).map(x => normaliseActivityCheckValue(x)),
+    answer: q.answer == null ? '' : String(q.answer)
+  }));
+  return JSON.stringify({
+    method: normaliseActivityCheckValue(activity.method),
+    objectives: normaliseActivityCheckValue(activity.objectives),
+    instructions: normaliseActivityCheckValue(activity.instructions),
+    materials: normaliseActivityCheckValue(activity.materials),
+    quiz
+  });
+}
+function findActivityDuplicateConflicts(candidate, ignoreActivityId) {
+  const titleKey = normaliseActivityCheckValue(candidate.title);
+  const contentKey = activityContentCheckSignature(candidate);
+  return (DB.activities || []).filter(existing => {
+    if (!existing || String(existing.id) === String(ignoreActivityId || '')) return false;
+    const sameTitle = !!titleKey && normaliseActivityCheckValue(existing.title) === titleKey;
+    const sameContent = contentKey !== activityContentCheckSignature({}) &&
+      contentKey === activityContentCheckSignature(existing);
+    return sameTitle || sameContent;
+  }).map(existing => ({
+    activity: existing,
+    reason: normaliseActivityCheckValue(existing.title) === titleKey
+      ? (currentLang === 'en' ? 'Same activity name' : 'Nama aktiviti yang sama')
+      : (currentLang === 'en' ? 'Same activity content' : 'Kandungan aktiviti yang sama')
+  }));
+}
+function openActivityDuplicateModal(sourceActivityId) {
+  if (!state.user || !['trainer','facilitator'].includes(state.user.role)) {
+    toast(t('msg_no_access'), 'bad'); return;
+  }
+  const source = getActivity(sourceActivityId);
+  if (!source || !source.published) {
+    toast(currentLang === 'en' ? 'Only published activities can be duplicated.' : 'Hanya aktiviti yang telah diterbitkan boleh diduplikasi.', 'bad');
+    return;
+  }
+  const assigned = myModules();
+  if (!assigned.length) {
+    toast(currentLang === 'en' ? 'You have no assigned module.' : 'Anda tiada modul yang ditugaskan.', 'warn');
+    return;
+  }
+  const alreadyCopied = (DB.activities || []).some(a =>
+    String(a.duplicatedFromActivityId || '') === String(source.id) &&
+    String(a.duplicatedBy || a.createdBy || '') === String(state.user.id)
+  );
+  if (alreadyCopied) {
+    toast(currentLang === 'en'
+      ? 'You have already duplicated this activity. Only one copy is allowed.'
+      : 'Anda telah menduplikasi aktiviti ini. Hanya satu salinan dibenarkan.', 'warn');
+    return;
+  }
+  openModal(`<h2>📄 ${currentLang === 'en' ? 'Duplicate Activity' : 'Duplicate Aktiviti'}</h2>
+    <p class="muted">${currentLang === 'en' ? 'Create one independent draft copy. The original activity will remain unchanged.' : 'Hasilkan satu salinan draf yang berasingan. Aktiviti asal tidak akan diubah.'}</p>
+    <div class="meta-item" style="margin-bottom:12px"><div class="k">${currentLang === 'en' ? 'Source activity' : 'Aktiviti asal'}</div><div class="v">${tce(source.title)}</div><small class="muted">${tce(moduleName(source.moduleId))}</small></div>
+    <form data-form="duplicate-activity" data-source-id="${esc(source.id)}">
+      <div class="field"><label>${currentLang === 'en' ? 'Assign copy to your module' : 'Tetapkan salinan kepada modul anda'} *</label>
+        <select class="select" name="targetModuleId" required>
+          ${assigned.map(m => `<option value="${esc(m.id)}">${tce(m.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="info-box">${currentLang === 'en'
+        ? 'Module information (module name and trainer) will be updated automatically. The copy starts as an unpublished draft and must pass duplicate checks before publishing.'
+        : 'Maklumat modul (nama modul dan jurulatih) akan dikemas kini secara automatik. Salinan bermula sebagai draf dan mesti lulus semakan pertindihan sebelum diterbitkan.'}</div>
+      <div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${currentLang === 'en' ? 'Create one copy' : 'Hasilkan satu salinan'}</button></div>
+    </form>`);
+}
+function handleCreateActivityDuplicate(form) {
+  const role = state.user && state.user.role;
+  if (!state.user || !['trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); return; }
+  const source = getActivity(form.dataset.sourceId);
+  const targetModule = getModule(form.targetModuleId && form.targetModuleId.value);
+  if (!source || !source.published || !targetModule || !canTrainerAccessModule(targetModule.id)) {
+    toast(t('msg_no_access'), 'bad'); return;
+  }
+  const alreadyCopied = (DB.activities || []).some(a =>
+    String(a.duplicatedFromActivityId || '') === String(source.id) &&
+    String(a.duplicatedBy || a.createdBy || '') === String(state.user.id)
+  );
+  if (alreadyCopied) {
+    toast(currentLang === 'en'
+      ? 'Only one copy of each source activity is allowed per trainer/facilitator.'
+      : 'Hanya satu salinan bagi setiap aktiviti asal dibenarkan untuk setiap trainer/fasilitator.', 'warn');
+    return;
+  }
+  const clone = JSON.parse(JSON.stringify(source));
+  const maxOrder = (DB.activities || []).filter(a => String(a.moduleId) === String(targetModule.id))
+    .reduce((max, a) => Math.max(max, Number(a.order) || 0), 0);
+  delete clone.id;
+  delete clone.order;
+  delete clone.createdAt;
+  delete clone.updatedAt;
+  Object.assign(clone, {
+    id: uid('act'),
+    order: maxOrder + 1,
+    moduleId: targetModule.id,
+    module: targetModule.name,
+    trainerId: targetModule.trainerId || (moduleTrainerIds(targetModule)[0] || null),
+    date: targetModule.startDate || todayISO(),
+    quizOpenAt: null,
+    quizCloseAt: null,
+    practicalOpenAt: null,
+    practicalCloseAt: null,
+    published: false,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    createdBy: state.user.id,
+    duplicatedFromActivityId: source.id,
+    duplicatedBy: state.user.id,
+    duplicatedAt: nowISO()
+  });
+  if (!Array.isArray(DB.activities)) DB.activities = [];
+  DB.activities.push(clone);
+  saveDB();
+  logAudit('Duplicate Activity', 'Aktiviti', clone.id,
+    `Copied from ${source.id} (${source.title}) to module ${targetModule.name}; source unchanged`);
+  state.tempQuiz = [];
+  closeModal();
+  render();
+  toast(currentLang === 'en'
+    ? 'One draft copy created. Review its details and rename it before publishing.'
+    : 'Satu salinan draf berjaya dibuat. Semak maklumat dan tukar nama sebelum diterbitkan.', 'ok');
+}
+function validateDuplicatedActivityBeforePublish(candidate, ignoreActivityId) {
+  if (!candidate || !candidate.duplicatedFromActivityId) return true;
+  const conflicts = findActivityDuplicateConflicts(candidate, ignoreActivityId);
+  if (!conflicts.length) return true;
+  const first = conflicts[0];
+  const matchedTitle = first.activity && first.activity.title ? first.activity.title : '';
+  toast((currentLang === 'en'
+    ? 'Publish blocked: duplicate activity information detected. Match: '
+    : 'Penerbitan disekat: maklumat aktiviti bertindih dikesan. Padanan: ') +
+    matchedTitle + (conflicts.length > 1 ? ` (+${conflicts.length - 1})` : '') +
+    (currentLang === 'en' ? '. Change the activity name or content, then check again.' : '. Tukar nama atau kandungan aktiviti, kemudian semak semula.'), 'bad');
+  return false;
 }
 
 function participantPracticalEvaluationView() {
@@ -8777,6 +8941,13 @@ function handleSaveActivity(form) {
   if ((quizOpenAt && quizCloseAt && quizOpenAt >= quizCloseAt) || (practicalOpenAt && practicalCloseAt && practicalOpenAt >= practicalCloseAt)) { toast('⚠️ ' + t('schedule_invalid'), 'bad'); return; }
   const quizDuration = !isPractical && form.quizDuration && Number(form.quizDuration.value) > 0 ? Number(form.quizDuration.value) : null;
   const data = { title: form.title.value.trim(), moduleId: mod.id, module: mod.name, date: form.date.value, duration: Number(form.duration.value) || 1, objectives: form.objectives.value.trim(), instructions: form.instructions.value.trim(), materials: form.materials.value.trim(), method, trainerId: mod.trainerId, rubricId, quizOpenAt, quizCloseAt, practicalOpenAt, practicalCloseAt, updatedAt: nowISO() };
+  if (id) {
+    const existingActivity = getActivity(id);
+    const publishCandidate = Object.assign({}, existingActivity || {}, data, {
+      quiz: isPractical ? (existingActivity?.quiz || []) : JSON.parse(JSON.stringify(state.tempQuiz || []))
+    });
+    if (publishNow && !validateDuplicatedActivityBeforePublish(publishCandidate, id)) return;
+  }
   if (id) { const act = getActivity(id); Object.assign(act, data); if (!isPractical) { act.quiz = JSON.parse(JSON.stringify(state.tempQuiz || [])); act.quizDuration = quizDuration; } act.published = publishNow; saveDB(); logAudit('Update Activity', 'Aktiviti', id, data.title + (isPractical ? '' : ` · ${(act.quiz||[]).length} questions`)); toast(t('msg_updated')); }
   else { const maxOrder = DB.activities.filter(a => a.moduleId === mod.id).reduce((m,a) => Math.max(m, a.order), 0); const newAct = Object.assign({ id: uid('act'), order: maxOrder + 1, published: publishNow, quiz: isPractical ? [] : JSON.parse(JSON.stringify(state.tempQuiz || [])), quizOpenAt: null, quizCloseAt: null, quizDuration: isPractical ? null : quizDuration, createdAt: nowISO() }, data); DB.activities.push(newAct); saveDB(); logAudit('Create Activity', 'Aktiviti', newAct.id, newAct.title + (isPractical ? '' : ` · ${(newAct.quiz||[]).length} questions`)); toast(publishNow ? t('msg_saved_publish') : t('msg_saved_draft')); }
   state.tempQuiz = []; state.editingActivityId = null; state.activityDraftModuleId = null;
@@ -10771,6 +10942,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'profile-password') handleChangePassword(form);
   else if (k === 'module') handleSaveModule(form);
   else if (k === 'activity') handleSaveActivity(form);
+  else if (k === 'duplicate-activity') handleCreateActivityDuplicate(form);
   else if (k === 'user') handleSaveUser(form);
   else if (k === 'company') handleSaveCompany(form);
   else if (k === 'practical') handleSavePractical(form);
@@ -10940,7 +11112,7 @@ document.addEventListener('click', async (e) => {
         mobileNavButton.setAttribute('aria-expanded', 'false');
       }
       render();
-      if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true);
+      if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true, { persist: state.user.role === 'admin' });
       if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true);
       if (tgt.dataset.view === 'memory') loadProgramMemory();
       break;
@@ -10979,7 +11151,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'send-quiz-reminder': await sendQuizReminder(id); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
-    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true); break;
+    case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true, { persist: state.user.role === 'admin' }); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
     case 'print-activity-master': printActivityMaster(id); break;
     case 'print-activity-quiz': printActivityQuiz(id); break;
@@ -10988,11 +11160,12 @@ document.addEventListener('click', async (e) => {
     case 'open-final-tab': openFinalTab(id); break;
     case 'vip-final-scores': openVipFinalScoresModal(id); break;
     case 'copy-share-url': { const input = document.getElementById('shareUrl'); if (input) { input.select(); try { document.execCommand('copy'); toast('✅ ' + t('quiz_copied')); } catch(err) { toast(t('quiz_copy_fail'), 'bad'); } if (navigator.clipboard) navigator.clipboard.writeText(input.value).catch(() => {}); tgt.textContent = '✓'; } break; }
-    case 'new-module': openModuleForm(null); break;
-    case 'edit-module': openModuleForm(getModule(id)); break;
-    case 'delete-module': deleteModule(id); break;
-    case 'toggle-publish-module': togglePublishModule(id); break;
+    case 'new-module': if (state.user.role === 'admin') openModuleForm(null); else toast(t('msg_no_access'), 'bad'); break;
+    case 'edit-module': { const mm = getModule(id); if (state.user.role === 'admin' || (mm && ['trainer','facilitator'].includes(state.user.role) && (moduleHasTrainer(mm, state.user.id) || moduleHasFacilitator(mm, state.user.id)))) openModuleForm(mm); else toast(t('msg_no_access'), 'bad'); break; }
+    case 'delete-module': if (state.user.role === 'admin') deleteModule(id); else toast(t('msg_no_access'), 'bad'); break;
+    case 'toggle-publish-module': if (state.user.role === 'admin') togglePublishModule(id); else toast(t('msg_no_access'), 'bad'); break;
     case 'new-activity': openActivityForm(null, tgt.dataset.module); break;
+    case 'duplicate-activity': openActivityDuplicateModal(id); break;
     case 'quiz-template-download': downloadActivityQuizTemplate(); break;
     case 'quiz-template-upload': { if (document.getElementById('activityMethod')?.value === 'Practical Test') { toast(currentLang === 'en' ? 'This template is for Quiz activities only.' : 'Templat ini untuk aktiviti Kuiz sahaja.', 'warn'); break; } pickExcelFile('.xlsx,.xls', importActivityQuizTemplate); break; }
     case 'edit-activity': { if (state.user.role !== 'admin' && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openActivityForm(getActivity(id)); break; }
@@ -11002,6 +11175,7 @@ document.addEventListener('click', async (e) => {
       if (!a) break;
       if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; }
       const wasDraft = !a.published;
+      if (wasDraft && !validateDuplicatedActivityBeforePublish(a, a.id)) break;
       a.published = !a.published; a.updatedAt = nowISO();
       saveDB();
       logAudit(a.published ? 'Publish' : 'Unpublish', 'Aktiviti', id, a.title);
@@ -11016,6 +11190,11 @@ document.addEventListener('click', async (e) => {
       const mid = id;
       const drafts = DB.activities.filter(a => a.moduleId === mid && !a.published);
       if (!drafts.length) { toast(t('msg_no_drafts'), 'bad'); break; }
+      const blockedDuplicate = drafts.find(a => a.duplicatedFromActivityId && findActivityDuplicateConflicts(a, a.id).length);
+      if (blockedDuplicate) {
+        validateDuplicatedActivityBeforePublish(blockedDuplicate, blockedDuplicate.id);
+        break;
+      }
       if (!confirm(t('confirm_publish_all', drafts.length))) break;
       drafts.forEach(a => { a.published = true; a.updatedAt = nowISO(); });
       saveDB(); logAudit('Bulk Publish', 'Modul', mid, `${drafts.length} activities`);
@@ -11111,7 +11290,7 @@ document.addEventListener('click', async (e) => {
     case 'edit-quiz-builder': { if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openQuizEditor(id); break; }
     case 'save-quiz-config': handleSaveQuizConfig(); break;
     case 'upload-material': openUploadMaterialModal(tgt.dataset.mid); break;
-    case 'refresh-module-materials': refreshModuleMaterialsFromDrive(tgt.dataset.mid, false); break;
+    case 'refresh-module-materials': refreshModuleMaterialsFromDrive(tgt.dataset.mid, false, { persist: state.user.role === 'admin' }); break;
     case 'view-material': viewMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'download-material': downloadMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'delete-material': deleteMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
@@ -11471,6 +11650,16 @@ window.addEventListener('online', () => { if (state.user) pullFromServer(true, {
 window.addEventListener('pageshow', () => { if (state.user) pullFromServer(false, { maxAttempts: 2 }); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pullFromServer(false); });
+
+
+// Accessible keyboard activation for the clickable Module Management cards.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const card = e.target.closest('.module-card[data-act="open-module"]');
+  if (!card || e.target !== card) return;
+  e.preventDefault();
+  card.click();
+});
 
 /* =========================================================
    BOOT
