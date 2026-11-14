@@ -205,6 +205,17 @@ tbody tr:hover{background:#f9fcfb}
 .module-card .m-stats div strong{color:var(--brand);font-size:1.05rem;display:block;line-height:1.1}
 .module-card .m-stats div span{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
 .module-card.enrolled{border-color:var(--brand-2);background:linear-gradient(180deg,#fbfefc,#fff)}
+/* SAFE MODULE CARD FIT + FULL-CARD NAVIGATION */
+.module-card{min-width:0;height:auto;min-height:100%;overflow:visible;cursor:pointer;overflow-wrap:anywhere}
+.module-card .m-head{min-width:0;flex-wrap:wrap;align-items:flex-start}
+.module-card .m-title,.module-card .m-desc{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:normal}
+.module-card .m-stats{min-width:0;flex-wrap:wrap;align-items:flex-start}
+.module-card .m-stats>div{min-width:0;overflow-wrap:anywhere}
+.module-card .m-stats strong,.module-card .m-stats span{overflow-wrap:anywhere;white-space:normal}
+.module-card .btn,.module-card .toolbar{max-width:100%;flex-wrap:wrap}
+.module-card[data-act]:focus-visible{outline:3px solid rgba(18,163,127,.35);outline-offset:2px}
+.module-card[data-act]:hover{border-color:var(--brand-2)}
+
 .pending-quiz-card{background:linear-gradient(135deg,#fff9e6,#fff);border:1px solid #f0d98a;border-radius:12px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .pending-quiz-card .pq-title{font-weight:700;font-size:.92rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pending-quiz-card .pq-meta{font-size:.78rem;color:var(--muted);margin-top:2px}
@@ -1661,30 +1672,28 @@ async function importTimetableExcel(file, defaultMid) {
     }
     if (!parsed.length) throw new Error('Tiada rekod jadual yang sah ditemui dalam worksheet.');
 
+    // REPLACE MODE: the entire workbook has passed validation above.
+    // Replace timetable rows only for module(s) represented in this upload.
+    // Timetables for other modules and all non-timetable data remain untouched.
     if (!Array.isArray(DB.timetables)) DB.timetables = [];
-    let added = 0, updated = 0, unchanged = 0;
+    const replacementModuleIds = new Set(parsed.map(entry => String(entry.moduleId)));
+    const previousCount = DB.timetables.length;
+    DB.timetables = DB.timetables.filter(entry => !replacementModuleIds.has(String(entry.moduleId)));
+    const removed = previousCount - DB.timetables.length;
     parsed.forEach(entry => {
-      const exact = DB.timetables.find(x => String(x.moduleId)===String(entry.moduleId) && x.date===entry.date && normalizeTimeStr(x.startTime)===entry.startTime && norm(x.title)===norm(entry.title));
-      // If the same module/date/title exists once, treat re-upload as an update (e.g. changed time/location).
-      const sameSession = exact || (() => {
-        const matches = DB.timetables.filter(x => String(x.moduleId)===String(entry.moduleId) && x.date===entry.date && norm(x.title)===norm(entry.title));
-        return matches.length === 1 ? matches[0] : null;
-      })();
-      if (sameSession) {
-        const changed = sameSession.startTime!==entry.startTime || sameSession.endTime!==entry.endTime || sameSession.instructor!==entry.instructor || sameSession.location!==entry.location || sameSession.notes!==entry.notes;
-        if (changed) { Object.assign(sameSession, entry, { updatedAt: nowISO() }); updated++; }
-        else unchanged++;
-      } else {
-        DB.timetables.push(Object.assign({ id:uid('tt'), createdBy:state.user.id, createdAt:nowISO(), updatedAt:nowISO() }, entry));
-        added++;
-      }
+      DB.timetables.push(Object.assign({
+        id: uid('tt'),
+        createdBy: state.user.id,
+        createdAt: nowISO(),
+        updatedAt: nowISO()
+      }, entry));
     });
-    if (added || updated) {
-      saveDB();
-      logAudit('Import Jadual Waktu', 'Jadual', defaultMid || 'bulk', `${added} baharu, ${updated} dikemas kini`);
-      render();
-    }
-    toast(`✅ Import selesai: ${added} baharu, ${updated} dikemas kini, ${unchanged} tidak berubah.`);
+    saveDB();
+    const moduleLabel = Array.from(replacementModuleIds).join(', ');
+    logAudit('Replace Jadual Waktu', 'Jadual', defaultMid || moduleLabel || 'bulk',
+      `${removed} rekod lama diganti dengan ${parsed.length} rekod baharu`);
+    render();
+    toast(`✅ Jadual berjaya diganti: ${removed} rekod lama dipadam dan ${parsed.length} rekod baharu dimuatkan.`);
   } catch (err) {
     console.error('[Timetable Excel Import]', err);
     toast('⚠️ Import Excel gagal: ' + (err && err.message ? err.message : 'Ralat tidak diketahui.'), 'bad');
@@ -6922,7 +6931,7 @@ function participantDashboard() {
   ${renderFinalExamNotificationWidget(me.id)}
   ${pendingQuizzes.length ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5"><div class="card-head"><h2>📝 ${t('pending_quiz_title')} (${pendingQuizzes.length})</h2></div><p class="muted" style="font-size:.85rem;margin-bottom:12px">${t('pending_quiz_hint')}</p>${pendingQuizzes.map(a => { const w = quizWindowStatus(a); const retest = hasPendingRetest(a.id, me.id); const attempt = getAttempt(a.id, me.id); const statusBadge = retest ? `<span class="badge info">🔄 ${t('retest_pending_badge')}</span>` : (w.state === 'not-open' ? `<span class="badge draft">🕐 ${t('status_not_open')}</span>` : w.state === 'closed' ? `<span class="badge bad">🔒 ${t('status_closed')}</span>` : `<span class="badge ok">✓ ${t('status_open')}</span>`); const btnLabel = w.state === 'open' ? (retest ? '🔄 ' + t('retest_take') + ' →' : t('quiz_take') + ' →') : t('quiz_view') + ' →'; const bestNote = attempt ? ` · 🏆 ${Math.round(attempt.score/attempt.total*100)}%` : ''; return `<div class="pending-quiz-card" style="${retest ? 'border-color:var(--brand-2);background:linear-gradient(135deg,#e8f5ec,#fff)' : ''}"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(a.title)} ${statusBadge}</div><div class="pq-meta">${tce(moduleName(a.moduleId))} · ${a.quiz.length} ${t('lbl_questions')} · ${fmtDate(a.date)}${a.quizDuration ? ` · ⏱️ ${a.quizDuration} ${t('lbl_minutes')}` : ''}${a.quizOpenAt && w.state === 'not-open' ? ` · ${t('quiz_open_at')}: ${fmtDT(a.quizOpenAt)}` : ''}${a.quizCloseAt ? ` · ${t('quiz_close_at')}: ${fmtDT(a.quizCloseAt)}` : ''}${bestNote}</div></div><button class="btn btn-primary btn-sm" data-act="open-quiz-tab" data-id="${a.id}">${btnLabel}</button></div>`; }).join('')}</div>` : ''}
   ${renderUpcomingTimetableWidget(me.id)}
-  ${myMods.length ? `<div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">${t('nav_programs')}</button></div><div class="module-grid">${myMods.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const modScores = modActs.map(a => scoreFor(a, me.id)).filter(s => s.hasData); const modAvg = modScores.length ? Math.round(avg(modScores.map(s => s.overall))) : null; const mats = (m.materials||[]).length; const ttCount = moduleTimetable(m.id).length; return `<div class="module-card enrolled"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${modScores.length}</strong><span>${t('rpt_summary_assessed')}</span></div><div><strong>${modAvg !== null ? modAvg + '%' : '—'}</strong><span>${t('rpt_summary_average')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div>${ttCount ? `<div><strong>${ttCount}</strong><span>📅</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div></div>` : `<div class="card"><div class="empty">${t('modules_no_modules_enrolled')} <button class="btn btn-primary btn-sm" data-act="nav" data-view="programs" style="margin-left:8px">${t('nav_programs')}</button></div></div>`}
+  ${myMods.length ? `<div class="card"><div class="card-head"><h2>${t('stat_programs_enrolled')}</h2><button class="btn btn-sm" data-act="nav" data-view="programs">${t('nav_programs')}</button></div><div class="module-grid">${myMods.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const modScores = modActs.map(a => scoreFor(a, me.id)).filter(s => s.hasData); const modAvg = modScores.length ? Math.round(avg(modScores.map(s => s.overall))) : null; const mats = (m.materials||[]).length; const ttCount = moduleTimetable(m.id).length; return `<div class="module-card enrolled" data-act="open-module" data-id="${m.id}" role="button" tabindex="0" aria-label="Open module: ${tce(m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge ok">✓ ${t('lbl_enrolled')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${modScores.length}</strong><span>${t('rpt_summary_assessed')}</span></div><div><strong>${modAvg !== null ? modAvg + '%' : '—'}</strong><span>${t('rpt_summary_average')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div>${ttCount ? `<div><strong>${ttCount}</strong><span>📅</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div></div>` : `<div class="card"><div class="empty">${t('modules_no_modules_enrolled')} <button class="btn btn-primary btn-sm" data-act="nav" data-view="programs" style="margin-left:8px">${t('nav_programs')}</button></div></div>`}
   <div class="card"><div class="card-head"><h2>${t('lbl_activity')}</h2></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_module')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_practical')}</th><th>${t('lbl_score')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${rows.map(({ a, s }) => `<tr><td><strong>${tce(a.title)}</strong></td><td><small class="muted">${tce(moduleName(a.moduleId))}</small></td><td>${quizBadge(a, me.id)}</td><td>${practicalBadge(a, me.id)}</td><td><strong>${s.overall !== null ? s.overall + '%' : '—'}</strong></td><td>${badgeStatus(s.overall)}</td><td><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_open')}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_activity')}</div>`}</div>`;
 }
 function renderFinalExamNotificationWidget(pid) {
@@ -6962,7 +6971,7 @@ function trainerDashboard() {
   </div>
   ${paCount ? `<div class="info-box warn"><h4>📥 ${t('pa_title')} (${paCount})</h4><p style="margin:4px 0 0">${t('pa_sub')} <button class="btn btn-sm btn-primary" data-act="nav" data-view="approvals" style="margin-left:6px">${t('pa_review')} →</button></p></div>` : ''}
   ${drafts ? `<div class="info-box warn"><h4>⚠️ ${t('modules_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}
-  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
+  <div class="card"><div class="card-head"><h2>${t('nav_modules_own')}</h2><button class="btn btn-sm" data-act="nav" data-view="modules">${t('nav_modules')}</button></div>${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card" data-act="open-module" data-id="${m.id}" role="button" tabindex="0" aria-label="Open module: ${tce(m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${m.id}">${t('btn_open')} →</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
 }
 function adminDashboard() {
   const mods = sortModules(DB.modules);
@@ -8190,7 +8199,7 @@ function assessmentPerformanceView() {
 function programsView() {
   const me = state.user;
   const avail = availableModules(me.id);
-  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
+  return `<div class="card"><div class="card-head"><h2>${t('nav_programs')}</h2><span class="muted">${avail.length}</span></div>${avail.length ? `<div class="module-grid">${avail.map(m => { const modActs = moduleActivitiesList(m.id).filter(a => a.published); const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; return `<div class="module-card" data-act="enroll-module" data-id="${m.id}" role="button" tabindex="0" aria-label="Enroll: ${tce(m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)}</div><span class="badge info">${t('lbl_available')}</span></div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div></div><button class="btn btn-primary btn-sm" data-act="enroll-module" data-id="${m.id}">${t('btn_enroll')}</button></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}</div>`;
 }
 
 function openModuleForm(mod) {
@@ -11185,6 +11194,14 @@ document.addEventListener('click', async (e) => {
     case 'excel-timetable-download': downloadTimetableTemplate(tgt.dataset.mid); break;
     case 'excel-timetable-upload': { const mid = tgt.dataset.mid; pickExcelFile('.xlsx,.xls', (f) => importTimetableExcel(f, mid)); break; }
   }
+});
+
+document.addEventListener('keydown', (e) => {
+  const card = e.target.closest('.module-card[data-act][data-id]');
+  if (!card || (e.key !== 'Enter' && e.key !== ' ')) return;
+  if (e.target.closest('button,a,input,select,textarea')) return;
+  e.preventDefault();
+  card.click();
 });
 
 document.addEventListener('change', (e) => {
