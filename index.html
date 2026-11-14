@@ -3235,6 +3235,12 @@ let firstSyncDone = false;
 let firstSyncPromise = null;
 
 function updateBeforeUnload() {
+  // A participant leaving a standalone quiz must never be blocked by the
+  // general application sync confirmation. Quiz answers are saved as a draft.
+  if (location.hash.startsWith('#quiz=') && document.getElementById('standalone-quiz-form')) {
+    window.onbeforeunload = null;
+    return;
+  }
   if (pendingSaveSince > 0 || saveInFlight || saveTimer) {
     window.onbeforeunload = function(e) { const msg = t('sync_beforeunload_msg'); e.preventDefault(); e.returnValue = msg; return msg; };
   } else {
@@ -4036,7 +4042,18 @@ function openFinalTab(feid) {
   if (!w) { toast('⚠️ ' + t('msg_popup_blocked'), 'bad'); return false; }
   return true;
 }
+function applyStandaloneScrollUnlock() {
+  // Release the desktop viewport lock (html/body overflow:hidden) for
+  // standalone quiz / final-exam pages so the page can scroll to the bottom.
+  try {
+    const on = location.hash.startsWith('#quiz=') || location.hash.startsWith('#final=');
+    document.documentElement.classList.toggle('standalone-mode', on);
+    document.body.classList.toggle('standalone-mode', on);
+    if (on && location.hash.startsWith('#quiz=')) window.onbeforeunload = null;
+  } catch (e) {}
+}
 function checkStandaloneFinal() {
+  applyStandaloneScrollUnlock();
   if (location.hash.startsWith('#final=')) {
     const feid = location.hash.substring(7).split('&')[0].split('#')[0];
     renderStandaloneFinal(feid);
@@ -4045,6 +4062,7 @@ function checkStandaloneFinal() {
   return false;
 }
 function checkStandaloneQuiz() {
+  applyStandaloneScrollUnlock();
   if (location.hash.startsWith('#quiz=')) {
     const aid = location.hash.substring(6).split('&')[0].split('#')[0];
     renderStandaloneQuiz(aid);
@@ -4404,7 +4422,7 @@ function renderFinalTheoryTab(fe, pid) {
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${allQ.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}</div>
-    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="saveActiveQuizDraftNow_('${act.id}','${pid}',document.getElementById('standalone-quiz-form'));window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
   document.getElementById('standalone-final-form').addEventListener('submit', (e) => { e.preventDefault(); const form = e.target; const answers = allQ.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; }); submitFinalAttempt(fe, pid, answers, false); });
   if (hasTimer) startFinalTimer(fe, pid, remainingMs);
@@ -4694,6 +4712,43 @@ function sendQuizDraftOnPageHide_(activityId, participantId, form) {
   }
 }
 
+function saveActiveQuizDraftNow_(activityId, participantId, form) {
+  if (!form || quizDraftSubmitting_) return;
+  const answers = {};
+  form.querySelectorAll('.q').forEach((question, qi) => {
+    const selected = question.querySelector(`input[name="q${qi}"]:checked`);
+    if (selected) answers[qi] = Number(selected.value);
+  });
+
+  // Always preserve a local recovery copy immediately, including an empty draft.
+  try {
+    sessionStorage.setItem(quizDraftKey(activityId, participantId), JSON.stringify(answers));
+  } catch (err) {
+    console.warn('[quiz draft] Could not persist the exit snapshot locally:', err);
+  }
+
+  // Queue the normal cloud autosave and also send a page-exit beacon as a
+  // best-effort final handoff. No confirmation dialog is shown.
+  saveQuizDraft(activityId, participantId, answers);
+  if (Object.keys(answers).length && navigator.sendBeacon && DRIVE_API_URL) {
+    try {
+      const body = {
+        action:'saveQuizDraft',
+        apiKey:DRIVE_API_KEY || undefined,
+        actorId:participantId,
+        activityId:activityId,
+        answers:answers
+      };
+      navigator.sendBeacon(
+        DRIVE_API_URL,
+        new Blob([JSON.stringify(body)], { type:'text/plain;charset=UTF-8' })
+      );
+    } catch (err) {
+      console.warn('[quiz draft] Exit beacon could not be queued:', err);
+    }
+  }
+}
+
 function quizDraftKey(activityId, participantId) {
   return `cftpmy_quizdraft_${activityId}_${participantId}`;
 }
@@ -4716,6 +4771,49 @@ function saveQuizDraft(activityId, participantId, answers, options) {
 }
 function clearQuizDraft(activityId, participantId) {
   try { sessionStorage.removeItem(quizDraftKey(activityId, participantId)); } catch (_) {}
+}
+
+/* Leaving the quiz page (Back button, close, tab switch) saves the answers
+   immediately as a draft. No "are you sure you want to leave?" dialog. */
+let quizLeaveHandlers_ = null;
+function setupQuizLeaveAutosave_(act, pid, quizForm) {
+  // Remove handlers from any previous render so they never stack up.
+  if (quizLeaveHandlers_) {
+    window.removeEventListener('pagehide', quizLeaveHandlers_.save);
+    window.removeEventListener('beforeunload', quizLeaveHandlers_.save);
+    window.removeEventListener('popstate', quizLeaveHandlers_.pop);
+    document.removeEventListener('visibilitychange', quizLeaveHandlers_.vis);
+  }
+  const save = () => { if (document.getElementById('standalone-quiz-form') === quizForm) saveActiveQuizDraftNow_(act.id, pid, quizForm); };
+  const leave = () => {
+    save();
+    try { toast('💾 ' + (currentLang === 'en' ? 'Answers saved.' : 'Jawapan disimpan.'), 'ok'); } catch (e) {}
+    // Close the tab if it was opened by the app; otherwise go back to the app.
+    try { window.close(); } catch (e) {}
+    setTimeout(() => { if (!window.closed) { try { location.replace(location.href.split('#')[0]); } catch (e) {} } }, 250);
+  };
+  const pop = () => { if (document.getElementById('standalone-quiz-form') === quizForm) leave(); };
+  const vis = () => { if (document.visibilityState === 'hidden') save(); };
+  quizLeaveHandlers_ = { save, pop, vis };
+  window.addEventListener('pagehide', save);
+  window.addEventListener('beforeunload', save);   // saves only; never shows a prompt
+  window.addEventListener('popstate', pop);
+  document.addEventListener('visibilitychange', vis);
+  window.onbeforeunload = null;
+
+  // One history entry so the browser Back button is caught here and saves first.
+  try { history.pushState({ cftpQuizGuard: true }, ''); } catch (e) {}
+
+  // Visible Back button at the top of the quiz.
+  const card = document.querySelector('#app .standalone-card');
+  if (card && !card.querySelector('.quiz-back-bar')) {
+    const bar = document.createElement('div');
+    bar.className = 'quiz-back-bar';
+    bar.innerHTML = '<button type="button" id="quizBackBtn">\u2190 ' + (currentLang === 'en' ? 'Back' : 'Kembali') + '</button><small>' +
+      (currentLang === 'en' ? 'Your answers are saved automatically.' : 'Jawapan anda disimpan secara automatik.') + '</small>';
+    card.insertBefore(bar, card.firstChild);
+    document.getElementById('quizBackBtn').addEventListener('click', leave);
+  }
 }
 
 function renderParticipantQuizTab(act, pid) {
@@ -4777,7 +4875,11 @@ function renderParticipantQuizTab(act, pid) {
     if (status) status.title = currentLang === 'en' ? 'Answers are being saved to Google Sheets.' : 'Jawapan sedang disimpan ke Google Sheets.';
   });
   restoreQuizDraftFromServer_(act.id, pid, quizForm);
-  window.addEventListener('pagehide', () => sendQuizDraftOnPageHide_(act.id, pid, quizForm), { once:true });
+
+  // Keep a current reference for browser Back, page close and mobile app switching.
+  window.__cftpActiveQuizDraft = { activityId:act.id, participantId:pid, form:quizForm };
+  setupQuizLeaveAutosave_(act, pid, quizForm);
+
   quizForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const submitBtn = quizForm.querySelector('button[type="submit"]');
@@ -8069,7 +8171,106 @@ function finalPracticalRubricPrintHTML(feid,pid) {
 .memory-collage a:first-child:nth-last-child(n+4):nth-child(n+4){grid-row:3/4}
 .memory-more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);color:#fff;font-size:1.6rem;font-weight:800}
 @media(max-width:600px){.memory-collage{height:220px;grid-template-rows:repeat(3,minmax(65px,1fr))}}
-</style></head><body>${pages}</body></html>`;
+</style></head><body>${pages}
+
+<style id="quiz-scroll-and-exit-safety-fix">
+/* QUIZ PAGES: allow the full question list and quiz builder to scroll. */
+html, body { min-height:100%; }
+.standalone-wrap {
+  min-height:100vh;
+  min-height:100dvh;
+  height:auto !important;
+  overflow:visible !important;
+  align-items:flex-start !important;
+  padding-bottom:max(40px, env(safe-area-inset-bottom));
+}
+.standalone-card {
+  max-height:none !important;
+  overflow:visible !important;
+}
+#standalone-quiz-form {
+  display:block;
+  min-height:0;
+  overflow:visible;
+}
+#standalone-quiz-form .q { scroll-margin-top:14px; }
+
+/* Long quiz creation/edit dialogs must scroll inside the dialog, not lock the page. */
+.modal-backdrop {
+  align-items:flex-start !important;
+  justify-content:center !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  padding-top:max(12px, env(safe-area-inset-top));
+  padding-bottom:max(20px, env(safe-area-inset-bottom));
+}
+.modal {
+  max-height:calc(100dvh - 24px) !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+}
+.quiz-builder { min-height:0; overflow:visible; }
+.quiz-item, .bank-list, .picker-list { min-height:0; }
+
+/* Phone landscape: explicitly restore vertical scrolling even if older app
+   frame rules set a fixed viewport height or overflow:hidden. */
+@media screen and (max-width:900px) and (orientation:landscape) {
+  html, body {
+    height:auto !important;
+    min-height:100% !important;
+    max-height:none !important;
+    overflow-x:hidden !important;
+    overflow-y:auto !important;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-y:auto;
+  }
+  #app, .shell, .admin-shell,
+  .shell > .main, .admin-shell > .main,
+  #view {
+    height:auto !important;
+    min-height:0 !important;
+    max-height:none !important;
+    overflow:visible !important;
+  }
+  .standalone-wrap {
+    min-height:100dvh !important;
+    height:auto !important;
+    overflow:visible !important;
+    padding:12px 12px max(32px, env(safe-area-inset-bottom)) !important;
+  }
+  .standalone-card {
+    height:auto !important;
+    max-height:none !important;
+    overflow:visible !important;
+    padding:16px !important;
+  }
+  .quiz-header { align-items:flex-start; }
+  .modal-backdrop {
+    position:fixed !important;
+    inset:0 !important;
+    display:block !important;
+    overflow-y:auto !important;
+    padding:8px 10px max(18px, env(safe-area-inset-bottom)) !important;
+  }
+  .modal {
+    width:min(880px, 100%) !important;
+    max-height:none !important;
+    height:auto !important;
+    margin:0 auto 12px !important;
+    overflow:visible !important;
+  }
+  .modal.modal-lg, .modal.modal-xl {
+    max-height:none !important;
+  }
+}
+</style>
+
+</body></html>`;
 }
 function printFinalPracticalRubric(feid,pid){try{printHTML(finalPracticalRubricPrintHTML(feid,pid||null));}catch(e){toast('⚠️ '+e.message,'bad');}}
 
@@ -11680,5 +11881,103 @@ window.addEventListener('load', () => {
 }, { once: true });
 
 </script>
+
+<style id="quiz-scroll-desktop-override">
+/* A standalone quiz is rendered inside #app. The desktop application shell
+   normally locks the viewport (overflow:hidden), which prevents document
+   scrolling even when the quiz card itself has no height limit. Release that
+   lock only while a participant quiz form is present. */
+html:has(#standalone-quiz-form),
+body:has(#standalone-quiz-form) {
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: auto !important;
+}
+body:has(#standalone-quiz-form) #app {
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+body:has(#standalone-quiz-form) #app > .standalone-wrap {
+  display: flex !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+  align-items: flex-start !important;
+}
+body:has(#standalone-quiz-form) .standalone-card {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+body:has(#standalone-quiz-form) #standalone-quiz-form {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  touch-action: pan-y !important;
+}
+@media (min-width: 901px) {
+  html:has(#standalone-quiz-form),
+  body:has(#standalone-quiz-form) { overflow-y: auto !important; }
+}
+</style>
+
+<style id="quiz-scroll-unlock-v3">
+/* v3: Standalone quiz / final-exam pages must always scroll to the bottom.
+   Uses a JS-applied class (works on every browser, no :has() needed) and
+   covers every quiz state: answering, result, closed, not-open, preview. */
+html.standalone-mode, body.standalone-mode {
+  position: static !important;
+  height: auto !important;
+  min-height: 100% !important;
+  max-height: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: auto !important;
+  touch-action: pan-y !important;
+}
+body.standalone-mode #app {
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+body.standalone-mode #app > .standalone-wrap,
+body.standalone-mode .standalone-wrap {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-bottom: max(60px, env(safe-area-inset-bottom)) !important;
+}
+body.standalone-mode .standalone-card {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+.quiz-back-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0 10px; margin: -8px 0 8px;
+  background: #fff;
+}
+.quiz-back-bar button {
+  border: 1px solid var(--line); background: #f7fbf9; color: var(--brand);
+  border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: .85rem;
+  cursor: pointer;
+}
+.quiz-back-bar button:hover { background: #e6f4ef; }
+.quiz-back-bar small { color: var(--muted); font-size: .74rem; }
+</style>
 </body>
 </html>
