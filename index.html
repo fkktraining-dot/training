@@ -1548,97 +1548,147 @@ function downloadTimetableTemplate(mid) {
 
 async function importTimetableExcel(file, defaultMid) {
   if (!ensureXLSX()) return;
-  const wb = await readExcelFile(file);
-  const sheetName = wb.SheetNames.find(n => /jadual|timetable/i.test(n)) || wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  if (!rows.length) { toast('⚠️ Fail kosong', 'bad'); return; }
+  if (!file) { toast('⚠️ Tiada fail dipilih.', 'bad'); return; }
+  try {
+    const wb = await readExcelFile(file);
+    if (!wb || !Array.isArray(wb.SheetNames) || !wb.SheetNames.length) throw new Error('Fail Excel tidak mengandungi worksheet yang boleh dibaca.');
+    const sheetName = wb.SheetNames.find(n => /jadual|timetable/i.test(n)) || wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    if (!ws) throw new Error('Worksheet jadual tidak dijumpai.');
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
+    if (!rows.length) throw new Error('Worksheet kosong.');
 
-  const headers = rows[0];
-  const iMod   = getColIndex(headers, 'Modul', 'Module');
-  const iDate  = getColIndex(headers, 'Tarikh', 'Date', 'Tarikh Sesi');
-  const iStart = getColIndex(headers, 'Masa Mula', 'Start', 'Start Time', 'Mula');
-  const iEnd   = getColIndex(headers, 'Masa Tamat', 'End', 'End Time', 'Tamat');
-  const iTitle = getColIndex(headers, 'Tajuk', 'Topik', 'Title', 'Topic');
-  const iInstr = getColIndex(headers, 'Pengajar', 'Instructor');
-  const iLoc   = getColIndex(headers, 'Lokasi', 'Location');
-  const iNotes = getColIndex(headers, 'Catatan', 'Notes', 'Remarks');
-
-  if (iDate === -1 || iTitle === -1) {
-    toast('⚠️ Kolum Tarikh/Tajuk tidak dijumpai. Header dikesan: ' + headers.join(' | '), 'bad');
-    return;
-  }
-
-  const isAdmin = state.user.role === 'admin';
-  const allowedMods = isAdmin ? DB.modules : myModules();
-  if (!allowedMods.length) { toast('⚠️ ' + t('msg_no_module'), 'bad'); return; }
-
-  const timeToMinutes = (t) => {
-    const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})/);
-    if (!m) return null;
-    const h = Number(m[1]), mm = Number(m[2]);
-    if (h > 23 || mm > 59) return null;
-    return h * 60 + mm;
-  };
-
-  let added = 0, skipped = 0;
-  const errors = [];
-
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    const modName = iMod !== -1 ? String(row[iMod] || '').trim() : '';
-    const dateRaw = row[iDate];
-    const start   = normalizeTimeStr(row[iStart]);
-    const end     = normalizeTimeStr(row[iEnd]);
-    const title   = String(row[iTitle] || '').trim();
-    if (!title) { skipped++; continue; }
-
-    let dateStr = '';
-    if (dateRaw instanceof Date && !isNaN(dateRaw)) dateStr = dateRaw.toISOString().slice(0, 10);
-    else if (typeof dateRaw === 'number') {
-      try { const d = XLSX.SSF.parse_date_code(dateRaw); if (d) dateStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`; } catch (e) {}
-    } else dateStr = String(dateRaw || '').trim();
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const dm = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (dm) dateStr = `${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`;
+    // Find the header row instead of assuming it is always the first row.
+    let headerRow = -1, headers = [];
+    for (let r = 0; r < Math.min(rows.length, 10); r++) {
+      const candidate = rows[r] || [];
+      const d = getColIndex(candidate, 'Tarikh', 'Date', 'Tarikh Sesi', 'Session Date');
+      const t = getColIndex(candidate, 'Tajuk', 'Topik', 'Title', 'Topic', 'Aktiviti', 'Activity');
+      if (d !== -1 && t !== -1) { headerRow = r; headers = candidate; break; }
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { errors.push(`Baris ${r + 1}: tarikh tidak sah`); skipped++; continue; }
+    if (headerRow < 0) throw new Error('Header Tarikh/Date dan Tajuk/Topic tidak dijumpai. Sila gunakan template terkini.');
 
-    const startMin = timeToMinutes(start);
-    const endMin   = timeToMinutes(end);
-    if (startMin === null || endMin === null) { errors.push(`Baris ${r + 1}: format masa tidak sah`); skipped++; continue; }
-    if (endMin <= startMin) { errors.push(`Baris ${r + 1}: masa tamat mesti selepas masa mula`); skipped++; continue; }
+    const iMod   = getColIndex(headers, 'Modul', 'Module', 'Nama Modul', 'Module Name');
+    const iDate  = getColIndex(headers, 'Tarikh', 'Date', 'Tarikh Sesi', 'Session Date');
+    const iStart = getColIndex(headers, 'Masa Mula', 'Start', 'Start Time', 'Mula', 'Time Start');
+    const iEnd   = getColIndex(headers, 'Masa Tamat', 'End', 'End Time', 'Tamat', 'Time End');
+    const iTitle = getColIndex(headers, 'Tajuk', 'Topik', 'Title', 'Topic', 'Aktiviti', 'Activity');
+    const iInstr = getColIndex(headers, 'Pengajar', 'Instructor', 'Trainer');
+    const iLoc   = getColIndex(headers, 'Lokasi', 'Location', 'Tempat', 'Venue');
+    const iNotes = getColIndex(headers, 'Catatan', 'Notes', 'Remarks', 'Nota');
 
-    let targetMid = defaultMid;
-    if (modName) {
-      const modNameLower = modName.toLowerCase();
-      const mod = allowedMods.find(m =>
-        String(m.name || '').toLowerCase() === modNameLower ||
-        String(m.id   || '').toLowerCase() === modNameLower
-      );
-      if (!mod) { errors.push(`Baris ${r + 1}: modul "${modName}" tidak sah`); skipped++; continue; }
-      targetMid = mod.id;
+    const isAdmin = state.user && state.user.role === 'admin';
+    const allowedMods = isAdmin ? (DB.modules || []) : myModules();
+    if (!allowedMods.length) throw new Error(t('msg_no_module') || 'Tiada modul yang boleh diakses.');
+    const norm = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const parseDate = value => {
+      if (value instanceof Date && !isNaN(value)) {
+        // Use local calendar fields; toISOString() can shift the day by timezone.
+        return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        const d = XLSX.SSF.parse_date_code(value);
+        if (d && d.y && d.m && d.d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+      }
+      const raw = String(value == null ? '' : value).trim();
+      if (!raw) return '';
+      let m = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+      m = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      if (m) return `${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`; // dd/mm/yyyy
+      return '';
+    };
+    const parseTime = value => {
+      if (value instanceof Date && !isNaN(value)) return `${String(value.getHours()).padStart(2,'0')}:${String(value.getMinutes()).padStart(2,'0')}`;
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        // Excel stores time-only cells as fractions of one day.
+        const fraction = ((value % 1) + 1) % 1;
+        const total = Math.round(fraction * 1440) % 1440;
+        return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+      }
+      const raw = String(value == null ? '' : value).trim();
+      if (!raw) return '';
+      let m = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+      if (!m) return '';
+      let h = Number(m[1]), min = Number(m[2]);
+      if (min > 59 || h > 23 || (m[3] && (h < 1 || h > 12))) return '';
+      if (m[3]) { if (m[3].toUpperCase()==='PM' && h!==12) h+=12; if (m[3].toUpperCase()==='AM' && h===12) h=0; }
+      return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+    };
+    const validDate = s => { const d = new Date(`${s}T00:00:00`); return !isNaN(d) && d.getFullYear()===Number(s.slice(0,4)) && d.getMonth()+1===Number(s.slice(5,7)) && d.getDate()===Number(s.slice(8,10)); };
+
+    const parsed = [], errors = [], inputKeys = new Set();
+    for (let r = headerRow + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      if (!row.some(v => String(v == null ? '' : v).trim() !== '')) continue;
+      const title = String(row[iTitle] == null ? '' : row[iTitle]).trim();
+      const dateStr = parseDate(row[iDate]);
+      const start = parseTime(iStart >= 0 ? row[iStart] : '');
+      const end = parseTime(iEnd >= 0 ? row[iEnd] : '');
+      const rowNo = r + 1;
+      if (!title) { errors.push(`Baris ${rowNo}: tajuk/topik kosong.`); continue; }
+      if (!dateStr || !validDate(dateStr)) { errors.push(`Baris ${rowNo}: tarikh tidak sah. Gunakan YYYY-MM-DD atau DD/MM/YYYY.`); continue; }
+      if (!start || !end) { errors.push(`Baris ${rowNo}: masa mula/tamat tidak sah. Gunakan HH:MM atau format masa Excel.`); continue; }
+      if (end <= start) { errors.push(`Baris ${rowNo}: masa tamat mesti selepas masa mula.`); continue; }
+
+      const modName = iMod >= 0 ? String(row[iMod] == null ? '' : row[iMod]).trim() : '';
+      let targetMid = defaultMid || '';
+      if (modName) {
+        const mod = allowedMods.find(m => norm(m.name) === norm(modName) || norm(m.id) === norm(modName));
+        if (!mod) { errors.push(`Baris ${rowNo}: modul "${modName}" tidak ditemui atau tiada akses.`); continue; }
+        targetMid = mod.id;
+      }
+      if (!targetMid) { errors.push(`Baris ${rowNo}: nama modul diperlukan jika tiada modul dipilih.`); continue; }
+      const targetModule = allowedMods.find(m => String(m.id) === String(targetMid));
+      if (!targetModule || !canManageTimetable(targetMid)) { errors.push(`Baris ${rowNo}: tiada kebenaran mengurus jadual modul ini.`); continue; }
+
+      const entry = {
+        moduleId: targetMid, date: dateStr, startTime: start, endTime: end, title,
+        instructor: iInstr >= 0 ? String(row[iInstr] == null ? '' : row[iInstr]).trim() : '',
+        location: iLoc >= 0 ? String(row[iLoc] == null ? '' : row[iLoc]).trim() : '',
+        notes: iNotes >= 0 ? String(row[iNotes] == null ? '' : row[iNotes]).trim() : ''
+      };
+      const key = [entry.moduleId, entry.date, entry.startTime, norm(entry.title)].join('|');
+      if (inputKeys.has(key)) { errors.push(`Baris ${rowNo}: rekod jadual berulang dalam fail Excel.`); continue; }
+      inputKeys.add(key);
+      parsed.push(entry);
     }
-    if (!targetMid) { errors.push(`Baris ${r + 1}: tiada modul`); skipped++; continue; }
-    if (!canManageTimetable(targetMid)) { errors.push(`Baris ${r + 1}: tiada akses ke modul`); skipped++; continue; }
+    if (errors.length) {
+      const details = errors.slice(0, 8).join('\n') + (errors.length > 8 ? `\n...dan ${errors.length-8} lagi isu.` : '');
+      toast(`⚠️ Import dibatalkan. ${errors.length} isu ditemui:\n${details}`, 'bad');
+      return; // All-or-nothing: never save a partially validated workbook.
+    }
+    if (!parsed.length) throw new Error('Tiada rekod jadual yang sah ditemui dalam worksheet.');
 
-    DB.timetables.push({
-      id: uid('tt'), moduleId: targetMid, date: dateStr, startTime: start, endTime: end, title,
-      instructor: iInstr !== -1 ? String(row[iInstr] || '').trim() : '',
-      location:   iLoc   !== -1 ? String(row[iLoc]   || '').trim() : '',
-      notes:      iNotes !== -1 ? String(row[iNotes] || '').trim() : '',
-      createdBy: state.user.id, createdAt: nowISO(), updatedAt: nowISO()
+    if (!Array.isArray(DB.timetables)) DB.timetables = [];
+    let added = 0, updated = 0, unchanged = 0;
+    parsed.forEach(entry => {
+      const exact = DB.timetables.find(x => String(x.moduleId)===String(entry.moduleId) && x.date===entry.date && normalizeTimeStr(x.startTime)===entry.startTime && norm(x.title)===norm(entry.title));
+      // If the same module/date/title exists once, treat re-upload as an update (e.g. changed time/location).
+      const sameSession = exact || (() => {
+        const matches = DB.timetables.filter(x => String(x.moduleId)===String(entry.moduleId) && x.date===entry.date && norm(x.title)===norm(entry.title));
+        return matches.length === 1 ? matches[0] : null;
+      })();
+      if (sameSession) {
+        const changed = sameSession.startTime!==entry.startTime || sameSession.endTime!==entry.endTime || sameSession.instructor!==entry.instructor || sameSession.location!==entry.location || sameSession.notes!==entry.notes;
+        if (changed) { Object.assign(sameSession, entry, { updatedAt: nowISO() }); updated++; }
+        else unchanged++;
+      } else {
+        DB.timetables.push(Object.assign({ id:uid('tt'), createdBy:state.user.id, createdAt:nowISO(), updatedAt:nowISO() }, entry));
+        added++;
+      }
     });
-    added++;
+    if (added || updated) {
+      saveDB();
+      logAudit('Import Jadual Waktu', 'Jadual', defaultMid || 'bulk', `${added} baharu, ${updated} dikemas kini`);
+      render();
+    }
+    toast(`✅ Import selesai: ${added} baharu, ${updated} dikemas kini, ${unchanged} tidak berubah.`);
+  } catch (err) {
+    console.error('[Timetable Excel Import]', err);
+    toast('⚠️ Import Excel gagal: ' + (err && err.message ? err.message : 'Ralat tidak diketahui.'), 'bad');
   }
-
-  saveDB();
-  logAudit('Import Jadual Waktu', 'Jadual', defaultMid || 'bulk', `${added} entri`);
-  if (added) render();
-  if (added && skipped) toast(`✅ ${added} jadual diimport, ${skipped} dilangkau`, 'warn');
-  else if (added) toast('✅ ' + t('excel_import_success', added));
-  else toast('⚠️ Tiada jadual diimport. ' + (errors[0] || ''), 'bad');
 }
 
 /* =========================================================
@@ -3727,13 +3777,19 @@ const getRetestRecord = (aid, pid) => {
 const hasPendingRetest = (aid, pid) => { const r = getRetestRecord(aid, pid); return !!(r && !r.usedAt); };
 const getRetestRequest = (aid, pid) => (DB.retestRequests || []).filter(x => x.activityId === aid && x.participantId === pid).sort((a,b) => new Date(b.requestedAt) - new Date(a.requestedAt))[0] || null;
 const hasPendingRetestRequest = (aid, pid) => { const r = getRetestRequest(aid, pid); return !!(r && r.status === 'pending'); };
+// A participant may submit only ONE retest request per assessment, regardless of its review outcome.
+const hasEverRequestedRetest = (aid, pid) => (DB.retestRequests || []).some(x => String(x.activityId) === String(aid) && String(x.participantId) === String(pid));
 function requestRetest(aid, pid, reason) {
   if (!Array.isArray(DB.retestRequests)) DB.retestRequests = [];
   if (state.user.role !== 'participant' || state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
   if (!getAttempt(aid, pid)) { toast(t('rr_need_attempt'), 'bad'); return; }
-  if (hasPendingRetestRequest(aid, pid)) { toast(t('rr_already_pending'), 'bad'); return; }
-  const existing = getRetestRequest(aid, pid);
-  if (existing && existing.status === 'approved' && hasPendingRetest(aid, pid)) { toast(t('rr_already_approved'), 'bad'); return; }
+  if (hasEverRequestedRetest(aid, pid)) {
+    const existing = getRetestRequest(aid, pid);
+    if (existing && existing.status === 'pending') toast(t('rr_already_pending'), 'bad');
+    else if (existing && existing.status === 'approved') toast(t('rr_already_approved'), 'bad');
+    else toast('Anda telah menghantar permohonan retest untuk penilaian ini. Permohonan kali kedua tidak dibenarkan.', 'bad');
+    return;
+  }
   DB.retestRequests.push({ id: uid('rr'), activityId: aid, participantId: pid, moduleId: (getActivity(aid)||{}).moduleId || '', reason: String(reason || '').trim(), status: 'pending', requestedAt: nowISO(), reviewedBy: null, reviewedAt: null, reviewRemarks: '' });
   saveDB(); logAudit('Request Retest', 'Assessment', `${aid}:${pid}`, String(reason || '').trim());
   toast('✅ ' + t('rr_request_sent')); render();
@@ -7330,7 +7386,7 @@ function moduleDetailView() {
   return `<div class="card"><div class="card-head"><div><h2>${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</h2><small class="muted">${trainerFacilitatorLine(m)} · ${m.published ? t('lbl_active') : t('lbl_draft')}${m.startDate ? ' · 📅 ' + fmtDate(m.startDate) : ''}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="nav" data-view="modules">←</button>${isAdmin ? `<button class="btn btn-sm" data-act="edit-module" data-id="${m.id}">✏️</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕ ${t('lbl_activity')}</button>` : ''}</div></div><p>${tce(m.description || '')}</p><div class="meta-grid"><div class="meta-item"><div class="k">📅 ${t('module_start_date')}</div><div class="v">${m.startDate ? fmtDate(m.startDate) : '—'}</div></div><div class="meta-item"><div class="k">${t('lbl_activities')}</div><div class="v">${modActs.length}</div></div><div class="meta-item"><div class="k">${t('lbl_participants')}</div><div class="v">${participants.length}</div></div><div class="meta-item"><div class="k">📅 ${t('tt_title')}</div><div class="v">${moduleTimetable(m.id).length}</div></div><div class="meta-item"><div class="k">🎓 ${t('fe_title')}</div><div class="v">${finals.length}</div></div><div class="meta-item"><div class="k">${t('lbl_materials')}</div><div class="v">${(m.materials||[]).length}</div></div><div class="meta-item"><div class="k">${t('lbl_draft')}</div><div class="v" style="${drafts.length ? 'color:var(--warn)' : ''}">${drafts.length}</div></div></div>${drafts.length ? `<div class="info-box warn" style="margin-bottom:0"><h4>⚠️ ${t('modules_draft_warn', drafts.length)}</h4><p style="margin:4px 0 0">${t('modules_draft_hint')}</p></div>` : ''}</div>
   ${renderTimetableSection(m, canEditTT)}
   ${renderMaterialsSection(m, canEditMaterial)}
-  <div class="card"><div class="card-head"><h2>${t('modules_activity_section')} (${modActs.length})</h2><div class="toolbar">${drafts.length && canEdit ? `<button class="btn btn-sm btn-primary" data-act="publish-all-module" data-id="${m.id}">${t('act_publish_all')} (${drafts.length})</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕</button>` : ''}</div></div>${modActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${modActs.map(a => `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span> ${a.quizDuration ? `<small class="muted">⏱️ ${a.quizDuration}m</small>` : ''}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${t('lbl_draft')}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canEdit ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="print-activity-quiz" data-id="${a.id}" title="${currentLang === 'en' ? 'Print paper quiz PDF' : 'Cetak kuiz kertas PDF'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}" title="${t('quiz_preview')}">👁️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>
+  <div class="card"><div class="card-head"><h2>${t('modules_activity_section')} (${modActs.length})</h2><div class="toolbar">${drafts.length && canEdit ? `<button class="btn btn-sm btn-primary" data-act="publish-all-module" data-id="${m.id}">${t('act_publish_all')} (${drafts.length})</button>` : ''}${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-activity" data-module="${m.id}">➕</button>` : ''}</div></div>${modActs.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_activity')}</th><th>${t('lbl_date')}</th><th>${t('lbl_quiz')}</th><th>${t('lbl_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${modActs.map(a => `<tr><td><strong>${tce(a.title)}</strong></td><td>${fmtDate(a.date)}</td><td><span class="badge info">${(a.quiz||[]).length}</span> ${a.quizDuration ? `<small class="muted">⏱️ ${a.quizDuration}m</small>` : ''}</td><td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td><td><div class="toolbar"><button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>${canEdit ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}${a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="print-activity-quiz" data-id="${a.id}" title="${currentLang === 'en' ? 'Print paper quiz PDF' : 'Cetak kuiz kertas PDF'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}${a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}" title="${t('quiz_preview')}">👁️</button>` : ''}<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>${canEdit ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_activities')}</div>`}</div>
   <div class="card"><div class="card-head"><h2>🎓 ${t('fe_title')} (${finals.length})</h2>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="new-final-exam" data-module="${m.id}">➕ ${t('fe_new')}</button>` : ''}</div>${finals.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_title')}</th><th>${t('fe_type')}</th><th>${t('fe_open_at')}</th><th>${t('lbl_status')}</th><th></th></tr></thead><tbody>${finals.map(fe => { const w = feWindowStatus(fe); return `<tr><td><strong>${tce(fe.title)}</strong></td><td><span class="badge ${fe.type === 'theory' ? 'info' : 'ok'}">${fe.type === 'theory' ? t('fe_type_theory') : t('fe_type_practical')}</span></td><td>${fe.openAt ? fmtDT(fe.openAt) : '—'}</td><td><span class="badge ${!fe.published ? 'draft' : w.state === 'open' ? 'ok' : w.state === 'not-open' ? 'draft' : 'bad'}">${!fe.published ? t('lbl_draft') : w.state === 'open' ? t('fe_status_open') : w.state === 'not-open' ? t('fe_status_not_open') : t('fe_status_closed')}</span></td><td>${canEdit ? `<button class="btn btn-sm" data-act="edit-final-exam" data-id="${fe.id}">✏️</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('fe_no_exams')}</div>`}</div>
   <div class="card"><div class="card-head"><h2>${t('modules_participant_section')} (${participants.length})</h2>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="enroll-participants-modal" data-id="${m.id}">➕ ${t('btn_enroll')}</button>` : ''}</div>${participants.length ? `<div class="table-wrap"><table><thead><tr><th>${t('lbl_name')}</th><th>${t('lbl_email')}</th><th>${t('lbl_date')}</th><th></th></tr></thead><tbody>${participants.map(({ enroll, user }) => `<tr><td><strong>${tce(user.name)}</strong></td><td>${esc(user.email)}</td><td>${fmtDate(enroll.enrolledAt)}</td><td>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="unenroll-module" data-mid="${m.id}" data-pid="${user.id}">${t('btn_unenroll')}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('modules_no_participants')}</div>`}</div>`;
 }
@@ -8317,7 +8373,8 @@ function activitiesView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
   const isFac = state.user.role === 'facilitator';
-  const acts = (isAdmin || isVip) ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
+  // Staff visibility is global; write access is still restricted to assigned modules.
+  const acts = (isAdmin || isVip || ['trainer','facilitator'].includes(state.user.role)) ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
   const drafts = acts.filter(a => !a.published).length;
   // Match Trainer activity authoring access for assigned Facilitator modules.
   const canCreate = isAdmin || state.user.role === 'trainer' || state.user.role === 'facilitator';
@@ -8349,16 +8406,16 @@ function activitiesView() {
         <td>${fmtDate(a.date)}</td>
         ${hasQuiz ? `<td>${!practical ? `<span class="badge info">${(a.quiz||[]).length}</span>${a.quizDuration ? ` <small class="muted">⏱️${a.quizDuration}m</small>` : ''}` : '—'}</td>` : ''}
         ${hasPractical ? `<td>${practical ? (rb ? `<span class="badge ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}">${tce(rb.name)}${rb.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : `<span class="badge warn">${t('act_rubric_none')}</span>`) : '—'}</td>` : ''}
-        <td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${t('lbl_draft')}</span>`}</td>
+        <td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>
-          ${isVip ? '' : (canCreate ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : '')}
           ${canCreate ? `<button class="btn btn-sm" data-act="print-activity-master" data-id="${a.id}" title="${currentLang === 'en' ? 'Print activity master paper' : 'Cetak master aktiviti'}">🖨️ ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button>` : ''}
-          ${!isVip && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
-          ${canCreate && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind participants who have not answered' : 'Ingatkan peserta yang belum menjawab'}">🔔 ${quizPendingParticipants(a).length}</button>` : ''}
-          ${isVip ? '' : (canCreate ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : '')}
-          ${isVip || !practical ? '' : `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>`}
-          ${isVip ? '' : (canCreate ? `${!practical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}<button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : '')}
+          ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}
+          ${!isVip && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
+          ${canCreate && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind participants who have not answered' : 'Ingatkan peserta yang belum menjawab'}">🔔 ${quizPendingParticipants(a).length}</button>` : ''}
+          ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : ''}
+          ${!isVip && canTrainerAccessActivity(a.id) && practical ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>` : ''}
+          ${!isVip && canTrainerAccessActivity(a.id) ? `${!practical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}<button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : ''}
         </div></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
@@ -8540,12 +8597,11 @@ function activityDetailView() {
   const isParticipant = state.user.role === 'participant';
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  const isOwner = !!getModule(act.moduleId) && moduleHasTrainer(getModule(act.moduleId), state.user.id);
+  const canManageThisActivity = isAdmin || canTrainerAccessActivity(act.id);
   if (isVip) return vipActivityDetailView(act);
-  if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(act.id)) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   if (isParticipant) { if (!act.published) return `<div class="card"><div class="empty">${t('msg_not_published')}</div></div>`; if (!isEnrolled(act.moduleId, state.user.id)) return `<div class="card"><div class="empty">${t('msg_not_enrolled')}</div></div>`; }
-  const canEdit = isAdmin || isOwner;
-  const canEditRubric = ['admin','trainer','facilitator'].includes(state.user.role);
+  const canEdit = canManageThisActivity;
+  const canEditRubric = canManageThisActivity;
   const rubric = getRubricCriteria(act);
   const rubricObj = getRubric(act);
   const pendingRetest = isParticipant ? hasPendingRetest(act.id, state.user.id) : false;
@@ -8556,12 +8612,12 @@ function activityDetailView() {
   if (act.quiz && act.quiz.length) {
     if (isParticipant) {
       const w = quizWindowStatus(act);
-      if (attempt && !pendingRetest) { const rr = getRetestRequest(act.id, state.user.id); const rrPending = rr && rr.status === 'pending'; const rrStatus = rr ? (rr.status === 'pending' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rr_pending')}</p></div>` : rr.status === 'approved' ? `<div class="info-box ok"><p style="margin:0">✅ ${t('rr_approved')}</p></div>` : `<div class="info-box warn"><p style="margin:0">✖ ${t('rr_rejected')}${rr.reviewRemarks ? ': ' + tce(rr.reviewRemarks) : ''}</p></div>`) : ''; quizSection = `<div class="card"><div class="card-head"><h2>📝 ${t('lbl_quiz')} — ${t('quiz_completed')}</h2><span class="badge ${attempt.score/attempt.total >= 0.7 ? 'ok' : 'warn'}">${attempt.score}/${attempt.total} (${Math.round(attempt.score/attempt.total*100)}%)</span></div><p class="muted">${fmtDateTime(attempt.at)}${attempt.auto ? ' · ⏱️ ' + t('quiz_auto_submitted') : ''}</p>${rrStatus}<div class="toolbar"><button class="btn btn-primary" data-act="open-quiz-tab" data-id="${act.id}">📝 ${t('quiz_view_tab')}</button>${!rrPending && !(rr && rr.status === 'approved' && hasPendingRetest(act.id,state.user.id)) ? `<button class="btn" data-act="request-retest" data-aid="${act.id}">🔄 ${t('rr_request')}</button>` : ''}</div></div>`; }
+      if (attempt && !pendingRetest) { const rr = getRetestRequest(act.id, state.user.id); const rrPending = rr && rr.status === 'pending'; const rrStatus = rr ? (rr.status === 'pending' ? `<div class="info-box warn"><p style="margin:0">⏳ ${t('rr_pending')}</p></div>` : rr.status === 'approved' ? `<div class="info-box ok"><p style="margin:0">✅ ${t('rr_approved')}</p></div>` : `<div class="info-box warn"><p style="margin:0">✖ ${t('rr_rejected')}${rr.reviewRemarks ? ': ' + tce(rr.reviewRemarks) : ''}</p></div>`) : ''; quizSection = `<div class="card"><div class="card-head"><h2>📝 ${t('lbl_quiz')} — ${t('quiz_completed')}</h2><span class="badge ${attempt.score/attempt.total >= 0.7 ? 'ok' : 'warn'}">${attempt.score}/${attempt.total} (${Math.round(attempt.score/attempt.total*100)}%)</span></div><p class="muted">${fmtDateTime(attempt.at)}${attempt.auto ? ' · ⏱️ ' + t('quiz_auto_submitted') : ''}</p>${rrStatus}<div class="toolbar"><button class="btn btn-primary" data-act="open-quiz-tab" data-id="${act.id}">📝 ${t('quiz_view_tab')}</button>${!rr ? `<button class="btn" data-act="request-retest" data-aid="${act.id}">🔄 ${t('rr_request')}</button>` : ''}</div></div>`; }
       else if (w.state === 'not-open') { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; quizSection = `<div class="card" style="border-color:#f0d98a;background:#fffdf5">${retestBanner}<div class="card-head"><h2>📝 ${t('lbl_quiz')}</h2><span class="badge draft">🕐 ${t('status_not_open')}</span></div><div class="info-box warn"><h4>🕐 ${t('quiz_not_open')}</h4><p style="margin:0">${t('quiz_not_open_notice', fmtDT(act.quizOpenAt))}${act.quizDuration ? ` · ${act.quizDuration} ${t('lbl_minutes')}` : ''}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.85rem">${t('quiz_close_at')}: <strong>${fmtDT(act.quizCloseAt)}</strong></p>` : ''}</div><button class="btn btn-block" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_view')} →</button></div>`; }
       else if (w.state === 'closed') { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; quizSection = `<div class="card">${retestBanner}<div class="card-head"><h2>📝 ${t('lbl_quiz')}</h2><span class="badge bad">🔒 ${t('status_closed')}</span></div><div class="info-box warn"><h4>🔒 ${t('quiz_closed')}</h4><p style="margin:0">${t('quiz_closed_notice', act.quizCloseAt ? fmtDT(act.quizCloseAt) : '—')}</p></div></div>`; }
       else { const retestBanner = pendingRetest ? `<div class="retest-banner" style="margin-bottom:12px">🔄 ${t('retest_banner')}</div>` : ''; const title = pendingRetest ? `🔄 ${t('retest_pending_badge')}` : `📝 ${t('quiz_ready')}`; quizSection = `<div class="card" style="border-color:var(--brand-2);background:#f7fdfa">${retestBanner}<div class="card-head"><h2>${title}</h2><div class="toolbar"><span class="badge ok">${act.quiz.length} ${t('lbl_questions')}</span>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : `<span class="badge info">${t('lbl_no_deadline')}</span>`}</div></div><div class="info-box ok"><h4>✅ ${t('quiz_open_notice')}</h4><p style="margin:0">${act.quizDuration ? t('quiz_open_notice_timed', act.quizDuration) : t('quiz_ready_body')}</p>${act.quizCloseAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(act.quizCloseAt))}</p>` : ''}</div><button class="btn btn-primary btn-block" data-act="open-quiz-tab" data-id="${act.id}">${pendingRetest ? '🔄 ' + t('retest_take') : '📝 ' + t('quiz_open_new_tab')} →</button></div>`; }
     } else {
-      quizSection = `<div class="card"><div class="card-head"><h2>${t('quiz_bank_title')}</h2><div class="toolbar"><span class="badge info">${act.quiz.length} ${t('lbl_questions')}</span><button class="btn btn-sm" data-act="print-activity-quiz" data-id="${act.id}">🖨️ ${currentLang === 'en' ? 'Print Questions' : 'Cetak Soalan'}</button>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : ''}${act.quizOpenAt ? `<span class="badge draft">🕐 ${fmtDT(act.quizOpenAt)}</span>` : ''}${act.quizCloseAt ? `<span class="badge bad">🔒 ${fmtDT(act.quizCloseAt)}</span>` : ''}${act.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_preview')}</button>` : ''}</div></div>${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p><ul class="list-plain">${q.options.map((o, oi) => `<li>${oi === q.answer ? '✅' : '▫️'} <strong>${'ABCD'[oi]}.</strong> ${tce(o)}</li>`).join('')}</ul></div>`).join('')}</div>`;
+      quizSection = `<div class="card"><div class="card-head"><h2>${t('quiz_bank_title')}</h2><div class="toolbar"><span class="badge info">${act.quiz.length} ${t('lbl_questions')}</span><button class="btn btn-sm" data-act="print-activity-quiz" data-id="${act.id}">🖨️ ${currentLang === 'en' ? 'Print Questions' : 'Cetak Soalan'}</button>${act.quizDuration ? `<span class="badge warn">⏱️ ${act.quizDuration} ${t('lbl_minutes')}</span>` : ''}${act.quizOpenAt ? `<span class="badge draft">🕐 ${fmtDT(act.quizOpenAt)}</span>` : ''}${act.quizCloseAt ? `<span class="badge bad">🔒 ${fmtDT(act.quizCloseAt)}</span>` : ''}${act.published && canEdit ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${act.id}">👁️ ${t('quiz_preview')}</button>` : ''}</div></div>${act.quiz.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)}</p><ul class="list-plain">${q.options.map((o, oi) => `<li>${oi === q.answer ? '✅' : '▫️'} <strong>${'ABCD'[oi]}.</strong> ${tce(o)}</li>`).join('')}</ul></div>`).join('')}</div>`;
     }
   } else if (isParticipant) {
     quizSection = `<div class="card"><div class="empty">${t('act_no_quiz', fmtDate(act.date))}</div></div>`;
@@ -8587,6 +8643,7 @@ function canonicalActivityMethod(method) {
 function openActivityForm(act, presetModuleId) {
   const isEdit = !!act;
   const isAdmin = state.user.role === 'admin';
+  if (isEdit && !isAdmin && !canTrainerAccessActivity(act.id)) { toast(t('msg_no_access'), 'bad'); return; }
   const a = act || { title:'', date: todayISO(), duration:2, objectives:'', instructions:'', materials:'', method:'Quiz', published: false, moduleId: presetModuleId || '', rubricId: null, quizOpenAt:null, quizCloseAt:null, practicalOpenAt:null, practicalCloseAt:null };
   const avail = isAdmin ? sortModules(DB.modules) : myModules();
   if (!avail.length) { openModal(`<h2>${t('act_new')}</h2><div class="info-box warn"><h4>${t('msg_no_module')}</h4><p>${isAdmin ? t('msg_select_module_first') : t('act_no_module_assigned')}</p></div><div class="modal-actions"><button class="btn" data-act="close-modal">${t('btn_close')}</button></div>`); return; }
@@ -8697,6 +8754,9 @@ function handleSaveActivity(form) {
   const id = form.dataset.id;
   const mod = getModule(form.moduleId.value);
   if (!mod) { toast(t('msg_module_required'), 'bad'); return; }
+  const role = state.user && state.user.role;
+  if (!state.user || !['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); return; }
+  if (role !== 'admin' && (!canTrainerAccessModule(mod.id) || (id && !canTrainerAccessActivity(id)))) { toast(t('msg_no_access'), 'bad'); return; }
   const publishNow = !!(form.publishNow && form.publishNow.checked);
   const method = canonicalActivityMethod(form.method.value);
   const isPractical = method === 'Practical Test';
@@ -10207,6 +10267,7 @@ function printSystemBookPDF() {
 }
 
 function printActivityQuiz(aid) {
+  if (!state.user || !['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); return; }
   const act = getActivity(aid);
   if (!act || !Array.isArray(act.quiz) || !act.quiz.length) { toast(currentLang==='en'?'No saved questions to print.':'Tiada soalan disimpan untuk dicetak.','warn'); return; }
   const mod = getModule(act.moduleId);
@@ -10676,6 +10737,7 @@ async function deleteCertificate(pid) {
    ========================================================= */
 function deleteActivity(id) {
   const act = getActivity(id); if (!act) return;
+  if (!state.user || (state.user.role !== 'admin' && !canTrainerAccessActivity(id))) { toast(t('msg_no_access'), 'bad'); return; }
   if (!confirm(t('confirm_delete_activity', act.title))) return;
   DB.activities = DB.activities.filter(a => a.id !== id);
   DB.attempts = DB.attempts.filter(a => a.activityId !== id);
@@ -10924,7 +10986,7 @@ document.addEventListener('click', async (e) => {
     case 'new-activity': openActivityForm(null, tgt.dataset.module); break;
     case 'quiz-template-download': downloadActivityQuizTemplate(); break;
     case 'quiz-template-upload': { if (document.getElementById('activityMethod')?.value === 'Practical Test') { toast(currentLang === 'en' ? 'This template is for Quiz activities only.' : 'Templat ini untuk aktiviti Kuiz sahaja.', 'warn'); break; } pickExcelFile('.xlsx,.xls', importActivityQuizTemplate); break; }
-    case 'edit-activity': openActivityForm(getActivity(id)); break;
+    case 'edit-activity': { if (state.user.role !== 'admin' && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openActivityForm(getActivity(id)); break; }
     case 'delete-activity': deleteActivity(id); break;
     case 'toggle-publish': {
       const a = getActivity(id);
@@ -11025,7 +11087,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'quick-assign-rubric': {
-      if (!['admin','trainer','facilitator'].includes(state.user.role)) { toast(t('msg_no_access'), 'bad'); break; }
+      if (!['admin','trainer','facilitator'].includes(state.user.role) || (state.user.role !== 'admin' && !canTrainerAccessActivity(tgt.dataset.aid))) { toast(t('msg_no_access'), 'bad'); break; }
       const sel = document.getElementById('quickRubricSelect');
       if (!sel || !sel.value) { toast(t('rb_no_rubric_selected'), 'bad'); break; }
       const a = getActivity(tgt.dataset.aid);
