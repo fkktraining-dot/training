@@ -3337,59 +3337,61 @@ async function robustServerSave() {
 async function performMergedSave(maxAttempts = 5) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const dbAtStart = cloneDB(DB);
+    const baseAtStart = cloneDB(lastSyncedSnapshot || emptyDB());
     try {
-      const localDiff = computeDiff(lastSyncedSnapshot, dbAtStart);
+      // Send only the locally changed records. The previous implementation
+      // called loadState before EVERY save, downloading the entire database
+      // and serialising all 50 users behind extra Sheets reads.
+      const localDiff = computeDiff(baseAtStart, dbAtStart);
       if (isDiffEmpty(localDiff)) return { ok:true, skipped:true };
 
-      const loadRes = await driveAPI('loadState');
-      if (!loadRes || !loadRes.ok || !loadRes.state || !Array.isArray(loadRes.state.users)) {
-        throw new Error((loadRes && loadRes.error) || 'Google Sheets returned incomplete data; local changes were retained.');
-      }
-
-      const serverState = loadRes.state;
-      if (Number.isFinite(Number(serverState._rev))) lastKnownServerRevision = Number(serverState._rev);
-      const merged = mergeLocalDiffOntoServer(lastSyncedSnapshot, serverState, localDiff);
-      const editsDuringSave = computeDiff(dbAtStart, DB);
-      const outboundDiff = computeDiff(serverState, merged);
-
-      if (isDiffEmpty(outboundDiff)) {
-        // Server already contains these changes (e.g. a previous request completed
-        // but its response was lost). Treat as confirmed only after reading it back.
-        DB = mergeLocalDiffOntoServer(dbAtStart, serverState, editsDuringSave);
-        lastSyncedSnapshot = cloneDB(serverState);
-        try {
-          localStorage.setItem(DB_KEY, JSON.stringify(DB));
-          localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot));
-          localStorage.removeItem('cftpmy_pending_diff');
-        } catch(e) {}
-        return { ok:true, skipped:true, _rev:Number(serverState._rev)||0 };
-      }
-
+      const expectedRevision = Number.isFinite(Number(lastKnownServerRevision))
+        ? Number(lastKnownServerRevision)
+        : (Number(baseAtStart._rev) || 0);
+      const outboundDiff = {};
+      Object.keys(localDiff).forEach(collection => {
+        const baseRows = Array.isArray(baseAtStart[collection]) ? baseAtStart[collection] : [];
+        const baseById = new Map(baseRows.map(row => [String(row && row.id || ''), row]));
+        const change = localDiff[collection] || {};
+        outboundDiff[collection] = {
+          deletes: Array.isArray(change.deletes) ? change.deletes.slice() : [],
+          upserts: (change.upserts || []).map(item => Object.assign({}, item, {
+            __base: baseById.get(String(item && item.id || '')) || null
+          }))
+        };
+      });
       const saveRes = await driveAPI('saveDelta', {
         diff: outboundDiff,
         savedBy: state.user ? state.user.id : 'system',
-        expectedRev: Number(serverState._rev) || 0
+        expectedRev: expectedRevision
       });
 
       if (!saveRes || !saveRes.ok) {
-        if (saveRes && saveRes.conflict) {
-          // Another device saved between our read and write. Retry using a fresh
-          // server snapshot; do not replace the local pending diff.
-          await sleep(Math.min(1200, 150 * Math.pow(2, attempt)));
+        // Busy/temporary responses are retried with bounded backoff. The
+        // local diff remains in localStorage until a successful confirmation.
+        if (saveRes && (saveRes.conflict || saveRes.busy || saveRes.retryable)) {
+          await sleep(Math.min(5000, 250 * Math.pow(2, attempt)) + Math.floor(Math.random() * 250));
           continue;
         }
         throw new Error((saveRes && saveRes.error) || 'Incremental save failed');
       }
 
-      merged._rev = Number(saveRes._rev) || Number(serverState._rev) || 0;
-      lastKnownServerRevision = merged._rev;
+      // Locally advance the confirmed baseline without a second server read.
+      // If another user saved concurrently, the backend flags staleClientRevision;
+      // the normal revision poll will fetch that user's changes shortly.
+      const merged = applyDiff(baseAtStart, localDiff);
+      merged._rev = Number(saveRes._rev) || expectedRevision;
       merged._syncId = saveRes._syncId || uid('sync');
       merged._syncTs = saveRes._syncTs || nowISO();
       merged._savedBy = state.user ? state.user.id : 'system';
 
-      // Preserve any edits made while the request was in flight.
-      DB = mergeLocalDiffOntoServer(dbAtStart, merged, editsDuringSave);
+      // Preserve edits made while the request was in flight.
+      const editsDuringSave = computeDiff(dbAtStart, DB);
+      DB = applyDiff(merged, editsDuringSave);
       lastSyncedSnapshot = cloneDB(merged);
+      lastKnownServerRevision = saveRes.staleClientRevision
+        ? Math.max(0, merged._rev - 1)
+        : merged._rev;
 
       const stillPending = computeDiff(lastSyncedSnapshot, DB);
       try {
@@ -3402,7 +3404,8 @@ async function performMergedSave(maxAttempts = 5) {
       pendingSaveSince = isDiffEmpty(stillPending) ? 0 : Date.now();
       updateBeforeUnload();
       if (!isDiffEmpty(stillPending)) savePending = true;
-      return { ok:true, stats:saveRes.stats || {}, _rev:merged._rev, _syncId:merged._syncId };
+      return { ok:true, stats:saveRes.stats || {}, _rev:merged._rev, _syncId:merged._syncId,
+        staleClientRevision:!!saveRes.staleClientRevision };
     } catch (err) {
       console.warn(`[incremental save] attempt ${attempt + 1} failed:`, err);
       if (attempt === maxAttempts - 1) {
@@ -3415,10 +3418,10 @@ async function performMergedSave(maxAttempts = 5) {
         }
         return { ok:false, error:err.message };
       }
-      await sleep(Math.min(5000, 300 * Math.pow(2, attempt)) + Math.random() * 300);
+      await sleep(Math.min(5000, 350 * Math.pow(2, attempt)) + Math.floor(Math.random() * 300));
     }
   }
-  return { ok:false, conflict:true, error:'The server changed repeatedly while saving. Local changes remain pending; retry synchronisation.' };
+  return { ok:false, retryable:true, error:'Server is busy. Local changes remain pending; synchronisation will retry.' };
 }
 
 async function forceSaveNow() {
@@ -3458,13 +3461,10 @@ async function syncAllNow() {
     const pulled = await pullFromServer(false, { force: true, maxAttempts: 3 });
     if (!pulled || !pulled.ok) throw new Error(pulled && pulled.error ? pulled.error : (en ? 'Could not refresh Google Sheets.' : 'Tidak dapat menyegarkan Google Sheets.'));
 
-    // Check Drive materials for each module available in the current database.
-    let checked = 0, failed = 0;
-    const moduleList = (Array.isArray(DB.modules) ? DB.modules : []).filter(m => m && m.id);
-    for (const mod of moduleList) {
-      const ok = await refreshModuleMaterialsFromDrive(mod.id, true);
-      if (ok) checked++; else failed++;
-    }
+    // Check all module folders with one batch request (not N sequential calls).
+    const driveCheck = await refreshAllModuleMaterialsFromDrive(true);
+    const checked = driveCheck.checked || 0;
+    const failed = driveCheck.failed || 0;
 
     // Persist any newly discovered Drive file metadata back to the shared backend.
     const uploaded = await forceSaveNow();
@@ -4445,6 +4445,35 @@ function startFinalTimer(fe, pid, initialMs) {
   tick(); quizTimerInterval = setInterval(tick, 1000);
 }
 
+
+function confirmAppendRecordsLocally_(response, batch) {
+  if (!response || !response.ok || !Array.isArray(batch)) return;
+  if (!lastSyncedSnapshot) lastSyncedSnapshot = cloneDB(DB || emptyDB());
+  batch.forEach(item => {
+    const collection = item && item.collection;
+    if (!collection || !Array.isArray(item.records)) return;
+    if (!Array.isArray(lastSyncedSnapshot[collection])) lastSyncedSnapshot[collection] = [];
+    const existing = new Set(lastSyncedSnapshot[collection].map(row => String(row && row.id || '')));
+    item.records.forEach(record => {
+      const id = String(record && record.id || '');
+      if (id && !existing.has(id)) {
+        lastSyncedSnapshot[collection].push(record);
+        existing.add(id);
+      }
+    });
+  });
+  const rev = Number(response._rev);
+  if (Number.isFinite(rev)) {
+    lastSyncedSnapshot._rev = rev;
+    lastSyncedSnapshot._syncId = response._syncId || lastSyncedSnapshot._syncId;
+    lastSyncedSnapshot._syncTs = response._syncTs || nowISO();
+    // Force the next lightweight revision check to notice concurrent writes
+    // that may have landed immediately before/after this append transaction.
+    lastKnownServerRevision = Math.max(0, rev - 1);
+  }
+  try { localStorage.setItem('cftpmy_last_synced_snapshot', JSON.stringify(lastSyncedSnapshot)); } catch(e) {}
+}
+
 async function submitFinalAttempt(fe, pid, answers, isAuto) {
   const allQ = feQuestionsAll(fe);
   const score = allQ.reduce((s, q, i) => s + (answers[i] === q.answer ? 1 : 0), 0);
@@ -4461,11 +4490,8 @@ async function submitFinalAttempt(fe, pid, answers, isAuto) {
     const batch = [{ collection: 'feAttempts', records: [attempt] }, { collection: 'audit', records: [auditRecord] }];
     const res = await driveAPI('appendRecords', { batch });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Append failed');
-    const fresh = await driveAPI('loadState');
-    if (fresh.ok && fresh.state) {
-      DB = fresh.state; migrateDB(); lastSyncedSnapshot = cloneDB(fresh.state);
-      try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); localStorage.removeItem('cftpmy_pending_diff'); } catch(e) {}
-    }
+    confirmAppendRecordsLocally_(res, batch);
+    try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
     pendingSaveSince = 0; updateBeforeUnload();
     const b = document.getElementById('syncBadge');
     if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; }
@@ -4556,10 +4582,10 @@ async function submitQuizAttempt(act, pid, answers, isAuto) {
     const batch = [{ collection: 'attempts', records: [attempt] }, { collection: 'audit', records: [auditRecord] }];
     const res = await driveAPI('appendRecords', { batch });
     if (!res || !res.ok) throw new Error((res && res.error) || 'Append failed');
+    confirmAppendRecordsLocally_(res, batch);
+    try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
     if (hasRetestUpdate) { saveDB(); await saveCritical(baseMsg, isAuto ? 'warn' : 'ok'); }
     else {
-      const fresh = await driveAPI('loadState');
-      if (fresh.ok && fresh.state) { DB = fresh.state; migrateDB(); lastSyncedSnapshot = cloneDB(fresh.state); try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); localStorage.removeItem('cftpmy_pending_diff'); } catch(e) {} }
       pendingSaveSince = 0; updateBeforeUnload();
       const b = document.getElementById('syncBadge');
       if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; }
@@ -7382,6 +7408,62 @@ async function refreshModuleMaterialsFromDrive(mid, quiet = false, options = {})
     return false;
   }
 }
+
+/** Batch Drive refresh: one backend call for every module instead of one
+ * request per module. This avoids long sequential notifications during Sync All. */
+async function refreshAllModuleMaterialsFromDrive(quiet = true) {
+  const res = await driveAPI('listAllModuleMaterials', {}, 90000);
+  if (!res || !res.ok) throw new Error((res && res.error) || 'Google Drive batch listing failed');
+  const driveModules = res.modules || {};
+  let checked = 0, changed = false;
+  (Array.isArray(DB.modules) ? DB.modules : []).forEach(m => {
+    if (!m || !m.id) return;
+    const driveInfo = driveModules[String(m.id)] || { files:[], folderId:null, folderUrl:null };
+    const files = Array.isArray(driveInfo.files) ? driveInfo.files : [];
+    const existing = Array.isArray(m.materials) ? m.materials : [];
+    const before = JSON.stringify(existing);
+    const byFileId = new Map(existing.filter(x => x && x.fileId).map(x => [String(x.fileId), x]));
+    const merged = existing.slice();
+    files.forEach(f => {
+      if (!f || !f.id) return;
+      const found = byFileId.get(String(f.id));
+      if (found) {
+        Object.assign(found, {
+          downloadUrl:f.downloadUrl || found.downloadUrl,
+          viewUrl:f.viewUrl || found.viewUrl,
+          previewUrl:f.previewUrl || found.previewUrl,
+          folderId:f.folderId || driveInfo.folderId || found.folderId,
+          folderUrl:f.folderUrl || driveInfo.folderUrl || found.folderUrl,
+          size:f.size || found.size,
+          mime:f.mimeType || found.mime
+        });
+      } else {
+        const mat = {
+          id:'drive_' + String(f.id), fileId:String(f.id),
+          name:f.name || 'Drive file', originalName:f.name || 'Drive file',
+          type:fileTypeFromName(f.name || ''), mime:f.mimeType || 'application/octet-stream',
+          size:Number(f.size) || 0,
+          downloadUrl:f.downloadUrl || '', viewUrl:f.viewUrl || f.url || '',
+          previewUrl:f.previewUrl || f.viewUrl || f.url || '',
+          folderId:f.folderId || driveInfo.folderId || null,
+          folderUrl:f.folderUrl || driveInfo.folderUrl || null,
+          description:f.description || '', uploadedBy:null,
+          uploadedAt:f.createdAt || f.updatedAt || null, fromDrive:true
+        };
+        merged.push(mat); byFileId.set(String(f.id), mat);
+      }
+    });
+    m.materials = merged;
+    if (JSON.stringify(merged) !== before) changed = true;
+    checked++;
+  });
+  if (changed) saveDB();
+  if (!quiet) toast(currentLang === 'en'
+    ? `Google Drive checked: ${res.fileCount || 0} file(s) across ${checked} module(s).`
+    : `Google Drive disemak: ${res.fileCount || 0} fail bagi ${checked} modul.`, 'ok');
+  return { ok:true, checked:checked, failed:0, fileCount:Number(res.fileCount) || 0, cached:!!res.cached };
+}
+
 function renderTimetableSection(m, canEdit) {
   const entries = moduleTimetable(m.id);
   const byDate = {};
