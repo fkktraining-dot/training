@@ -3777,6 +3777,8 @@ const getPractical = (aid, pid) => DB.practical.find(x => x.activityId === aid &
 const getLatestAttempt = (aid, pid) => DB.attempts.filter(x => x.activityId === aid && x.participantId === pid).sort((a, b) => new Date(b.at) - new Date(a.at))[0] || null;
 const getAttempt = (aid, pid) => {
   const attempts = DB.attempts.filter(x => x.activityId === aid && x.participantId === pid);
+  const manual = attempts.filter(x => x.manual === true).sort((a,b)=>new Date(b.at)-new Date(a.at))[0];
+  if (manual) return manual;
   if (!attempts.length) return null;
   return attempts.slice().sort((a, b) => {
     const pa = a.score / a.total, pb = b.score / b.total;
@@ -3784,7 +3786,7 @@ const getAttempt = (aid, pid) => {
     return new Date(b.at) - new Date(a.at);
   })[0];
 };
-const getAttemptCount = (aid, pid) => DB.attempts.filter(x => x.activityId === aid && x.participantId === pid).length;
+const getAttemptCount = (aid, pid) => DB.attempts.filter(x => x.activityId === aid && x.participantId === pid && x.manual !== true).length;
 const getRetestRecord = (aid, pid) => {
   if (!Array.isArray(DB.retests)) return null;
   return DB.retests.filter(x => x.activityId === aid && x.participantId === pid).sort((a, b) => new Date(b.grantedAt) - new Date(a.grantedAt))[0] || null;
@@ -9595,7 +9597,7 @@ function openRubricEditor(rubricId, assignToActivityId) {
   state.tempRubricMeta = isEdit ? { name: rb.name || '', name_en: rb.name_en || '', description: rb.description || '', description_en: rb.description_en || '' } : { name:'', name_en:'', description:'', description_en:'' };
   const isFac = state.user.role === 'facilitator';
   const statusBanner = isEdit ? `<div class="info-box ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}" style="margin-bottom:12px"><p style="margin:0">${rb.approvalStatus === 'approved' ? '✓ ' + t('rb_approved') : rb.approvalStatus === 'rejected' ? '✖ ' + t('rb_rejected') + (rb.reviewRemarks ? ' — ' + tce(rb.reviewRemarks) : '') : '⏳ ' + t('rb_pending_approval')}</p>${isFac ? `<p style="margin:4px 0 0;font-size:.8rem">${t('rb_facilitator_note')}</p>` : ''}</div>` : (isFac ? `<div class="info-box warn" style="margin-bottom:12px"><p style="margin:0">🧑‍🏫 ${t('rb_facilitator_note')}</p></div>` : '');
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${isEdit ? t('rb_edit') : t('rb_new_title')}</h2></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-rubric-config" data-aid="${assignToActivityId || ''}">💾 ${t('btn_save')}</button></div></div>
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${isEdit ? t('rb_edit') : t('rb_new_title')}</h2></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-rubric-config" data-aid="${assignToActivityId || ''}">☁️ ${currentLang === 'en' ? 'Save to Google Sheets' : 'Simpan ke Google Sheets'}</button></div></div>
   ${statusBanner}
   <div class="field"><label>${t('lbl_name')} *</label><input class="input" id="rubricName" value="${esc(currentLang === 'en' ? (state.tempRubricMeta.name_en || tc(state.tempRubricMeta.name)) : state.tempRubricMeta.name)}" /></div>
   <div class="field"><label>${t('lbl_description')}</label><textarea class="textarea" id="rubricDesc">${esc(currentLang === 'en' ? (state.tempRubricMeta.description_en || tc(state.tempRubricMeta.description)) : state.tempRubricMeta.description)}</textarea></div>
@@ -9643,6 +9645,7 @@ function handleSaveRubricConfig(assignToActivityId) {
   }
   if (assignToActivityId) { const act = getActivity(assignToActivityId); if (act) { act.rubricId = rubricId; act.updatedAt = nowISO(); } }
   saveDB();
+  saveAssessmentToGoogleSheets('Rubric saved to Google Sheets.');
   closeModal();
   toast(isFac ? '⏳ ' + t('rb_pending_note') : '✅ ' + t('rb_saved'), isFac ? 'warn' : 'ok');
   render();
@@ -9680,7 +9683,7 @@ function openQuizEditor(aid) {
   state.editingActivityId = aid;
   state.activityDraftModuleId = null;
   state.tempQuiz = JSON.parse(JSON.stringify(act.quiz || []));
-  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${t('qb_title')}</h2><p class="muted" style="margin:0">${tce(act.title)} · 📦 ${tce(moduleName(act.moduleId))}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-quiz-config">💾 ${t('btn_save')}</button></div></div>
+  openModal(`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px"><div><h2>${t('qb_title')}</h2><p class="muted" style="margin:0">${tce(act.title)} · 📦 ${tce(moduleName(act.moduleId))}</p></div><div style="display:flex;gap:8px"><button type="button" class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button><button type="button" class="btn btn-sm btn-primary" data-act="save-quiz-config">☁️ ${currentLang === 'en' ? 'Save to Google Sheets' : 'Simpan ke Google Sheets'}</button></div></div>
     ${state.retestContext ? `<div class="retest-banner">🔄 ${t('retest_title')} — ${tce(userName(state.retestContext.pid))}</div>` : ''}
     <div class="info-box" style="background:#f0f7ff;border-left-color:#3b82f6;color:#1e3a8a"><h4>⏱️ ${t('qb_settings_title')}</h4><p style="margin:0;font-size:.82rem">${t('qb_settings_hint')}</p></div>
     <div class="quiz-settings-grid" style="margin-bottom:16px"><div class="field" style="margin:0"><label>${t('qb_open_at')}</label><input class="input" type="datetime-local" id="quizOpenAt" value="${esc(toLocalInput(act.quizOpenAt))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_open_at_hint')}</small></div><div class="field" style="margin:0"><label>${t('qb_close_at')}</label><input class="input" type="datetime-local" id="quizCloseAt" value="${esc(toLocalInput(act.quizCloseAt))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_close_at_hint')}</small></div><div class="field" style="margin:0"><label>${t('qb_duration')}</label><input class="input" type="number" id="quizDuration" min="0" step="1" value="${act.quizDuration != null ? act.quizDuration : ''}" placeholder="${esc(t('qb_duration_placeholder'))}" /><small class="muted" style="display:block;margin-top:4px">${t('qb_duration_hint')}</small></div></div>
@@ -9703,7 +9706,7 @@ function handleSaveQuizConfig() {
   if (openVal && closeVal && openVal >= closeVal) { toast('⚠️ ' + t('qb_duration_mismatch'), 'bad'); return; }
   act.quiz = state.tempQuiz; act.quizOpenAt = openVal || null; act.quizCloseAt = closeVal || null; act.quizDuration = durVal && Number(durVal) > 0 ? Number(durVal) : null; act.updatedAt = nowISO();
   const wasDraft = !act.published; const qCount = state.tempQuiz.length; const rc = state.retestContext; state.retestContext = null;
-  saveDB(); logAudit('Update Quiz', 'Aktiviti', aid, `${act.title} — ${qCount} q · Timer: ${act.quizDuration ? act.quizDuration + 'min' : 'none'}`);
+  saveDB(); saveAssessmentToGoogleSheets('Quiz saved to Google Sheets.'); logAudit('Update Quiz', 'Aktiviti', aid, `${act.title} — ${qCount} q · Timer: ${act.quizDuration ? act.quizDuration + 'min' : 'none'}`);
   closeModal(); toast(t('msg_quiz_saved')); render();
   if (wasDraft && qCount > 0) { const mod = getModule(act.moduleId); if (mod && mod.published) setTimeout(() => { if (confirm(t('qb_published_prompt', qCount))) { act.published = true; act.updatedAt = nowISO(); saveDB(); logAudit('Publish Activity', 'Aktiviti', aid, 'Auto-publish after quiz setup'); openQuizTab(aid); toast(t('msg_publish_after_single')); render(); } }, 300); }
   else if (rc) setTimeout(() => openRetestModal(rc.aid, rc.pid), 300);
@@ -9840,7 +9843,7 @@ function gradingView() {
       <div class="toolbar">
         <select class="select" style="max-width:340px" data-change="grading-activity">${acts.map(a => `<option value="${a.id}" ${a.id === selId ? 'selected' : ''}>${tce(a.title)}${a.published ? '' : ' ⚠️'}</option>`).join('')}</select>
         ${!isVip && ['admin','trainer','facilitator'].includes(state.user.role) && isPractical ? `<select class="select" style="max-width:240px" data-change="grading-rubric" data-aid="${act.id}" title="${esc(t('grading_rubric'))}"><option value="">— ${t('grading_choose_rubric')} —</option>${(DB.rubrics||[]).filter(r => r.approvalStatus === 'approved').sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(r => `<option value="${r.id}" ${act.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select>` : ''}
-        ${!isVip && !isPractical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️ ${t('qb_title')}</button>` : ''}
+        ${!isVip && !isPractical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️ ${t('qb_title')}</button><button class="btn btn-sm" data-act="quiz-marks-template" data-id="${act.id}">📥 ${currentLang==='en'?'Download Marks Template':'Muat Turun Template Markah'}</button><button class="btn btn-sm" data-act="quiz-marks-upload" data-id="${act.id}">📤 ${currentLang==='en'?'Upload Marks':'Upload Markah'}</button>` : ''}
         ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
     </div>
@@ -9861,7 +9864,7 @@ function gradingView() {
       const overall = isPractical ? (s.practical ? Number(s.practical.total) : null) : s.quizPct;
       const actions = isPractical
         ? `<button class="btn btn-sm ${s.practical ? 'btn-primary' : ''}" data-act="practical-form" data-aid="${act.id}" data-pid="${p.id}" ${!rubric.length ? 'disabled title="' + esc(t('act_rubric_none')) + '"' : ''}>${s.practical ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button>`
-        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm" data-act="manual-quiz-answers" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter answers from printed quiz':'Masukkan jawapan daripada kuiz bercetak'}">📝 ${currentLang==='en'?'Enter Answers':'Masuk Jawapan'}</button><button class="btn btn-sm ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
+        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm" data-act="manual-quiz-answers" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter answers from printed quiz':'Masukkan jawapan daripada kuiz bercetak'}">📝 ${currentLang==='en'?'Enter Answers':'Masuk Jawapan'}</button><button class="btn btn-sm" data-act="manual-quiz-total" data-aid="${act.id}" data-pid="${p.id}">✍️ ${currentLang==='en'?'Enter Total Mark':'Masuk Jumlah Markah'}</button><button class="btn btn-sm ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
       return `<tr>
         <td><strong>${tce(p.name)}</strong></td><td>${attCell}</td><td>${assessmentCell}</td>
         <td><strong>${overall !== null && overall !== undefined ? Number(overall).toFixed(1).replace(/\.0$/, '') + '%' : '—'}</strong></td>
@@ -11484,10 +11487,10 @@ document.addEventListener('click', async (e) => {
       closeModal(); toast(t('rb_saved')); render(); break;
     }
     case 'save-rubric-config': handleSaveRubricConfig(tgt.dataset.aid || null); break;
-    case 'rb-add-crit': state.tempRubric.push({ name:'', weight:10, levels:[{label:t('rb_level_good'),mark:5,description:''},{label:t('rb_level_fail'),mark:0,description:''}] }); renderRubricBuilder(); break;
-    case 'rb-del-crit': state.tempRubric.splice(Number(tgt.dataset.ci), 1); renderRubricBuilder(); break;
-    case 'rb-add-level': { const ci = Number(tgt.dataset.ci); state.tempRubric[ci].levels.push({ label: t('rb_level') + ' ' + (state.tempRubric[ci].levels.length + 1), mark: 1, description: '' }); renderRubricBuilder(); break; }
-    case 'rb-del-level': { state.tempRubric[Number(tgt.dataset.ci)].levels.splice(Number(tgt.dataset.li), 1); renderRubricBuilder(); break; }
+    case 'rb-add-crit': syncRubricBuilderFromDOM(); state.tempRubric.push({ name:'', weight:0, levels:[{label:t('rb_level_good'),mark:5,description:''},{label:t('rb_level_fail'),mark:0,description:''}] }); renderRubricBuilder(); break;
+    case 'rb-del-crit': syncRubricBuilderFromDOM(); state.tempRubric.splice(Number(tgt.dataset.ci), 1); renderRubricBuilder(); break;
+    case 'rb-add-level': { syncRubricBuilderFromDOM(); const ci = Number(tgt.dataset.ci); state.tempRubric[ci].levels.push({ label: t('rb_level') + ' ' + (state.tempRubric[ci].levels.length + 1), mark: 1, description: '' }); renderRubricBuilder(); break; }
+    case 'rb-del-level': { syncRubricBuilderFromDOM(); state.tempRubric[Number(tgt.dataset.ci)].levels.splice(Number(tgt.dataset.li), 1); renderRubricBuilder(); break; }
     case 'edit-quiz-builder': { if ((state.user.role === 'trainer' || state.user.role === 'facilitator') && !canTrainerAccessActivity(id)) { toast(t('msg_no_access'), 'bad'); break; } openQuizEditor(id); break; }
     case 'save-quiz-config': handleSaveQuizConfig(); break;
     case 'upload-material': openUploadMaterialModal(tgt.dataset.mid); break;
@@ -11879,6 +11882,97 @@ setTimeout(() => {
 window.addEventListener('load', () => {
   if (currentLang === 'en') translateWholeSystem('en');
 }, { once: true });
+
+
+/* SAFE ADD-ON: QUIZ TOTAL MARKS + EXPLICIT GOOGLE SHEETS SAVE */
+function syncRubricBuilderFromDOM() {
+  if (!Array.isArray(state.tempRubric)) return;
+  document.querySelectorAll('#rubricBuilderContainer [data-rb]').forEach(el => {
+    const ci=Number(el.dataset.ci), li=Number(el.dataset.li), key=el.dataset.rb, c=state.tempRubric[ci];
+    if(!c)return;
+    if(key==='name'){if(currentLang==='en')c.name_en=el.value;else c.name=el.value;}
+    else if(key==='weight')c.weight=Number(el.value)||0;
+    else {const l=c.levels&&c.levels[li];if(!l)return;
+      if(key==='l_label'){if(currentLang==='en')l.label_en=el.value;else l.label=el.value;}
+      else if(key==='l_mark')l.mark=Number(el.value)||0;
+      else if(key==='l_desc'){if(currentLang==='en')l.description_en=el.value;else l.description=el.value;}
+    }
+  });
+}
+function saveAssessmentToGoogleSheets(message) {
+  saveDB();
+  Promise.resolve().then(()=>forceSaveNow()).then(r=>{
+    if(r&&r.ok)toast('☁️ '+(message||'Saved to Google Sheets.'),'ok');
+    else toast('⚠️ '+((r&&r.error)||'Google Sheets save could not be confirmed.'),'bad');
+  }).catch(e=>toast('⚠️ '+(e.message||'Google Sheets save failed.'),'bad'));
+}
+function openManualQuizTotalModal(aid,pid) {
+  const act=getActivity(aid), person=DB.users.find(u=>u.id===pid);
+  if(!act||!person||!canTrainerAccessActivity(aid)){toast(t('msg_no_access'),'bad');return;}
+  const prior=DB.attempts.find(x=>x.activityId===aid&&x.participantId===pid&&x.manual===true);
+  openModal2(`<h2>✍️ ${currentLang==='en'?'Enter Total Quiz Mark':'Masukkan Jumlah Markah Kuiz'}</h2><p class="muted">${tce(person.name)} · ${tce(act.title)}</p>
+  <div class="info-box"><p style="margin:0">${currentLang==='en'?'This manual mark does not delete the participant’s original quiz attempt.':'Markah manual ini tidak memadam percubaan kuiz asal peserta.'}</p></div>
+  <form data-form="manual-quiz-total" data-aid="${esc(aid)}" data-pid="${esc(pid)}">
+  <div class="grid2"><div class="field"><label>${currentLang==='en'?'Score obtained':'Markah diperoleh'} *</label><input class="input" name="score" type="number" min="0" step="0.01" required value="${prior?prior.score:''}"></div>
+  <div class="field"><label>${currentLang==='en'?'Total marks':'Jumlah markah penuh'} *</label><input class="input" name="total" type="number" min="0.01" step="0.01" required value="${prior?prior.total:(act.quiz||[]).length}"></div></div>
+  <div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">☁️ ${currentLang==='en'?'Save Mark':'Simpan Markah'}</button></div></form>`);
+}
+function saveManualQuizTotal(aid,pid,score,total) {
+  if(!canTrainerAccessActivity(aid))throw new Error(t('msg_no_access'));
+  if(!Number.isFinite(score)||!Number.isFinite(total)||total<=0||score<0||score>total)throw new Error('Invalid score or total marks.');
+  const old=DB.attempts.find(x=>x.activityId===aid&&x.participantId===pid&&x.manual===true);
+  const rec={id:old?.id||uid('att'),activityId:aid,participantId:pid,score,total,manual:true,at:nowISO(),enteredBy:state.user.id,source:'trainer-total'};
+  if(old)Object.assign(old,rec);else DB.attempts.push(rec);
+  logAudit('Enter Manual Quiz Total','Penilaian',`${aid}:${pid}`,`${score}/${total}`);
+  saveAssessmentToGoogleSheets('Quiz total mark saved to Google Sheets.');
+}
+function downloadQuizMarksTemplate(aid) {
+  if(!ensureXLSX())return;
+  const act=getActivity(aid);if(!act||!canTrainerAccessActivity(aid)){toast(t('msg_no_access'),'bad');return;}
+  const ps=enrolledParticipants(act.moduleId).map(x=>x.user).filter(Boolean);
+  const rows=ps.map(p=>{const m=DB.attempts.find(x=>x.activityId===aid&&x.participantId===p.id&&x.manual===true);return [p.id,p.name||'',p.org||'',m?.score??'',m?.total??(act.quiz||[]).length,''];});
+  const ws=XLSX.utils.aoa_to_sheet([[`Activity: ${act.title}`],[`Module: ${moduleName(act.moduleId)}`],['Enter Score and Total Marks. Do not edit Participant ID.'],[],['Participant ID','Participant Name','Organisation','Score','Total Marks','Remarks'],...rows]);
+  ws['!cols']=[{wch:25},{wch:30},{wch:25},{wch:14},{wch:16},{wch:35}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Quiz Marks');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FIELD','INSTRUCTION'],['Participant ID','Unique key; do not edit.'],['Score','Marks obtained.'],['Total Marks','Maximum possible marks.'],['Remarks','Optional.']]),'Instructions');
+  XLSX.writeFile(wb,`Quiz_Marks_${String(act.title||'Activity').replace(/[^a-z0-9_-]/gi,'_')}.xlsx`);
+}
+async function importQuizMarksTemplate(file,aid) {
+  if(!ensureXLSX())return;
+  const act=getActivity(aid);if(!act||!canTrainerAccessActivity(aid))throw new Error(t('msg_no_access'));
+  const wb=await readExcelFile(file),ws=wb.Sheets['Quiz Marks']||wb.Sheets[wb.SheetNames[0]];
+  if(!ws)throw new Error('Quiz Marks sheet not found.');
+  const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}),hi=data.findIndex(r=>String(r[0]||'').trim().toLowerCase()==='participant id');
+  if(hi<0)throw new Error('Participant ID header not found. Download the template first.');
+  const h=data[hi].map(x=>String(x||'').trim().toLowerCase()),idc=h.indexOf('participant id'),sc=h.indexOf('score'),tcx=h.indexOf('total marks');
+  if(sc<0||tcx<0)throw new Error('Score and Total Marks columns are required.');
+  const allowed=new Set(enrolledParticipants(act.moduleId).map(x=>String(x.user?.id||''))),seen=new Set(),parsed=[],errors=[];
+  for(let i=hi+1;i<data.length;i++){const row=data[i]||[],pid=String(row[idc]||'').trim();if(!pid)continue;
+    if(!allowed.has(pid)){errors.push(`Row ${i+1}: participant not enrolled.`);continue;}
+    if(seen.has(pid)){errors.push(`Row ${i+1}: duplicate Participant ID.`);continue;}seen.add(pid);
+    const score=Number(row[sc]),total=Number(row[tcx]);
+    if(row[sc]===''||row[tcx]===''||!Number.isFinite(score)||!Number.isFinite(total)||total<=0||score<0||score>total){errors.push(`Row ${i+1}: invalid score/total.`);continue;}
+    parsed.push({pid,score,total});
+  }
+  if(!parsed.length)throw new Error(errors.join('\\n')||'No valid marks found.');
+  if(!confirm(`Import ${parsed.length} participant mark(s)?${errors.length?'\\n\\nSkipped:\\n'+errors.join('\\n'):''}`))return;
+  parsed.forEach(x=>{const old=DB.attempts.find(a=>a.activityId===aid&&a.participantId===x.pid&&a.manual===true);
+    const rec={id:old?.id||uid('att'),activityId:aid,participantId:x.pid,score:x.score,total:x.total,manual:true,at:nowISO(),enteredBy:state.user.id,source:'excel-upload'};
+    if(old)Object.assign(old,rec);else DB.attempts.push(rec);});
+  logAudit('Upload Quiz Marks','Penilaian',aid,`${parsed.length} participant marks`);
+  saveAssessmentToGoogleSheets('Quiz marks uploaded and saved to Google Sheets.');render();
+}
+document.addEventListener('submit',e=>{
+  const f=e.target.closest('form[data-form="manual-quiz-total"]');if(!f)return;e.preventDefault();
+  try{saveManualQuizTotal(f.dataset.aid,f.dataset.pid,Number(f.score.value),Number(f.total.value));closeModal2();render();}
+  catch(err){toast('⚠️ '+err.message,'bad');}
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  if(b.dataset.act==='manual-quiz-total')openManualQuizTotalModal(b.dataset.aid,b.dataset.pid);
+  if(b.dataset.act==='quiz-marks-template')downloadQuizMarksTemplate(b.dataset.id);
+  if(b.dataset.act==='quiz-marks-upload'){const aid=b.dataset.id;pickExcelFile('.xlsx,.xls',f=>importQuizMarksTemplate(f,aid));}
+});
 
 </script>
 
