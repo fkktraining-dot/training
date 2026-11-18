@@ -5089,6 +5089,7 @@ function navItemsBase() {
       { v:'attendance', label:t('nav_attendance'), icon:'☑️' },
       { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
       { v:'reports', label:t('nav_reports'), icon:'📄' },
+      ...(canManageCertificates() ? [{ v:'sijil', label:t('nav_sijil'), icon:'🏆' }] : []),
       { v:'profile', label:t('nav_profile'), icon:'👤' }
     ];
   }
@@ -5111,6 +5112,7 @@ function navItemsBase() {
       { v:'rubrik', label:t('nav_rubrik'), icon:'📏' },
       { v:'bank', label:t('nav_bank'), icon:'🗂️' },
       { v:'reports', label:t('nav_reports'), icon:'📄' },
+      ...(canManageCertificates() ? [{ v:'sijil', label:t('nav_sijil'), icon:'🏆' }] : []),
       { v:'profile', label:t('nav_profile'), icon:'👤' }
     ];
   }
@@ -5358,6 +5360,7 @@ function render() {
   // standalone quiz. Replacing the form would interrupt the attempt and can
   // discard answers that have not yet been submitted.
   if (isStandaloneQuizAttemptActive()) return;
+  ensureCertificateAccessLoaded_();
 
   // IMPORTANT: Do not rebuild the application DOM while a System Usage Guide
   // video iframe is open. Replacing #app/#view interrupts the cross-origin
@@ -6571,6 +6574,8 @@ async function handleLogin(form) {
     else DB.users.push(u);
 
     state.user = u;
+    certificateAccessLoadedFor = '';
+    certificateAccessState = { canUpload:false, canManage:false, userIds:[], candidates:[] };
     try {
       if (verification.programMemoryToken) sessionStorage.setItem('cftp_program_memory_token', verification.programMemoryToken);
       else sessionStorage.removeItem('cftp_program_memory_token');
@@ -11100,14 +11105,89 @@ function checkDuplicateBankQuestions() {
    SIJIL
    ========================================================= */
 const MAX_CERT_SIZE = 100 * 1024 * 1024;
+let certificateAccessState = { canUpload:false, canManage:false, userIds:[], candidates:[] };
+let certificateAccessLoadedFor = '';
+let certificateAccessLoadPromise = null;
+function certificateAuthPayload_() {
+  return { userId:String(state.user && state.user.id || ''), token:sessionStorage.getItem('cftp_program_memory_token') || '' };
+}
+async function refreshCertificateAccess_(silent = true) {
+  if (!state.user) return null;
+  const auth = certificateAuthPayload_();
+  if (!auth.userId || !auth.token) {
+    certificateAccessState = { canUpload:state.user.role === 'admin', canManage:state.user.role === 'admin', userIds:[], candidates:[] };
+    certificateAccessLoadedFor = auth.userId;
+    return certificateAccessState;
+  }
+  try {
+    const result = await driveAPI('getCertificateAccess', auth, 30000);
+    if (!result || !result.ok) throw new Error(result && result.error || 'Unable to load certificate permissions.');
+    certificateAccessState = { canUpload:!!result.canUpload, canManage:!!result.canManage, userIds:Array.isArray(result.userIds) ? result.userIds.map(String) : [], candidates:Array.isArray(result.candidates) ? result.candidates : [] };
+    certificateAccessLoadedFor = auth.userId;
+    return certificateAccessState;
+  } catch (err) {
+    if (!silent) toast(err.message || 'Unable to load certificate permissions.', 'bad');
+    certificateAccessState = { canUpload:state.user.role === 'admin', canManage:state.user.role === 'admin', userIds:[], candidates:[] };
+    certificateAccessLoadedFor = auth.userId;
+    return certificateAccessState;
+  }
+}
+function ensureCertificateAccessLoaded_() {
+  if (!state.user || certificateAccessLoadedFor === String(state.user.id)) return;
+  if (certificateAccessLoadPromise) return;
+  certificateAccessLoadPromise = refreshCertificateAccess_(true).finally(() => { certificateAccessLoadPromise = null; if (state.user) render(); });
+}
 function getCertFor(pid) { return (DB.certificates || []).find(c => c.participantId === pid) || null; }
+function getCertificateAccessIds() { return certificateAccessState.userIds || []; }
+function canManageCertificates(user = state.user) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return ['trainer', 'facilitator'].includes(user.role) && !!certificateAccessState.canUpload && getCertificateAccessIds().includes(String(user.id));
+}
+function certificateAccessSettingsHtml() {
+  if (!state.user || state.user.role !== 'admin') return '';
+  const eligible = (certificateAccessState.candidates || []).slice().sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const selected = getCertificateAccessIds();
+  const count = Math.max(1, selected.length || 1);
+  const options = `<option value="">${currentLang === 'en' ? 'Select trainer / facilitator' : 'Pilih trainer / fasilitator'}</option>` +
+    eligible.map(u => `<option value="${esc(u.id)}">${tce(u.name)} · ${roleLabel(u.role)}${u.status === 'approved' ? '' : ' · ' + (currentLang === 'en' ? 'Pending' : 'Menunggu')}</option>`).join('');
+  return `<div class="card"><div class="card-head"><h2>🔐 ${currentLang === 'en' ? 'Certificate Access Settings' : 'Tetapan Akses Sijil'}</h2></div>
+    <p class="muted" style="font-size:.85rem">${currentLang === 'en' ? 'Choose up to five trainers or facilitators who can open the Certificates tab and upload or replace participant certificates. Only administrators can delete certificates or change these settings.' : 'Pilih sehingga lima trainer atau fasilitator yang boleh membuka tab Sijil dan memuat naik atau menggantikan sijil peserta. Hanya admin boleh memadam sijil atau mengubah tetapan ini.'}</p>
+    <form data-form="certificate-access">
+      <div class="field"><label>${currentLang === 'en' ? 'Number of users with access' : 'Bilangan pengguna yang diberi akses'}</label>
+        <select class="select" name="accessCount" id="certificateAccessCount">${[1,2,3,4,5].map(n => `<option value="${n}" ${n === count ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      </div>
+      <div class="grid2" id="certificateAccessSlots">${[0,1,2,3,4].map(i => `<div class="field" data-access-slot="${i}" style="${i < count ? '' : 'display:none'}"><label>${currentLang === 'en' ? 'User' : 'Pengguna'} ${i+1}</label><select class="select" name="accessUser${i+1}"><option value="">${currentLang === 'en' ? 'Select trainer / facilitator' : 'Pilih trainer / fasilitator'}</option>${eligible.map(u => `<option value="${esc(u.id)}" ${String(selected[i] || '') === String(u.id) ? 'selected' : ''}>${tce(u.name)} · ${roleLabel(u.role)}</option>`).join('')}</select></div>`).join('')}</div>
+      <div class="modal-actions"><button type="submit" class="btn btn-primary">💾 ${currentLang === 'en' ? 'Save Access Settings' : 'Simpan Tetapan Akses'}</button></div>
+    </form>
+  </div>`;
+}
+async function handleSaveCertificateAccess(form) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
+  const count = Math.max(1, Math.min(5, Number(form.querySelector('[name="accessCount"]')?.value) || 1));
+  const ids = [];
+  for (let i = 1; i <= count; i++) {
+    const id = String(form.querySelector(`[name="accessUser${i}"]`)?.value || '').trim();
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  const eligibleIds = new Set((DB.users || []).filter(u => ['trainer','facilitator'].includes(u.role)).map(u => String(u.id)));
+  if (ids.some(id => !eligibleIds.has(id))) { toast(currentLang === 'en' ? 'Please select valid trainers or facilitators.' : 'Sila pilih trainer atau fasilitator yang sah.', 'bad'); return; }
+  try {
+    const result = await driveAPI('setCertificateAccess', Object.assign(certificateAuthPayload_(), { userIds:ids }), 30000);
+    if (!result || !result.ok) throw new Error(result && result.error || 'Unable to save certificate access settings.');
+    await refreshCertificateAccess_(false);
+    logAudit('Update Certificate Access', 'Sijil', state.user.id, `${ids.length} authorised trainer/facilitator account(s)`);
+    toast(currentLang === 'en' ? 'Certificate access settings saved.' : 'Tetapan akses sijil berjaya disimpan.');
+    render();
+  } catch (err) { toast(err.message || 'Unable to save certificate access settings.', 'bad'); }
+}
 function sijilView() {
   if (state.user.role === 'participant') return participantSijilView();
-  if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  if (!canManageCertificates()) return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   const parts = allParticipants().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   const withCert = parts.filter(p => getCertFor(p.id)).length;
-  return `<div class="grid grid-4" style="margin-bottom:18px"><div class="stat"><div class="label">${t('sijil_stats_total')}</div><div class="value">${parts.length}</div></div><div class="stat"><div class="label">${t('sijil_stats_with')}</div><div class="value">${withCert}</div></div><div class="stat"><div class="label">${t('sijil_stats_without')}</div><div class="value">${parts.length - withCert}</div></div><div class="stat"><div class="label">🏆 ${t('sijil_status')}</div><div class="value">${parts.length ? Math.round(withCert / parts.length * 100) + '%' : '—'}</div></div></div>
-  <div class="card"><div class="card-head"><h2>🏆 ${t('sijil_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('sijil_sub')}</p>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('sijil_participant')}</th><th>${t('lbl_email')}</th><th>${t('lbl_org')}</th><th>${t('sijil_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(p => { const cert = getCertFor(p.id); return `<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.email)}</td><td>${tce(p.org || '—')}</td><td>${cert ? `<span class="badge ok">✓ ${t('sijil_has')}</span><br><small class="muted">${fmtDate(cert.uploadedAt)}${cert.fileId ? ' · ☁️ Drive' : ''}</small>` : `<span class="badge warn">— ${t('sijil_missing')}</span>`}</td><td><div class="toolbar">${cert ? `<button class="btn btn-sm" data-act="view-certificate" data-pid="${p.id}" title="${t('sijil_view')}">👁️</button><button class="btn btn-sm" data-act="download-certificate" data-pid="${p.id}" title="${t('btn_download')}">⬇️</button><button class="btn btn-sm btn-primary" data-act="upload-certificate" data-pid="${p.id}">🔄 ${t('sijil_replace')}</button><button class="btn btn-sm btn-danger" data-act="delete-certificate" data-pid="${p.id}" title="${t('btn_delete')}">🗑️</button>` : `<button class="btn btn-sm btn-primary" data-act="upload-certificate" data-pid="${p.id}">⬆️ ${t('sijil_upload')}</button>`}</div></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
+  return `${state.user.role === 'admin' ? certificateAccessSettingsHtml() : ''}<div class="grid grid-4" style="margin-bottom:18px"><div class="stat"><div class="label">${t('sijil_stats_total')}</div><div class="value">${parts.length}</div></div><div class="stat"><div class="label">${t('sijil_stats_with')}</div><div class="value">${withCert}</div></div><div class="stat"><div class="label">${t('sijil_stats_without')}</div><div class="value">${parts.length - withCert}</div></div><div class="stat"><div class="label">🏆 ${t('sijil_status')}</div><div class="value">${parts.length ? Math.round(withCert / parts.length * 100) + '%' : '—'}</div></div></div>
+  <div class="card"><div class="card-head"><h2>🏆 ${t('sijil_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('sijil_sub')}</p>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('sijil_participant')}</th><th>${t('lbl_email')}</th><th>${t('lbl_org')}</th><th>${t('sijil_status')}</th><th style="width:340px">${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(p => { const cert = getCertFor(p.id); return `<tr><td><strong>${tce(p.name)}</strong></td><td>${esc(p.email)}</td><td>${tce(p.org || '—')}</td><td>${cert ? `<span class="badge ok">✓ ${t('sijil_has')}</span><br><small class="muted">${fmtDate(cert.uploadedAt)}${cert.fileId ? ' · ☁️ Drive' : ''}</small>` : `<span class="badge warn">— ${t('sijil_missing')}</span>`}</td><td><div class="toolbar">${cert ? `<button class="btn btn-sm" data-act="view-certificate" data-pid="${p.id}" title="${t('sijil_view')}">👁️</button><button class="btn btn-sm" data-act="download-certificate" data-pid="${p.id}" title="${t('btn_download')}">⬇️</button><button class="btn btn-sm btn-primary" data-act="upload-certificate" data-pid="${p.id}">🔄 ${t('sijil_replace')}</button>${state.user.role === 'admin' ? `<button class="btn btn-sm btn-danger" data-act="delete-certificate" data-pid="${p.id}" title="${t('btn_delete')}">🗑️</button>` : ''}` : `<button class="btn btn-sm btn-primary" data-act="upload-certificate" data-pid="${p.id}">⬆️ ${t('sijil_upload')}</button>`}</div></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('msg_no_data')}</div>`}</div>`;
 }
 function participantSijilView() {
   const me = state.user;
@@ -11115,6 +11195,7 @@ function participantSijilView() {
   return `<div class="card"><div class="card-head"><h2>🏆 ${t('sijil_my_title')}</h2></div><p class="muted" style="font-size:.85rem">${t('sijil_my_sub')}</p>${cert ? `<div style="border:1px solid var(--brand-2);background:linear-gradient(135deg,#f7fdfa,#fff);border-radius:14px;padding:28px;text-align:center"><div style="font-size:3.5rem;margin-bottom:10px">🏆</div><h3 style="margin:0 0 6px">${tce(cert.name)}</h3><p class="muted" style="margin:0 0 18px">${t('sijil_uploaded_on')} ${fmtDate(cert.uploadedAt)} · ${formatFileSize(cert.size)}${cert.fileId ? ' · ☁️ Drive' : ''}</p>${cert.description ? `<p class="muted" style="font-style:italic;margin:0 0 18px">${tce(cert.description)}</p>` : ''}<div class="toolbar" style="justify-content:center"><button class="btn btn-primary" data-act="view-certificate" data-pid="${me.id}">👁️ ${t('sijil_view')}</button><button class="btn" data-act="download-certificate" data-pid="${me.id}">⬇️ ${t('btn_download')}</button></div></div>` : `<div class="empty">${t('sijil_my_none')}</div>`}</div>`;
 }
 function openUploadCertificateModal(pid) {
+  if (!canManageCertificates()) { toast(t('msg_no_access'), 'bad'); return; }
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_not_found'), 'bad'); return; }
   const existing = getCertFor(pid);
@@ -11140,6 +11221,7 @@ function openUploadCertificateModal(pid) {
   });
 }
 async function handleUploadCertificate(form) {
+  if (!canManageCertificates()) { toast(t('msg_no_access'), 'bad'); return; }
   const pid = form.dataset.pid;
   const file = state.pendingFile;
   if (!file) { toast(t('mat_upload_no_file'), 'bad'); return; }
@@ -11147,20 +11229,38 @@ async function handleUploadCertificate(form) {
   if (file.size > MAX_CERT_SIZE) { toast(t('mat_upload_too_big', formatFileSize(file.size), formatFileSize(MAX_CERT_SIZE)), 'bad'); return; }
   const p = DB.users.find(u => u.id === pid);
   if (!p) { toast(t('msg_not_found'), 'bad'); return; }
+
+  // Capture form values before closing the dialog. The user immediately returns
+  // to the Certificates page while the upload continues in the sticky monitor.
+  const description = (form.description ? form.description.value : '').trim();
+  const displayNameInput = form.querySelector('#certDisplayName');
+  const requestedDisplayName = (displayNameInput ? displayNameInput.value : '').trim();
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  closeModal();
+  state.pendingFile = null;
   startUploadMonitor(file.name, file.size);
+  updateTransferMonitor('upload', 5, `${file.name} · ${t('transfer_preparing')}`, true, false);
+
   try {
     const base64 = await fileToBase64(file, pct => {
-      updateTransferMonitor('upload', pct, `${file.name} · ${t('transfer_preparing')}`, true, false);
+      const progress = Math.max(5, Math.min(35, 5 + Math.round((pct / 50) * 30)));
+      updateTransferMonitor('upload', progress, `${file.name} · ${t('transfer_preparing')}`, true, false);
     });
-    updateTransferMonitor('upload', 50, `${file.name} · ${t('transfer_sending')}`, true, true);
-    const res = await driveAPI('uploadCertificate', { payload: { participantId: pid, participantName: p.name, filename: file.name, mimeType: 'application/pdf', base64, description: (form.description ? form.description.value : '').trim() } });
-    if (!res || !res.ok) throw new Error((res && res.error) || 'Upload failed');
-    const displayName = (form.displayName.value || '').trim() || res.file.name;
-    const cert = { id: uid('cert'), participantId: pid, fileId: res.file.id, name: displayName, originalName: res.file.name, type: 'pdf', mime: 'application/pdf', size: res.file.size, downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl, folderId: res.file.folderId, folderUrl: res.file.folderUrl, description: (form.description ? form.description.value : '').trim(), uploadedBy: state.user.id, uploadedAt: nowISO() };
+    // The current Google Apps Script uploadCertificate endpoint accepts the
+    // complete base64 payload in one request and does not expose byte-level
+    // transfer progress. Keep the bar animated during that server request.
+    updateTransferMonitor('upload', 40, `${file.name} · ${t('transfer_sending')}`, true, true);
+    const res = await driveAPI('uploadCertificate', { payload: Object.assign(certificateAuthPayload_(), { participantId: pid, participantName: p.name, filename: file.name, mimeType: 'application/pdf', base64, description }) });
+    if (!res || !res.ok || !res.file) throw new Error((res && res.error) || 'Upload failed');
+    updateTransferMonitor('upload', 95, `${file.name} · ${t('transfer_verifying')}`, true, false);
+    const displayName = requestedDisplayName || res.file.name || file.name;
+    const cert = { id: uid('cert'), participantId: pid, fileId: res.file.id, name: displayName, originalName: res.file.name || file.name, type: 'pdf', mime: 'application/pdf', size: res.file.size || file.size, downloadUrl: res.file.downloadUrl, viewUrl: res.file.viewUrl, previewUrl: res.file.previewUrl, folderId: res.file.folderId, folderUrl: res.file.folderUrl, description, uploadedBy: state.user.id, uploadedAt: nowISO() };
     DB.certificates = (DB.certificates || []).filter(c => c.participantId !== pid);
     DB.certificates.push(cert);
     saveDB(); logAudit('Upload Certificate', 'Sijil', pid, displayName);
-    state.pendingFile = null; closeModal(); toast('✅ ' + t('sijil_uploaded')); render();
+    toast('✅ ' + t('sijil_uploaded'));
+    render();
     finishUploadMonitor(true, `${file.name} · ${t('transfer_complete')}`);
   } catch (err) {
     console.error('Upload cert error:', err);
@@ -11168,8 +11268,10 @@ async function handleUploadCertificate(form) {
     toast('❌ ' + (err.message || t('mat_upload_fail')), 'bad');
   }
 }
+
 function viewCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
+  if (state.user.role !== 'participant' && !canManageCertificates()) { toast(t('msg_no_access'), 'bad'); return; }
   if (state.user.role === 'vip') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
@@ -11179,6 +11281,7 @@ function viewCertificate(pid) {
 }
 async function downloadCertificate(pid) {
   if (state.user.role === 'participant' && state.user.id !== pid) { toast(t('msg_no_access'), 'bad'); return; }
+  if (state.user.role !== 'participant' && !canManageCertificates()) { toast(t('msg_no_access'), 'bad'); return; }
   if (state.user.role === 'vip') { toast(t('msg_no_access'), 'bad'); return; }
   const cert = getCertFor(pid);
   if (!cert) { toast(t('msg_not_found'), 'bad'); return; }
@@ -11196,7 +11299,7 @@ async function deleteCertificate(pid) {
   const cert = getCertFor(pid);
   if (!cert) return;
   if (!confirm(t('sijil_confirm_delete', cert.name))) return;
-  if (cert.fileId) { try { await driveAPI('deleteFile', { fileId: cert.fileId }); } catch (e) { console.warn('Drive delete failed:', e); } }
+  if (cert.fileId) { const result = await driveAPI('deleteCertificate', Object.assign(certificateAuthPayload_(), { fileId:cert.fileId })); if (!result || !result.ok) { toast((result && result.error) || 'Certificate deletion failed.', 'bad'); return; } }
   DB.certificates = (DB.certificates || []).filter(c => c.participantId !== pid);
   saveDB(); logAudit('Delete Certificate', 'Sijil', pid, cert.name); toast(t('msg_deleted')); render();
 }
@@ -11220,6 +11323,15 @@ function deleteActivity(id) {
 /* =========================================================
    EVENT DELEGATION
    ========================================================= */
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'certificateAccessCount') {
+    const count = Math.max(1, Math.min(5, Number(e.target.value) || 1));
+    document.querySelectorAll('[data-access-slot]').forEach(slot => {
+      slot.style.display = Number(slot.dataset.accessSlot) < count ? '' : 'none';
+    });
+  }
+});
+
 document.addEventListener('submit', (e) => {
   const form = e.target.closest('form[data-form]');
   if (!form) return;
@@ -11244,6 +11356,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'timetable') handleSaveTimetable(form);
   else if (k === 'manual-quiz-answers') handleManualQuizAnswers(form);
   else if (k === 'upload-certificate') handleUploadCertificate(form);
+  else if (k === 'certificate-access') handleSaveCertificateAccess(form);
   else if (k === 'final-exam') handleSaveFinalExam(form);
   else if (k === 'inline-fe-question') handleSaveFeInlineQuestion(form);
   else if (k === 'fe-bank-picker') handleFeBankPickerSubmit(form);
