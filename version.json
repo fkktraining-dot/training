@@ -1,6 +1,6 @@
 {
-  "version": "2026.11.20.1",
-  "build": "cftp-20261120-activityfeed-stable-session-01",
-  "updatedAt": "2026-11-20T20:46:00+08:00",
+  "version": "2026.11.21.2",
+  "build": "cftp-20261121-backupnow-stable-session-01",
+  "updatedAt": "2026-11-21T06:00:00+08:00",
   "notes": "Front-end version marker. Update this version/build whenever deploying a newer CFTP HTML file."
 }
