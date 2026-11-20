@@ -5572,7 +5572,7 @@ function programMemoryView() {
     }).join('');
     return `<article id="pm-post-${esc(p.id)}" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition">
       <div class="p-4 flex items-center justify-between"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold ring-2 ring-slate-100">${esc(String(p.userName || 'U').trim().charAt(0).toUpperCase() || 'U')}</div><div><div class="flex items-center gap-1.5 font-bold text-slate-800 text-sm"><span>${tce(p.userName || programMemoryText('Pengguna','User'))}</span></div><div class="flex items-center gap-1 text-slate-400 text-xs mt-0.5"><span>${fmtDateTime(p.createdAt)}</span>${isAdmin?`<button type="button" data-act="memory-edit-date" data-pid="${esc(p.id)}" class="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-emerald-700 hover:bg-emerald-50" title="${programMemoryText('Edit tarikh & masa upload','Edit upload date & time')}"><i class="fa-regular fa-calendar"></i><span>${programMemoryText('Edit tarikh & masa','Edit date & time')}</span></button>`:''}<span>•</span><i class="fa-solid fa-earth-americas text-[10px]"></i></div></div></div>${state.user && (isAdmin || String(p.userId || '') === String(state.user.id))?`<button data-act="memory-edit-description" data-pid="${esc(p.id)}" class="text-slate-500 hover:text-blue-600 p-2 rounded-full hover:bg-slate-100 transition" title="${programMemoryText('Edit hantaran','Edit post')}"><i class="fa-regular fa-pen-to-square"></i></button>`:''}</div>
-      ${p.text?`<div id="pm-post-text-${esc(p.id)}" data-act="memory-view-post" data-pid="${esc(p.id)}" role="button" tabindex="0" title="${programMemoryText('Klik untuk melihat semua gambar','Click to view all photos')}" class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line cursor-pointer hover:bg-slate-50 rounded-lg">${tce(p.text)}<span class="block text-xs text-emerald-700 font-semibold mt-2">${programMemoryText('Lihat semua gambar dalam hantaran →','View all photos in this post →')}</span></div>`:''}
+      ${p.text?`<div id="pm-post-text-${esc(p.id)}" class="px-4 pb-3 text-slate-800 text-sm sm:text-base leading-relaxed whitespace-pre-line rounded-lg">${tce(p.text)}</div>`:''}
       ${imageMarkup}
       ${!vip && state.user && (isAdmin || String(p.userId || '') === String(state.user.id)) ? `<div class="px-4 pt-3"><button type="button" data-act="memory-add-photo-trigger" data-pid="${esc(p.id)}" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><i class="fa-regular fa-images"></i>${programMemoryText('Tambah gambar pada hantaran ini','Add photos to this post')}</button><input type="file" id="pm-add-photo-${esc(p.id)}" data-album-id="${esc(p.id)}" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden></div>` : ''}
       <div class="px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 border-b border-slate-100 flex-wrap"><div class="flex items-center gap-1.5 flex-wrap">${reactionSummary}<span id="pm-total-reactions-${esc(p.id)}" class="font-semibold text-slate-700 ml-1">${totalReactions} ${programMemoryText('reaksi','reactions')}</span></div><div class="flex gap-3 font-medium"><span>${comments.length} ${programMemoryText('Komen','Comments')}</span><span>${images.length} ${programMemoryText('Gambar','Photos')}</span></div></div>
@@ -6062,7 +6062,16 @@ async function saveProgramMemoryComment(pictureId, commentId) {
   if (!updatedText) { toast(programMemoryText('Komen tidak boleh kosong.','Comment cannot be empty.'),'warn'); return; }
   try {
     const result = await programMemoryAPI('updateProgramPictureComment',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId),commentId:String(commentId),comment:updatedText});
-    if (!result?.ok) throw new Error(result?.error || 'Comment editing is not yet supported by the connected backend.');
+    if (!result?.ok) {
+      const backendError = String(result?.error || result?.message || '');
+      const unknownAction = /unknown\\s*action|action\\s*not\\s*found|unsupported\\s*action/i.test(backendError);
+      throw new Error(unknownAction
+        ? programMemoryText(
+            'Edit komen belum disokong oleh Code.gs yang sedang digunakan. Tiada perubahan dibuat. Sila kemas kini backend dengan action updateProgramPictureComment.',
+            'Comment editing is not supported by the current Code.gs. No changes were made. The backend needs the updateProgramPictureComment action.'
+          )
+        : (backendError || programMemoryText('Edit komen belum disokong oleh backend. Tiada perubahan dibuat.','Comment editing is not supported by the backend. No changes were made.')));
+    }
     await loadProgramMemory(true);
     toast(programMemoryText('Komen berjaya dikemaskini.','Comment updated successfully.'),'ok');
   } catch(err) { toast(err.message || 'Unable to update comment.','bad'); }
