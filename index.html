@@ -1028,6 +1028,92 @@ const DRIVE_TIMEOUT_MS = 120000; // Allow time for Apps Script lock contention u
 const CFTP_APP_VERSION = '2026.11.20.1';
 const CFTP_BUILD_ID = 'cftp-20261120-activityfeed-stable-session-01';
 
+/* =========================================================
+   ADMIN BACKUP & RESTORE — UI ADD-ON
+   ========================================================= */
+let cftpBackupHistory = { files:[], status:null, loading:false, error:'', selectedDetails:null, detailsLoading:false };
+function backupAdminKey_() {
+  let key='';
+  try { key=sessionStorage.getItem('cftp_backup_admin_key') || ''; } catch(e) {}
+  if (!key) {
+    key=window.prompt(currentLang==='en' ? 'Enter the Apps Script CFTP_ADMIN_API_KEY (Admin only):' : 'Masukkan CFTP_ADMIN_API_KEY daripada Apps Script (Admin sahaja):') || '';
+    if (key) { try { sessionStorage.setItem('cftp_backup_admin_key',key); } catch(e) {} }
+  }
+  return String(key||'').trim();
+}
+async function backupAdminRequest_(action, payload) {
+  if (!state.user || state.user.role !== 'admin') throw new Error('Admin access only.');
+  const adminKey=backupAdminKey_();
+  if (!adminKey) throw new Error(currentLang==='en'?'Admin key is required.':'Kunci Admin diperlukan.');
+  const result=await driveAPI(action,Object.assign({adminKey:adminKey},payload||{}),180000);
+  if (!result || !result.ok) {
+    if (result && /disabled|unauthorized|key/i.test(String(result.error||''))) {
+      try { sessionStorage.removeItem('cftp_backup_admin_key'); } catch(e) {}
+    }
+    throw new Error(result && result.error ? result.error : 'Backup request failed.');
+  }
+  return result;
+}
+async function loadBackupHistory(showMessage) {
+  if (!state.user || state.user.role!=='admin') return;
+  cftpBackupHistory.loading=true; cftpBackupHistory.error='';
+  if (state.view==='backups') render();
+  try {
+    const result=await backupAdminRequest_('listBackups');
+    cftpBackupHistory.files=Array.isArray(result.files)?result.files:[];
+    cftpBackupHistory.status=result.status||null;
+    if (showMessage) toast(currentLang==='en'?'Backup list refreshed.':'Senarai backup dikemas kini.','ok');
+  } catch(err) { cftpBackupHistory.error=err.message; if(showMessage) toast(err.message,'bad'); }
+  finally { cftpBackupHistory.loading=false; if(state.view==='backups') render(); }
+}
+
+async function loadBackupDetails(name) {
+  if (!name) return;
+  cftpBackupHistory.detailsLoading=true;
+  cftpBackupHistory.selectedDetails={name:name,loading:true};
+  render();
+  try { cftpBackupHistory.selectedDetails=await backupAdminRequest_('getBackupDetails',{name:name}); }
+  catch(err) { cftpBackupHistory.selectedDetails={ok:false,name:name,error:err.message}; }
+  finally { cftpBackupHistory.detailsLoading=false; if(state.view==='backups') render(); }
+}
+function formatBackupBytes_(bytes) {
+  const n=Number(bytes)||0;
+  if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(1)+' KB';
+  if(n<1024*1024*1024) return (n/1024/1024).toFixed(2)+' MB';
+  return (n/1024/1024/1024).toFixed(2)+' GB';
+}
+function backupDetailsPanel_() {
+  const d=cftpBackupHistory.selectedDetails;
+  if(!d) return '';
+  if(d.loading || cftpBackupHistory.detailsLoading) return `<div class="card"><div class="empty">⏳ ${currentLang==='en'?'Loading backup contents…':'Memuatkan kandungan backup…'}</div></div>`;
+  if(!d.ok) return `<div class="card"><div class="info-box warn">${esc(d.error||'Unable to read backup details.')}</div></div>`;
+  const en=currentLang==='en';
+  const collectionRows=(d.collections||[]).map(x=>`<tr><td><strong>${esc(x.name)}</strong>${(x.samples||[]).length?`<details style="margin-top:5px"><summary>${en?'Preview sample records':'Pratonton contoh rekod'} (${Math.min(5,x.samples.length)})</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font-size:.75rem;background:var(--surface-2);padding:8px;border-radius:6px">${esc(JSON.stringify(x.samples,null,2))}</pre></details>`:''}</td><td>${Number(x.records)||0}</td><td><small>${esc((x.fields||[]).join(', ')||'—')}</small></td></tr>`).join('');
+  const auxRows=(d.auxiliary||[]).map(x=>`<tr><td><strong>${esc(x.name)}</strong></td><td>${Number(x.records)||0}</td><td><small>${en?'Auxiliary sheet':'Sheet tambahan'}</small></td></tr>`).join('');
+  const changeRows=(d.changes||[]).map(x=>`<tr><td><strong>${esc(x.name)}</strong>${(x.samples||[]).length?`<details style="margin-top:5px"><summary>${en?'Preview changed records':'Pratonton rekod berubah'}</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font-size:.75rem;background:var(--surface-2);padding:8px;border-radius:6px">${esc(JSON.stringify(x.samples,null,2))}</pre></details>`:''}</td><td>${esc(x.action||'Change')}</td><td>${x.records!==undefined?Number(x.records):'+'+(Number(x.upserts)||0)+' / −'+(Number(x.deletes)||0)}</td></tr>`).join('');
+  return `<div class="card"><div class="card-head"><div><h2>🔎 ${en?'Backup contents':'Kandungan Backup'}</h2><p class="muted" style="margin:4px 0 0">${esc(d.name||'')} · ${esc(new Date(d.created).toLocaleString())}</p></div><button class="btn" data-act="backup-close-preview">✕ ${en?'Close':'Tutup'}</button></div>
+  <div class="info-box"><strong>${esc(d.description||'')}</strong><p style="margin:5px 0 0;font-size:.84rem">${en?'Revision':'Revisi'}: ${Number(d.revision)||0} · ${en?'Saved by':'Disimpan oleh'}: ${esc(d.savedBy||'system')} · ${en?'Total records represented':'Jumlah rekod'}: ${Number(d.totalRecords)||0}</p></div>
+  ${d.type==='change'?`<h3>${en?'Changes included':'Perubahan yang direkod'}</h3><div class="table-wrap"><table><thead><tr><th>${en?'Collection / sheet':'Koleksi / sheet'}</th><th>${en?'Change type':'Jenis perubahan'}</th><th>${en?'Records':'Rekod'}</th></tr></thead><tbody>${changeRows||`<tr><td colspan="3">${en?'No collection details available':'Tiada butiran koleksi'}</td></tr>`}</tbody></table></div>`:`<h3>${en?'Database collections':'Koleksi pangkalan data'}</h3><div class="table-wrap"><table><thead><tr><th>${en?'Sheet / collection':'Sheet / koleksi'}</th><th>${en?'Records saved':'Rekod disimpan'}</th><th>${en?'Fields included':'Medan disertakan'}</th></tr></thead><tbody>${collectionRows}${auxRows}</tbody></table></div><p class="muted" style="font-size:.8rem;margin-top:8px">${en?'Sample records are limited to five per collection. Sensitive fields such as passwords, identity numbers, phone numbers, email addresses and tokens are hidden.':'Contoh rekod dihadkan kepada lima bagi setiap koleksi. Medan sensitif seperti kata laluan, nombor pengenalan, telefon, e-mel dan token disembunyikan.'}</p>`}
+  </div>`;
+}
+function backupManagementView() {
+  if (!state.user || state.user.role!=='admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
+  const st=cftpBackupHistory.status||{};
+  const used=Number(st.bytes)||0, cap=2*1024*1024*1024, pct=Math.min(100,used/cap*100);
+  const files=cftpBackupHistory.files||[];
+  const en=currentLang==='en';
+  return `<div class="card"><div class="card-head"><div><h2>🛡️ Automatic Backup &amp; Restore</h2><p class="muted" style="margin:4px 0 0">${en?'Change journal, periodic snapshots and nightly full backup copied to the external Drive folder.':'Change journal, snapshot berkala dan backup penuh setiap malam yang disalin ke folder Drive luar.'}</p></div><button class="btn" data-act="backup-refresh" ${cftpBackupHistory.loading?'disabled':''}>↻ ${en?'Refresh':'Segar semula'}</button></div>
+  ${cftpBackupHistory.error?`<div class="info-box warn">⚠️ ${esc(cftpBackupHistory.error)}<br><small>${en?'Check that the Apps Script project property CFTP_ADMIN_API_KEY is configured.':'Pastikan Script Property CFTP_ADMIN_API_KEY telah ditetapkan dalam Apps Script.'}</small></div>`:''}
+  <div class="meta-grid"><div class="meta-item"><div class="k">${en?'Storage used':'Storan digunakan'}</div><div class="v">${formatBackupBytes_(used)} / 2 GB</div></div><div class="meta-item"><div class="k">${en?'Full snapshots':'Snapshot penuh'}</div><div class="v">${Number(st.snapshots)||0}</div></div><div class="meta-item"><div class="k">${en?'Journal changes':'Perubahan direkod'}</div><div class="v">${Number(st.changes)||0}</div></div><div class="meta-item"><div class="k">${en?'Nightly backup':'Backup malam'}</div><div class="v">${st.nightlyTriggerInstalled?'✅ '+(en?'Enabled':'Aktif'):'⚠️ '+(en?'Not enabled':'Belum aktif')}</div></div></div>
+  <div style="height:10px;background:var(--line);border-radius:20px;overflow:hidden;margin:10px 0 16px"><div style="height:100%;width:${pct.toFixed(1)}%;background:${pct>90?'#c0392b':'#16845f'};border-radius:20px"></div></div>
+  <div class="toolbar"><button class="btn btn-primary" data-act="backup-create">📸 ${en?'Create full snapshot now':'Bina snapshot penuh sekarang'}</button><button class="btn" data-act="backup-enable-trigger">⏱️ ${en?'Enable 6-hour snapshots':'Aktifkan snapshot 6 jam'}</button><button class="btn btn-primary" data-act="backup-enable-nightly">🌙 ${en?'Enable nightly backup + Drive copy':'Aktifkan backup malam + salinan Drive'}</button></div>
+  <div class="info-box" style="margin-top:14px"><strong>${en?'Nightly destination':'Lokasi backup malam'}</strong><p style="margin:5px 0 0;font-size:.84rem">${en?'A complete JSON backup is created every night at approximately 11:55 PM (Apps Script project timezone), then copied to this Google Drive folder:':'Satu fail JSON backup penuh dijana setiap malam kira-kira 11:55 malam (mengikut zon masa projek Apps Script), kemudian disalin ke folder Google Drive ini:'} <a href="https://drive.google.com/drive/folders/1GrMQ7U3DD91t9ymggXMGEbNHVoet4lMb" target="_blank" rel="noopener">${en?'Open backup destination folder':'Buka folder destinasi backup'}</a>. ${en?'The destination folder must grant Editor access to the Apps Script owner.':'Folder destinasi mesti memberi akses Editor kepada pemilik projek Apps Script.'}</p></div>
+  <div class="info-box" style="margin-top:10px"><strong>${en?'How it works':'Cara sistem berfungsi'}</strong><p style="margin:5px 0 0;font-size:.84rem">${en?'Every committed edit is recorded in the change journal. Full snapshots are also created every 100 changes or 6 hours. Nightly copies are kept in the external Drive folder with a 2 GB cap.':'Setiap perubahan yang berjaya disimpan direkod dalam change journal. Snapshot penuh juga dibuat setiap 100 perubahan atau 6 jam. Salinan backup malam disimpan dalam folder Drive luar dengan had 2 GB.'}</p></div></div>
+  <div class="card"><div class="card-head"><h2>🗂️ ${en?'Backup History':'Sejarah Backup'} (${files.length})</h2><span class="badge info">${en?'Newest first':'Terbaharu dahulu'}</span></div>
+  ${cftpBackupHistory.loading?`<div class="empty">⏳ ${en?'Loading backup history…':'Memuatkan sejarah backup…'}</div>`:files.length?`<div class="table-wrap"><table><thead><tr><th>${en?'Date & time':'Tarikh & masa'}</th><th>${en?'Type':'Jenis'}</th><th>${en?'Size':'Saiz'}</th><th>${en?'Description':'Penerangan'}</th><th>${en?'Action':'Tindakan'}</th></tr></thead><tbody>${files.map(f=>`<tr><td><strong>${esc(new Date(f.created).toLocaleDateString())}</strong><br><small class="muted">${esc(new Date(f.created).toLocaleTimeString())}</small></td><td><span class="badge ${f.type==='daily'?'ok':f.type==='snapshot'?'info':'info'}">${f.type==='daily'?'🌙 '+(en?'Daily backup':'Backup harian'):f.type==='snapshot'?'📦 '+(en?'Full snapshot':'Snapshot penuh'):'✏️ '+(en?'Change':'Perubahan')}</span></td><td>${f.size?formatBackupBytes_(f.size):'—'}</td><td><small>${esc(f.description||f.label||f.name||'')}</small>${f.revision?`<br><small class="muted">Revision ${Number(f.revision)}</small>`:''}</td><td><button class="btn btn-sm" data-act="backup-preview" data-name="${esc(f.name)}">👁️ ${en?'View data':'Lihat data'}</button> <button class="btn btn-sm btn-danger" data-act="backup-restore" data-name="${esc(f.name)}">↶ ${en?'Restore':'Pulihkan'}</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">${en?'No backup history yet. Create a full snapshot to establish the recovery baseline.':'Belum ada sejarah backup. Cipta snapshot penuh untuk menetapkan titik pemulihan.'}</div>`}</div>
+  ${backupDetailsPanel_()}`;
+}
+
 async function driveAPI(action, data, timeoutMs) {
   const body = Object.assign({ action, apiKey: DRIVE_API_KEY || undefined }, data || {});
   const ctl = new AbortController();
@@ -5196,6 +5282,7 @@ function navItemsBase() {
     { v:'companies', label:currentLang === 'en' ? 'Companies & Participants' : 'Syarikat & Peserta', icon:'🏢' },
     { v:'sijil', label:t('nav_sijil'), icon:'🏆' },
     { v:'audit', label:t('nav_audit'), icon:'🧾' },
+    { v:'backups', label:currentLang === 'en' ? 'Backup & Restore' : 'Backup & Pulihkan', icon:'🛡️' },
     { v:'reports', label:t('nav_reports'), icon:'📄' },
     { v:'profile', label:t('nav_profile'), icon:'👤' }
   ];
@@ -5519,6 +5606,7 @@ function viewContent() {
     case 'companies': return companiesView();
     case 'sijil': return sijilView();
     case 'audit': return auditView();
+    case 'backups': return backupManagementView();
     case 'reports': return reportsView();
     case 'profile': return profileView();
     default: return `<div class="card"><p>${t('msg_not_found')}</p></div>`;
@@ -11782,6 +11870,30 @@ document.addEventListener('click', async (e) => {
       btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       break;
     }
+    case 'backup-refresh': { loadBackupHistory(true); break; }
+    case 'backup-create': {
+      const btn=tgt; btn.disabled=true;
+      try { const r=await backupAdminRequest_('createBackupSnapshot'); toast((currentLang==='en'?'Snapshot created: ':'Snapshot berjaya dibuat: ')+r.name,'ok'); await loadBackupHistory(false); }
+      catch(err){toast(err.message,'bad');} finally {btn.disabled=false;} break;
+    }
+    case 'backup-enable-trigger': {
+      try { const r=await backupAdminRequest_('setupAutomaticBackupTrigger'); toast(r.message||'Scheduled backup enabled.','ok'); await loadBackupHistory(false); }
+      catch(err){toast(err.message,'bad');} break;
+    }
+    case 'backup-enable-nightly': {
+      try { const r=await backupAdminRequest_('setupNightlyBackupTrigger'); toast(r.message||'Nightly backup enabled.','ok'); await loadBackupHistory(false); }
+      catch(err){toast(err.message,'bad');} break;
+    }
+    case 'backup-preview': { await loadBackupDetails(tgt.dataset.name); break; }
+    case 'backup-close-preview': { cftpBackupHistory.selectedDetails=null; render(); break; }
+    case 'backup-restore': {
+      const name=tgt.dataset.name;
+      const confirmText=currentLang==='en'?'Restore this version? Current live data will first be saved as a safety snapshot.':'Pulihkan versi ini? Data semasa akan disimpan sebagai snapshot keselamatan terlebih dahulu.';
+      if(!name || !window.confirm(confirmText)) break;
+      tgt.disabled=true;
+      try { const r=await backupAdminRequest_('restoreBackup',{name:name}); toast((currentLang==='en'?'Restore completed: ':'Pemulihan selesai: ')+r.restored,'ok'); await loadBackupHistory(false); await pullFromServer(false,{force:true,maxAttempts:3}); }
+      catch(err){toast((currentLang==='en'?'Restore failed: ':'Pemulihan gagal: ')+err.message,'bad');} finally {tgt.disabled=false;} break;
+    }
     case 'nav': {
       state.view = tgt.dataset.view;
       markTabRead(state.view);
@@ -11797,6 +11909,7 @@ document.addEventListener('click', async (e) => {
       if (tgt.dataset.id && tgt.dataset.view === 'module') refreshModuleMaterialsFromDrive(tgt.dataset.id, true, { persist: state.user.role === 'admin' });
       if (tgt.dataset.view === 'system-information') loadSystemInformation(true, true);
       if (tgt.dataset.view === 'memory') loadProgramMemory();
+      if (tgt.dataset.view === 'backups') loadBackupHistory(false);
       break;
     }
     case 'open-audit-notification': {
