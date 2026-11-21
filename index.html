@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- SAFE SYNC OPTIMIZATION PATCH: single-flight wait + reduced backup I/O -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -1180,6 +1179,52 @@ async function driveAPI(action, data, timeoutMs) {
 
 // Programme Memory requests retry transient network failures. Photo uploads use
 // a stable photoId so the backend can safely recognize a response-lost retry.
+const PROGRAM_MEMORY_TOKEN_KEY_ = 'cftp_program_memory_token';
+
+function getProgramMemoryToken_() {
+  try {
+    const persistent = localStorage.getItem(PROGRAM_MEMORY_TOKEN_KEY_) || '';
+    if (persistent) return persistent;
+    // One-time migration for users who still have a token in the old tab-only store.
+    const legacy = sessionStorage.getItem(PROGRAM_MEMORY_TOKEN_KEY_) || '';
+    if (legacy) {
+      localStorage.setItem(PROGRAM_MEMORY_TOKEN_KEY_, legacy);
+      sessionStorage.removeItem(PROGRAM_MEMORY_TOKEN_KEY_);
+    }
+    return legacy;
+  } catch (_) {
+    try { return sessionStorage.getItem(PROGRAM_MEMORY_TOKEN_KEY_) || ''; } catch (e) { return ''; }
+  }
+}
+
+function setProgramMemoryToken_(token) {
+  const value = String(token || '').trim();
+  try {
+    if (value) localStorage.setItem(PROGRAM_MEMORY_TOKEN_KEY_, value);
+    else localStorage.removeItem(PROGRAM_MEMORY_TOKEN_KEY_);
+  } catch (_) {}
+  try { sessionStorage.removeItem(PROGRAM_MEMORY_TOKEN_KEY_); } catch (_) {}
+}
+
+function clearProgramMemoryToken_() {
+  try { localStorage.removeItem(PROGRAM_MEMORY_TOKEN_KEY_); } catch (_) {}
+  try { sessionStorage.removeItem(PROGRAM_MEMORY_TOKEN_KEY_); } catch (_) {}
+}
+
+async function renewProgramMemorySession_() {
+  if (!state.user || !state.user.id) throw new Error('Sesi pengguna tidak tersedia.');
+  const token = getProgramMemoryToken_();
+  if (!token) throw new Error('Token Memory tiada. Sila log masuk sekali untuk mengaktifkan semula sesi Memory.');
+  const result = await programMemoryAPI('refreshProgramMemorySession', {
+    userId:String(state.user.id), token:token
+  }, 30000);
+  if (!result || !result.ok || !result.programMemoryToken) {
+    throw new Error(result && result.error ? result.error : 'Sesi Memory tidak dapat diperbaharui.');
+  }
+  setProgramMemoryToken_(result.programMemoryToken);
+  return result.programMemoryToken;
+}
+
 async function programMemoryAPI(action, data, timeoutMs) {
   let lastError = null;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -1203,7 +1248,7 @@ async function programMemoryAPI(action, data, timeoutMs) {
 const MERGEABLE_COLLECTIONS = [
   'users','modules','activities','enrollments','attempts','attendance','practical',
   'audit','questionBank','rubrics','timetables','certificates','finalExams',
-  'feAttempts','fePractical','retests','retestRequests','pendingApprovals','companies','quizReminders'
+  'feAttempts','fePractical','retests','retestRequests','pendingApprovals','companies','quizReminders','markUploadReminders'
 ];
 
 function cloneDB(db) { return JSON.parse(JSON.stringify(db)); }
@@ -3362,6 +3407,8 @@ function emptyDB() {
     fePractical: [],
     retests: [],
     pendingApprovals: [],
+    quizReminders: [],
+    markUploadReminders: [],
     _rev: 0,
     _syncId: 'init_' + Date.now(),
     _syncTs: nowISO()
@@ -3466,7 +3513,7 @@ function scheduleServerSave() {
 
 async function robustServerSave() {
   if (saveInFlightPromise) {
-    if (!isDiffEmpty(computeDiff(lastSyncedSnapshot, DB))) savePending = true;
+    savePending = true;
     return await saveInFlightPromise;
   }
 
@@ -3604,23 +3651,12 @@ async function performMergedSave(maxAttempts = 5) {
 
 async function forceSaveNow() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-
-  // Join the actual in-flight promise instead of polling for an arbitrary
-  // 30-second window and then returning the old promise as if it were a new
-  // save. driveAPI already applies a bounded network timeout.
-  let priorResult = null;
-  if (saveInFlightPromise) {
-    priorResult = await saveInFlightPromise;
-    if (!priorResult || !priorResult.ok) return priorResult || { ok:false, error:'Previous save did not complete.' };
+  if (saveInFlight) {
+    let waited = 0;
+    while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; }
   }
-
   const diff = computeDiff(lastSyncedSnapshot, DB);
-  if (isDiffEmpty(diff)) {
-    pendingSaveSince = 0;
-    savePending = false;
-    updateBeforeUnload();
-    return priorResult || { ok:true, skipped:true };
-  }
+  if (isDiffEmpty(diff)) { pendingSaveSince = 0; updateBeforeUnload(); return { ok: true, skipped: true }; }
   savePending = false;
   return await robustServerSave();
 }
@@ -3638,6 +3674,11 @@ async function syncAllNow() {
   try {
     // First upload pending local edits, so the following refresh does not overwrite them.
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (saveInFlight) {
+      let waited = 0;
+      while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; }
+      if (saveInFlight) throw new Error(en ? 'A previous save is still running.' : 'Proses simpan terdahulu masih berjalan.');
+    }
     const saved = await forceSaveNow();
     if (!saved || !saved.ok) throw new Error(saved && saved.error ? saved.error : (en ? 'Upload to server failed.' : 'Muat naik ke server gagal.'));
 
@@ -3677,7 +3718,8 @@ async function manualSyncNow() {
   if (b) { b.textContent = '⟳'; b.style.background = '#fdf3e0'; b.style.color = '#b7791f'; b.title = 'Saving…'; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   try {
-    const result = await forceSaveNow();
+    if (saveInFlight) { let waited = 0; while (saveInFlight && waited < 30000) { await sleep(200); waited += 200; } }
+    const result = await robustServerSave();
     if (result.ok) {
       if (b) { b.textContent = '✓'; b.style.background = '#e8f5ec'; b.style.color = '#1e7d4f'; b.title = 'Synced ' + new Date().toLocaleTimeString(); }
       toast(t('sync_manual_ok'), 'ok');
@@ -4375,7 +4417,7 @@ function doLogout() {
   localStorage.removeItem(SESSION_USER_CACHE_KEY);
   try {
     sessionStorage.removeItem('cftpmy_login_draft');
-    sessionStorage.removeItem('cftp_program_memory_token');
+    clearProgramMemoryToken_();
   } catch(e) {}
   lastPushedStateKey = null;
   try { history.replaceState(null, ''); } catch(e) {}
@@ -5789,19 +5831,13 @@ function openProgramMemoryPostGallery(pictureId) {
 
 async function loadProgramMemory(force) {
   if (!state.user || programMemoryLoading) return;
-  const memoryToken = sessionStorage.getItem('cftp_program_memory_token') || '';
-  if (!memoryToken) {
-    // A missing gallery token is not a reason to log the whole user out.
-    toast(programMemoryText(
-      'Sesi galeri Memory tidak tersedia. Sila log masuk semula untuk mengaktifkan galeri.',
-      'The Memory gallery session is unavailable. Please sign in again to reactivate the gallery.'
-    ), 'warn');
-    return;
-  }
   if (!force && programMemoryLoadedAt && Date.now() - programMemoryLoadedAt < 15000 && state.view === 'memory') return;
   programMemoryLoading = true;
   if (state.view === 'memory') render();
   try {
+    // Renew using the existing signed token before loading the feed. The token
+    // is persisted across tabs/restarts; renewal never asks the user to log out.
+    const memoryToken = await renewProgramMemorySession_();
     const result = await programMemoryAPI('listProgramMemory', {
       userId:String(state.user.id), token:memoryToken
     }, 90000);
@@ -5822,7 +5858,7 @@ async function submitProgramMemoryComment(pictureId) {
   if (!comment) { toast(programMemoryText('Sila tulis komen.','Please enter a comment.'),'warn'); return; }
   try {
     const result = await driveAPI('addProgramPictureComment', {
-      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:String(pictureId), comment
+      userId:String(state.user.id), token:getProgramMemoryToken_(), pictureId:String(pictureId), comment
     });
     if (!result?.ok) throw new Error(result?.error || 'Comment failed.');
     await loadProgramMemory(true);
@@ -5842,7 +5878,7 @@ async function deleteProgramMemoryComment(pictureId, commentId) {
   try {
     // Requires the Apps Script endpoint to support deleteProgramPictureComment.
     const result = await driveAPI('deleteProgramPictureComment', {
-      userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
+      userId:String(state.user.id), token:getProgramMemoryToken_(),
       pictureId:String(pictureId), commentId:String(commentId)
     });
     if (!result?.ok) throw new Error(result?.error || 'Delete comment failed.');
@@ -5989,7 +6025,7 @@ async function submitProgramMemoryReaction(pictureId, reaction) {
 
   try {
     const result = await driveAPI('reactProgramPicture', {
-      userId, token:sessionStorage.getItem('cftp_program_memory_token') || '', pictureId:key, reaction:String(reaction)
+      userId, token:getProgramMemoryToken_(), pictureId:key, reaction:String(reaction)
     });
     if (!result?.ok) throw new Error(result?.error || 'Reaction failed.');
     // Keep the optimistic result; a later normal refresh will reconcile server data.
@@ -6109,7 +6145,7 @@ async function handleProgramMemoryFiles(files, suppliedCaption, existingAlbumId)
         ? crypto.randomUUID().replace(/-/g,'')
         : Date.now().toString(36) + Math.random().toString(36).slice(2));
       const result = await programMemoryAPI('uploadProgramPicture', {payload:{
-        userId:String(state.user.id), token:sessionStorage.getItem('cftp_program_memory_token') || '',
+        userId:String(state.user.id), token:getProgramMemoryToken_(),
         albumId, appendToExisting:isAppending, photoId, caption:String(caption).slice(0,1000),
         filename:file.name, mimeType:file.type, size:file.size, base64
       }}, 180000);
@@ -6178,7 +6214,7 @@ async function saveProgramMemoryDescription(pictureId) {
   const description = editor.value.trim();
   if (!description) { toast(programMemoryText('Penerangan tidak boleh kosong.','Post description cannot be empty.'),'warn'); return; }
   try {
-    const result = await programMemoryAPI('updateProgramPictureDescription',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId),description});
+    const result = await programMemoryAPI('updateProgramPictureDescription',{userId:String(state.user.id),token:getProgramMemoryToken_(),pictureId:String(pictureId),description});
     if (!result?.ok) throw new Error(result?.error || 'Update failed. The server may not yet support owner-based post editing.');
     await loadProgramMemory(true);
     toast(programMemoryText('Hantaran berjaya dikemaskini.','Post updated successfully.'),'ok');
@@ -6205,7 +6241,7 @@ async function saveProgramMemoryComment(pictureId, commentId) {
   const updatedText = editor.value.trim();
   if (!updatedText) { toast(programMemoryText('Komen tidak boleh kosong.','Comment cannot be empty.'),'warn'); return; }
   try {
-    const result = await programMemoryAPI('updateProgramPictureComment',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId),commentId:String(commentId),comment:updatedText});
+    const result = await programMemoryAPI('updateProgramPictureComment',{userId:String(state.user.id),token:getProgramMemoryToken_(),pictureId:String(pictureId),commentId:String(commentId),comment:updatedText});
     if (!result?.ok) {
       const backendError = String(result?.error || result?.message || '');
       const unknownAction = /unknown\\s*action|action\\s*not\\s*found|unsupported\\s*action/i.test(backendError);
@@ -6269,7 +6305,7 @@ async function editProgramMemoryDate(pictureId) {
   try {
     const result = await programMemoryAPI('updateProgramPictureDate', {
       userId: String(state.user.id),
-      token: sessionStorage.getItem('cftp_program_memory_token') || '',
+      token: getProgramMemoryToken_(),
       pictureId: String(pictureId),
       date,
       time
@@ -6286,7 +6322,7 @@ async function deleteProgramMemoryAlbum(pictureId) {
   if (!state.user || state.user.role !== 'admin') return;
   if (!confirm(programMemoryText('Padam semua gambar dalam album event ini? Tindakan ini tidak boleh dibatalkan.','Delete every photo in this event album? This cannot be undone.'))) return;
   try {
-    const result = await driveAPI('deleteProgramPicture',{userId:String(state.user.id),token:sessionStorage.getItem('cftp_program_memory_token')||'',pictureId:String(pictureId)});
+    const result = await driveAPI('deleteProgramPicture',{userId:String(state.user.id),token:getProgramMemoryToken_(),pictureId:String(pictureId)});
     if (!result?.ok) throw new Error(result?.error || 'Delete failed.');
     await loadProgramMemory(true);
     toast(programMemoryText('Album berjaya dipadam.','Album deleted.'),'ok');
@@ -6977,10 +7013,7 @@ async function handleLogin(form) {
     rememberSessionUser(u);
     certificateAccessLoadedFor = '';
     certificateAccessState = { canUpload:false, canManage:false, userIds:[], candidates:[] };
-    try {
-      if (verification.programMemoryToken) sessionStorage.setItem('cftp_program_memory_token', verification.programMemoryToken);
-      else sessionStorage.removeItem('cftp_program_memory_token');
-    } catch (_) {}
+    setProgramMemoryToken_(verification.programMemoryToken || '');
     state.view = 'dashboard';
     state.params = {};
     localStorage.setItem(SESSION_KEY, u.id);
@@ -12037,7 +12070,7 @@ let certificateAccessState = { canUpload:false, canManage:false, userIds:[], can
 let certificateAccessLoadedFor = '';
 let certificateAccessLoadPromise = null;
 function certificateAuthPayload_() {
-  return { userId:String(state.user && state.user.id || ''), token:sessionStorage.getItem('cftp_program_memory_token') || '' };
+  return { userId:String(state.user && state.user.id || ''), token:getProgramMemoryToken_() };
 }
 async function refreshCertificateAccess_(silent = true) {
   if (!state.user) return null;
@@ -12419,7 +12452,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'switch-register': state.loginMode = 'register'; render(); break;
     case 'switch-login': state.loginMode = 'login'; render(); break;
-    case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
+    case 'logout': clearProgramMemoryToken_(); handleLogoutClick(); break;
     case 'open-final-question-bell': openFinalQuestionBell(); break;
     case 'open-module-assessment-bell': openModuleAssessmentBell(); break;
     case 'request-module-assessment': requestModuleAssessmentSetup(tgt.dataset.mid); break;
