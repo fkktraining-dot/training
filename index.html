@@ -8303,14 +8303,45 @@ function finalExamPendingParticipants(fe) {
   return allParticipants().filter(person => mids.some(mid => isEnrolled(mid, person.id)) &&
     (fe.type === 'theory' ? !feAttemptFor(fe.id, person.id) : !fePracticalFor(fe.id, person.id)));
 }
+// Reminder recipients are limited to trainers/facilitators assigned to the relevant module(s).
+function assignedModuleReminderRecipientIds(moduleIds) {
+  const ids = Array.isArray(moduleIds) ? moduleIds : [moduleIds];
+  const recipients = [];
+  ids.filter(Boolean).forEach(mid => {
+    const mod = getModule(mid);
+    if (!mod) return;
+    [...moduleTrainerIds(mod), ...moduleFacilitatorIds(mod)].forEach(id => {
+      const value = String(id || '').trim();
+      if (value && !recipients.includes(value)) recipients.push(value);
+    });
+  });
+  return recipients;
+}
+function staffReminderMarkup() {
+  if (!['trainer','facilitator'].includes(state.user?.role)) return '';
+  const uid = String(state.user.id);
+  const quizItems = (DB.quizReminders || []).filter(r => r.type === 'activity-staff' && String(r.recipientId) === uid && getActivity(r.activityId));
+  const finalItems = (DB.quizReminders || []).filter(r => r.type === 'final-staff' && String(r.recipientId) === uid && getFinalExam(r.finalId));
+  const markItems = (DB.markUploadReminders || []).filter(r => String(r.recipientId) === uid && !r.completed && getActivity(r.activityId));
+  const items = [
+    ...quizItems.map(r => ({...r, kind:'quiz', title:getActivity(r.activityId).title, moduleId:r.moduleId || getActivity(r.activityId).moduleId, action:'open-activity', targetId:r.activityId})),
+    ...finalItems.map(r => ({...r, kind:'final', title:getFinalExam(r.finalId).title, moduleId:r.moduleId || feModuleIds(getFinalExam(r.finalId))[0], action:'open-final-tab', targetId:r.finalId})),
+    ...markItems.map(r => ({...r, kind:'marks', title:getActivity(r.activityId).title, moduleId:r.moduleId || getActivity(r.activityId).moduleId, action:'open-activity', targetId:r.activityId}))
+  ].sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  if (!items.length) return '';
+  const en = currentLang === 'en';
+  return `<div class="card" style="border-color:#f0d98a;background:#fffdf5;margin-bottom:14px"><div class="card-head"><h3>🔔 ${en ? 'Module Staff Reminders' : 'Peringatan Staff Modul'}</h3><span class="badge warn">${items.length}</span></div>${items.map(r => `<div class="pending-quiz-card"><div><div class="pq-title">${r.kind === 'marks' ? '📊' : r.kind === 'final' ? '📝' : '📝'} ${tce(r.title)}</div><div class="pq-meta">${tce(moduleName(r.moduleId))} · ${en ? 'Reminder from' : 'Peringatan daripada'} ${tce(userName(r.senderId))} · ${fmtDateTime(r.createdAt)}</div><div class="pq-meta">${tce(r.message || '')}</div></div><button class="btn btn-primary btn-sm" data-act="${r.action}" data-id="${esc(r.targetId)}">${en ? 'Open' : 'Buka'} →</button></div>`).join('')}</div>`;
+}
+
 function sendFinalExamReminder(feid) {
   const fe = getFinalExam(feid);
   if (!fe || !['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
   if (state.user.role !== 'admin' && !feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) { toast(t('msg_no_access'),'bad'); return; }
   const pending = finalExamPendingParticipants(fe);
-  if (!pending.length) { toast(currentLang === 'en' ? 'All enrolled participants have completed this Final Exam.' : 'Semua peserta berdaftar telah melengkapkan Final Exam ini.','ok'); return; }
-  const message = currentLang === 'en' ? 'Please complete the Final Exam.' : 'Sila lengkapkan Final Exam.';
-  if (!confirm((currentLang === 'en' ? 'Send a Final Exam reminder to ' : 'Hantar peringatan Final Exam kepada ') + pending.length + (currentLang === 'en' ? ' participant(s) who have not completed it?' : ' peserta yang belum melengkapkannya?'))) return;
+  const staffRecipients = assignedModuleReminderRecipientIds(feModuleIds(fe));
+  if (!pending.length && !staffRecipients.length) { toast(currentLang === 'en' ? 'All participants have completed this Final Exam and no trainer/facilitator is assigned to its module(s).' : 'Semua peserta telah melengkapkan Final Exam ini dan tiada trainer/fasilitator ditugaskan kepada modul berkaitan.','ok'); return; }
+  const message = currentLang === 'en' ? 'Please review the Final Exam activity and participant completion.' : 'Sila semak Final Exam dan status penyelesaian peserta.';
+  if (!confirm(currentLang === 'en' ? `Send a Final Exam reminder to ${pending.length} pending participant(s) and ${staffRecipients.length} assigned trainer/facilitator(s)?` : `Hantar peringatan Final Exam kepada ${pending.length} peserta yang belum selesai dan ${staffRecipients.length} trainer/fasilitator yang ditugaskan?`)) return;
   if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
   const now = nowISO();
   pending.forEach(person => {
@@ -8318,11 +8349,16 @@ function sendFinalExamReminder(feid) {
     if (existing) Object.assign(existing, { senderId:state.user.id, message, createdAt:now, readAt:null });
     else DB.quizReminders.push({ id:uid('frem'), type:'final', finalId:fe.id, moduleId:feModuleIds(fe).find(mid => isEnrolled(mid, person.id)) || null, participantId:person.id, senderId:state.user.id, message, createdAt:now, readAt:null });
   });
+  staffRecipients.forEach(recipientId => {
+    const existing = DB.quizReminders.find(item => item.type === 'final-staff' && String(item.finalId) === String(fe.id) && String(item.recipientId) === recipientId);
+    if (existing) Object.assign(existing, { moduleId:feModuleIds(fe)[0] || null, senderId:state.user.id, message, createdAt:now, readAt:null });
+    else DB.quizReminders.push({ id:uid('fsrem'), type:'final-staff', finalId:fe.id, moduleId:feModuleIds(fe)[0] || null, recipientId, senderId:state.user.id, message, createdAt:now, readAt:null });
+  });
   saveDB();
   forceSaveNow().then(saved => {
     if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan belum berjaya disegerakkan. Sila cuba Sync semula.','bad'); return; }
-    logAudit('Send Final Exam Reminder','Peperiksaan',fe.id,`${pending.length} participant(s) reminded`);
-    toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s).` : `Peringatan dihantar kepada ${pending.length} peserta.`,'ok');
+    logAudit('Send Final Exam Reminder','Peperiksaan',fe.id,`${pending.length} participant(s); ${staffRecipients.length} assigned module staff reminded`);
+    toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s) and ${staffRecipients.length} assigned trainer/facilitator(s).` : `Peringatan dihantar kepada ${pending.length} peserta dan ${staffRecipients.length} trainer/fasilitator modul.`,'ok');
     render();
   });
 }
@@ -9267,9 +9303,10 @@ async function sendQuizReminder(activityId) {
   if (state.user.role !== 'admin' && !canTrainerAccessActivity(activityId)) { toast(t('msg_no_access'),'bad'); return; }
   if (isPracticalActivityMethod(activity.method) || !(activity.quiz || []).length) { toast(currentLang === 'en' ? 'This activity has no quiz.' : 'Aktiviti ini tiada quiz.','warn'); return; }
   const pending = quizPendingParticipants(activity);
-  if (!pending.length) { toast(currentLang === 'en' ? 'All enrolled participants have answered this quiz.' : 'Semua peserta berdaftar telah menjawab quiz ini.','ok'); return; }
-  const message = currentLang === 'en' ? 'Please complete the quiz for this activity.' : 'Sila jawab quiz bagi aktiviti ini.';
-  if (!confirm((currentLang === 'en' ? 'Send a reminder to ' : 'Hantar peringatan kepada ') + pending.length + (currentLang === 'en' ? ' participant(s) who have not answered yet?' : ' peserta yang belum menjawab quiz?'))) return;
+  const staffRecipients = assignedModuleReminderRecipientIds(activity.moduleId);
+  if (!pending.length && !staffRecipients.length) { toast(currentLang === 'en' ? 'All participants have answered this quiz and no trainer/facilitator is assigned to its module.' : 'Semua peserta telah menjawab quiz ini dan tiada trainer/fasilitator ditugaskan kepada modul aktiviti.','ok'); return; }
+  const message = currentLang === 'en' ? 'Please review this activity quiz and participant completion.' : 'Sila semak quiz aktiviti ini dan status penyelesaian peserta.';
+  if (!confirm(currentLang === 'en' ? `Send a quiz reminder to ${pending.length} pending participant(s) and ${staffRecipients.length} assigned trainer/facilitator(s)?` : `Hantar peringatan quiz kepada ${pending.length} peserta yang belum menjawab dan ${staffRecipients.length} trainer/fasilitator yang ditugaskan?`)) return;
   if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
   const now = nowISO();
   pending.forEach(person => {
@@ -9277,11 +9314,16 @@ async function sendQuizReminder(activityId) {
     if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = now; existing.readAt = null; }
     else DB.quizReminders.push({ id:uid('qrem'), activityId:activity.id, moduleId:activity.moduleId, participantId:person.id, senderId:state.user.id, message, createdAt:now, readAt:null });
   });
+  staffRecipients.forEach(recipientId => {
+    const existing = DB.quizReminders.find(item => item.type === 'activity-staff' && String(item.activityId) === String(activity.id) && String(item.recipientId) === recipientId);
+    if (existing) Object.assign(existing, { moduleId:activity.moduleId, senderId:state.user.id, message, createdAt:now, readAt:null });
+    else DB.quizReminders.push({ id:uid('qsrem'), type:'activity-staff', activityId:activity.id, moduleId:activity.moduleId, recipientId, senderId:state.user.id, message, createdAt:now, readAt:null });
+  });
   saveDB();
   const saved = await forceSaveNow();
   if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan belum berjaya disegerakkan. Sila cuba Sync semula.','bad'); return; }
-  logAudit('Send Quiz Reminder','Quiz',activity.id,`${pending.length} participant(s) reminded`);
-  toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s).` : `Peringatan dihantar kepada ${pending.length} peserta.`,'ok');
+  logAudit('Send Quiz Reminder','Quiz',activity.id,`${pending.length} participant(s); ${staffRecipients.length} assigned module staff reminded`);
+  toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s) and ${staffRecipients.length} assigned trainer/facilitator(s).` : `Peringatan dihantar kepada ${pending.length} peserta dan ${staffRecipients.length} trainer/fasilitator modul.`,'ok');
   render();
 }
 
@@ -9391,17 +9433,20 @@ function sendMarksUploadReminder(activityId) {
   const activity = getActivity(activityId);
   if (!activity || !['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
   if (state.user.role !== 'admin' && !canTrainerAccessActivity(activityId)) { toast(t('msg_no_access'),'bad'); return; }
-  const recipientId = String(activity.trainerId || '');
-  if (!recipientId) { toast(currentLang === 'en' ? 'No trainer is assigned to this activity.' : 'Tiada trainer ditetapkan untuk aktiviti ini.','warn'); return; }
+  const recipients = assignedModuleReminderRecipientIds(activity.moduleId);
+  if (!recipients.length) { toast(currentLang === 'en' ? 'No trainer or facilitator is assigned to this activity module.' : 'Tiada trainer atau fasilitator ditugaskan kepada modul aktiviti ini.','warn'); return; }
   const message = currentLang === 'en' ? 'Please upload/update the marks for this activity.' : 'Sila muat naik/kemas kini markah bagi aktiviti ini.';
-  if (!confirm(currentLang === 'en' ? `Send marks-upload reminder to ${userName(recipientId)}?` : `Hantar peringatan muat naik markah kepada ${userName(recipientId)}?`)) return;
+  const names = recipients.map(userName).filter(Boolean).join(', ');
+  if (!confirm(currentLang === 'en' ? `Send marks-upload reminder to ${names}?` : `Hantar peringatan muat naik markah kepada ${names}?`)) return;
   if (!Array.isArray(DB.markUploadReminders)) DB.markUploadReminders = [];
   const now = nowISO();
-  const existing = DB.markUploadReminders.find(r => String(r.activityId) === String(activity.id) && String(r.recipientId) === recipientId && !r.completed);
-  if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = now; existing.readAt = null; }
-  else DB.markUploadReminders.push({id:uid('mrem'), activityId:activity.id, moduleId:activity.moduleId, recipientId, senderId:state.user.id, message, createdAt:now, readAt:null, completed:false});
+  recipients.forEach(recipientId => {
+    const existing = DB.markUploadReminders.find(r => String(r.activityId) === String(activity.id) && String(r.recipientId) === recipientId && !r.completed);
+    if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = now; existing.readAt = null; existing.moduleId = activity.moduleId; }
+    else DB.markUploadReminders.push({id:uid('mrem'), activityId:activity.id, moduleId:activity.moduleId, recipientId, senderId:state.user.id, message, createdAt:now, readAt:null, completed:false});
+  });
   saveDB();
-  forceSaveNow().then(saved => { if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan tidak dapat disegerakkan. Sila cuba Sync.','bad'); return; } logAudit('Send Marks Upload Reminder','Penilaian',activity.id,`Reminder sent to ${userName(recipientId)}`); toast(currentLang === 'en' ? 'Marks upload reminder sent.' : 'Peringatan muat naik markah dihantar.','ok'); render(); });
+  forceSaveNow().then(saved => { if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan tidak dapat disegerakkan. Sila cuba Sync.','bad'); return; } logAudit('Send Marks Upload Reminder','Penilaian',activity.id,`Reminder sent to ${recipients.length} assigned module staff`); toast(currentLang === 'en' ? `Marks upload reminder sent to ${recipients.length} assigned trainer/facilitator(s).` : `Peringatan muat naik markah dihantar kepada ${recipients.length} trainer/fasilitator modul.`,'ok'); render(); });
 }
 
 function activitiesView() {
@@ -9473,7 +9518,7 @@ function activitiesView() {
           ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
           ${canCreate && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind participants who have not answered' : 'Ingatkan peserta yang belum menjawab'}">🔔 ${quizPendingParticipants(a).length}</button>` : ''}
-          ${canCreate && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="send-marks-upload-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind assigned trainer to upload marks' : 'Ingatkan trainer untuk muat naik markah'}">📊 ${currentLang === 'en' ? 'Remind Marks' : 'Ingatkan Markah'}</button>` : ''}
+          ${canCreate && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="send-marks-upload-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind assigned module trainers/facilitators to upload marks' : 'Ingatkan trainer/fasilitator modul untuk muat naik markah'}">📊 ${currentLang === 'en' ? 'Remind Marks' : 'Ingatkan Markah'}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) && practical ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) ? `${!practical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}<button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : ''}
@@ -9493,7 +9538,7 @@ function activitiesView() {
       </div>
     </div>
     ${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}
-    ${(['trainer','facilitator'].includes(state.user.role) && (DB.markUploadReminders||[]).some(r => String(r.recipientId) === String(state.user.id) && !r.completed)) ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5;margin-bottom:14px"><div class="card-head"><h3>🔔 ${currentLang === 'en' ? 'Marks Upload Reminders' : 'Peringatan Muat Naik Markah'}</h3><span class="badge warn">${(DB.markUploadReminders||[]).filter(r => String(r.recipientId) === String(state.user.id) && !r.completed).length}</span></div>${(DB.markUploadReminders||[]).filter(r => String(r.recipientId) === String(state.user.id) && !r.completed).map(r => { const ra=getActivity(r.activityId); return ra ? `<div class="pending-quiz-card"><div><div class="pq-title">📊 ${tce(ra.title)}</div><div class="pq-meta">${tce(moduleName(ra.moduleId))} · ${currentLang === 'en' ? 'Reminder from' : 'Peringatan daripada'} ${tce(userName(r.senderId))} · ${fmtDateTime(r.createdAt)}</div><div class="pq-meta">${tce(r.message||'')}</div></div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${esc(ra.id)}">${currentLang === 'en' ? 'Open activity' : 'Buka aktiviti'} →</button></div>` : ''; }).join('')}</div>` : ''}
+    ${staffReminderMarkup()}
     ${moduleGroups.length ? `<div class="activity-module-groups" style="display:grid;gap:14px">${moduleGroups.map((group,index) => `
       <details class="card activity-module-group" ${index===0 ? 'open' : ''} style="margin:0;padding:0;overflow:hidden">
         <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:var(--surface-2,rgba(127,127,127,.08))">
