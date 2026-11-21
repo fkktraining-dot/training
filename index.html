@@ -3925,6 +3925,14 @@ function logAudit(action, entity, entityId, details) {
   saveDB();
 }
 
+// Batch upload status record for Activity Status notifications.
+function logMarksUploadStatus(kind, activityLabel, moduleLabel, count, pendingApproval=false, entity='Penilaian', entityId='') {
+  const role = state.user?.role === 'facilitator' ? 'Facilitator (Fasi)' : state.user?.role === 'trainer' ? 'Trainer' : (state.user?.role || 'Staff');
+  const status = pendingApproval ? 'Submitted for trainer approval' : 'Marks upload completed';
+  const details = `${role} uploaded ${kind} marks · ${activityLabel || 'Assessment'} · ${moduleLabel || 'Module'} · ${count} participant record(s) · ${status}`;
+  logAudit('Marks Upload Status', entity, entityId || activityLabel || kind, details);
+}
+
 const sortActs = (arr) => arr.slice().sort((a, b) => a.order - b.order);
 const sortModules = (arr) => arr.slice().sort((a, b) => {
   const da = a.startDate || '9999-12-31';
@@ -8717,6 +8725,7 @@ async function importFinalPracticalMarksExcel(file,feid) {
     else {let rec=(DB.fePractical||[]).find(x=>x.finalId===feid&&x.participantId===item.pid);if(rec){Object.assign(rec,payload,{by:state.user.id,at:nowISO()});}else DB.fePractical.push({id:uid('fep'),finalId:feid,participantId:item.pid,...payload,by:state.user.id,at:nowISO()});}
     logAudit(fac?'Bulk Final Practical Submitted':'Bulk Final Practical Marks Import','Peperiksaan',`${feid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
   });
+  logMarksUploadStatus('Final Exam Practical', fe.title, feModulesLabel(fe), parsed.length, fac, 'Peperiksaan', feid);
   saveDB();toast(`${parsed.length} ${currentLang==='en'?'participant marks imported':'rekod markah peserta diimport'}.${incomplete?` ${incomplete} incomplete row(s) skipped.`:''}${fac?' Sent for trainer approval.':''}`);render();
 }
 function finalPracticalRubricPrintHTML(feid,pid) {
@@ -9339,6 +9348,23 @@ function exportAllModuleMarksToExcel() {
   XLSX.writeFile(wb,`CFTP_All_Module_Marks_${stamp}.xlsx`);
   toast(en?`Exported ${totalRows} saved mark record(s) across ${modules.length} module(s).`:`${totalRows} rekod markah tersimpan berjaya dieksport bagi ${modules.length} modul.`,'ok');
 }
+function sendMarksUploadReminder(activityId) {
+  const activity = getActivity(activityId);
+  if (!activity || !['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
+  if (state.user.role !== 'admin' && !canTrainerAccessActivity(activityId)) { toast(t('msg_no_access'),'bad'); return; }
+  const recipientId = String(activity.trainerId || '');
+  if (!recipientId) { toast(currentLang === 'en' ? 'No trainer is assigned to this activity.' : 'Tiada trainer ditetapkan untuk aktiviti ini.','warn'); return; }
+  const message = currentLang === 'en' ? 'Please upload/update the marks for this activity.' : 'Sila muat naik/kemas kini markah bagi aktiviti ini.';
+  if (!confirm(currentLang === 'en' ? `Send marks-upload reminder to ${userName(recipientId)}?` : `Hantar peringatan muat naik markah kepada ${userName(recipientId)}?`)) return;
+  if (!Array.isArray(DB.markUploadReminders)) DB.markUploadReminders = [];
+  const now = nowISO();
+  const existing = DB.markUploadReminders.find(r => String(r.activityId) === String(activity.id) && String(r.recipientId) === recipientId && !r.completed);
+  if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = now; existing.readAt = null; }
+  else DB.markUploadReminders.push({id:uid('mrem'), activityId:activity.id, moduleId:activity.moduleId, recipientId, senderId:state.user.id, message, createdAt:now, readAt:null, completed:false});
+  saveDB();
+  forceSaveNow().then(saved => { if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan tidak dapat disegerakkan. Sila cuba Sync.','bad'); return; } logAudit('Send Marks Upload Reminder','Penilaian',activity.id,`Reminder sent to ${userName(recipientId)}`); toast(currentLang === 'en' ? 'Marks upload reminder sent.' : 'Peringatan muat naik markah dihantar.','ok'); render(); });
+}
+
 function activitiesView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
@@ -9371,14 +9397,28 @@ function activitiesView() {
   });
   groupKeys.forEach(key => moduleGroups.push({ key, name: key === '__no_module__' ? (currentLang === 'en' ? 'Unassigned Module' : 'Modul Belum Ditetapkan') : moduleName(key), activities: grouped.get(key) }));
 
+  // Per-activity marks upload progress: count enrolled participants with saved marks.
+  const activityMarksProgress = activity => {
+    const enrolled = enrolledParticipants(activity.moduleId).map(x => x.user).filter(Boolean);
+    const total = enrolled.length;
+    const practical = isPracticalActivityMethod(activity.method);
+    const completed = enrolled.filter(person => practical
+      ? !!getPractical(activity.id, person.id)
+      : !!getAttempt(activity.id, person.id)).length;
+    const percent = total ? Math.round(completed / total * 100) : 0;
+    return { completed, total, percent };
+  };
   const renderActivityTable = groupActs => {
     const hasQuiz = groupActs.some(a => !isPracticalActivityMethod(a.method));
     return `<div class="table-wrap"><table><thead><tr>
       <th>${t('lbl_title')}</th><th>${t('lbl_trainer')}</th><th>${t('lbl_date')}</th>
       ${hasQuiz ? `<th>${t('lbl_quiz')}</th>` : ''}<th>${t('lbl_status')}</th>
+      <th style="min-width:180px">${currentLang === 'en' ? 'Marks Upload Progress' : 'Kemajuan Upload Markah'}</th>
       <th style="width:340px">${t('lbl_actions')}</th>
     </tr></thead><tbody>${groupActs.map(a => {
       const practical = isPracticalActivityMethod(a.method);
+      const markProgress = activityMarksProgress(a);
+      const progressColor = markProgress.percent >= 100 ? '#16a34a' : markProgress.percent > 0 ? '#f59e0b' : '#dc2626';
       const shownTitle = practical && /^Practical Assessment Rubric:\s*/i.test(a.title || '') ? 'Practical Assessment' : a.title;
       return `<tr>
         <td><strong>${tce(shownTitle)}</strong></td>
@@ -9386,6 +9426,7 @@ function activitiesView() {
         <td>${fmtDate(a.date)}</td>
         ${hasQuiz ? `<td>${!practical ? `<span class="badge info">${(a.quiz||[]).length}</span>${a.quizDuration ? ` <small class="muted">⏱️${a.quizDuration}m</small>` : ''}` : '—'}</td>` : ''}
         <td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td>
+        <td><div style="min-width:150px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-bottom:5px"><strong>${markProgress.completed}/${markProgress.total}</strong><strong style="color:${progressColor}">${markProgress.percent}%</strong></div><div style="height:8px;background:var(--surface-3,rgba(127,127,127,.18));border-radius:999px;overflow:hidden"><div style="height:100%;width:${markProgress.percent}%;background:${progressColor};border-radius:999px;transition:width .25s"></div></div><small class="muted">${markProgress.percent >= 100 ? (currentLang === 'en' ? 'All marks uploaded' : 'Semua markah lengkap') : (currentLang === 'en' ? 'Marks pending' : 'Markah belum lengkap')}</small></div></td>
         <td><div class="toolbar">
           <button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>
           ${['trainer','facilitator'].includes(state.user.role) && a.published && String(a.createdBy || '') !== String(state.user.id) ? `<button class="btn btn-sm" data-act="duplicate-activity" data-id="${a.id}">📄 ${currentLang === 'en' ? 'Duplicate to my module' : 'Duplicate ke modul saya'}</button>` : ''}
@@ -9393,6 +9434,7 @@ function activitiesView() {
           ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm ${a.published ? '' : 'btn-primary'}" data-act="toggle-publish" data-id="${a.id}">${a.published ? t('btn_unpublish') : '✅ ' + t('btn_publish')}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length && a.published ? `<button class="btn btn-sm" data-act="open-quiz-tab" data-id="${a.id}">👁️</button>` : ''}
           ${canCreate && canTrainerAccessActivity(a.id) && !practical && a.quiz && a.quiz.length ? `<button class="btn btn-sm" data-act="send-quiz-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind participants who have not answered' : 'Ingatkan peserta yang belum menjawab'}">🔔 ${quizPendingParticipants(a).length}</button>` : ''}
+          ${canCreate && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="send-marks-upload-reminder" data-id="${a.id}" title="${currentLang === 'en' ? 'Remind assigned trainer to upload marks' : 'Ingatkan trainer untuk muat naik markah'}">📊 ${currentLang === 'en' ? 'Remind Marks' : 'Ingatkan Markah'}</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) ? `<button class="btn btn-sm" data-act="edit-activity" data-id="${a.id}">✏️</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) && practical ? `<button class="btn btn-sm" data-act="edit-rubric-builder" data-id="${a.id}" title="${t('rb_edit')}">📏</button>` : ''}
           ${!isVip && canTrainerAccessActivity(a.id) ? `${!practical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${a.id}" title="${t('qb_title')}">🗂️</button>` : ''}<button class="btn btn-sm btn-danger" data-act="delete-activity" data-id="${a.id}">🗑️</button>` : ''}
@@ -9412,6 +9454,7 @@ function activitiesView() {
       </div>
     </div>
     ${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}
+    ${(['trainer','facilitator'].includes(state.user.role) && (DB.markUploadReminders||[]).some(r => String(r.recipientId) === String(state.user.id) && !r.completed)) ? `<div class="card" style="border-color:#f0d98a;background:#fffdf5;margin-bottom:14px"><div class="card-head"><h3>🔔 ${currentLang === 'en' ? 'Marks Upload Reminders' : 'Peringatan Muat Naik Markah'}</h3><span class="badge warn">${(DB.markUploadReminders||[]).filter(r => String(r.recipientId) === String(state.user.id) && !r.completed).length}</span></div>${(DB.markUploadReminders||[]).filter(r => String(r.recipientId) === String(state.user.id) && !r.completed).map(r => { const ra=getActivity(r.activityId); return ra ? `<div class="pending-quiz-card"><div><div class="pq-title">📊 ${tce(ra.title)}</div><div class="pq-meta">${tce(moduleName(ra.moduleId))} · ${currentLang === 'en' ? 'Reminder from' : 'Peringatan daripada'} ${tce(userName(r.senderId))} · ${fmtDateTime(r.createdAt)}</div><div class="pq-meta">${tce(r.message||'')}</div></div><button class="btn btn-primary btn-sm" data-act="open-activity" data-id="${esc(ra.id)}">${currentLang === 'en' ? 'Open activity' : 'Buka aktiviti'} →</button></div>` : ''; }).join('')}</div>` : ''}
     ${moduleGroups.length ? `<div class="activity-module-groups" style="display:grid;gap:14px">${moduleGroups.map((group,index) => `
       <details class="card activity-module-group" ${index===0 ? 'open' : ''} style="margin:0;padding:0;overflow:hidden">
         <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:var(--surface-2,rgba(127,127,127,.08))">
@@ -10863,6 +10906,7 @@ async function importAllPracticalMarksExcel(file) {
       }
       logAudit(shouldSubmit?'Bulk Practical Submitted (Pending Approval)':'Bulk Practical Marks Import','Penilaian',`${aid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
     });
+    logMarksUploadStatus('Practical Assessment', parsedAll[0]?.act?.title || 'Practical Assessment', moduleName(parsedAll[0]?.act?.moduleId), parsedAll.length, state.user.role==='facilitator', 'Penilaian', parsedAll[0]?.aid);
     saveDB();
     const saved=await forceSaveNow();
     if(!saved||!saved.ok){toast(currentLang==='ms'?'Markah diproses tetapi penyegerakan belum berjaya. Sila Sync semula.':'Marks processed but sync has not completed. Please retry Sync.','warn');}
@@ -10942,6 +10986,7 @@ async function importPracticalMarksExcel(file,aid) {
     }
     logAudit(shouldSubmit?'Bulk Practical Submitted (Pending Approval)':'Bulk Practical Marks Import','Penilaian',`${aid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
   });
+  logMarksUploadStatus('Practical Assessment', ctx.act.title, moduleName(ctx.act.moduleId), parsed.length, shouldSubmit, 'Penilaian', aid);
   saveDB();
   toast((shouldSubmit?`${parsed.length} rekod dihantar untuk kelulusan trainer.`:`${parsed.length} rekod markah berjaya diimport.`)+(incompleteRows?` ${incompleteRows} peserta belum lengkap dan tidak diimport.`:''));
   render();
@@ -12463,6 +12508,7 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'send-quiz-reminder': await sendQuizReminder(id); break;
+    case 'send-marks-upload-reminder': sendMarksUploadReminder(id); break;
     case 'send-final-exam-reminder': sendFinalExamReminder(id); break;
     case 'export-module-marks': exportAllModuleMarksToExcel(); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
@@ -13151,6 +13197,8 @@ async function importAllTheoryMarksExcel(file) {
       if(old) Object.assign(old,rec); else DB.attempts.push(rec);
       logAudit('Bulk Theory Marks Import','Penilaian',`${x.aid}:${x.pid}`,`${x.score}/${x.total}`);
     });
+    const firstTheory = parsed[0], firstAct = DB.activities.find(a=>String(a.id)===String(firstTheory.aid));
+    logMarksUploadStatus('Theory Assessment', firstAct?.title || 'Theory Assessment', moduleName(firstAct?.moduleId), parsed.length, false, 'Penilaian', firstTheory.aid);
     saveAssessmentToGoogleSheets(currentLang==='en'?'All theory assessment marks uploaded and saved to Google Sheets.':'Semua markah Theory Assessment dimuat naik dan disimpan ke Google Sheets.');
     toast(currentLang==='en'?`${parsed.length} theory mark record(s) imported.`:`${parsed.length} rekod markah teori berjaya diimport.`,'ok');
     render();
@@ -13191,6 +13239,7 @@ async function importQuizMarksTemplate(file,aid) {
     const rec={id:old?.id||uid('att'),activityId:aid,participantId:x.pid,score:x.score,total:x.total,manual:true,at:nowISO(),enteredBy:state.user.id,source:'excel-upload'};
     if(old)Object.assign(old,rec);else DB.attempts.push(rec);});
   logAudit('Upload Quiz Marks','Penilaian',aid,`${parsed.length} participant marks`);
+  logMarksUploadStatus('Quiz', act.title, moduleName(act.moduleId), parsed.length, false, 'Penilaian', aid);
   saveAssessmentToGoogleSheets('Quiz marks uploaded and saved to Google Sheets.');render();
 }
 document.addEventListener('submit',e=>{
