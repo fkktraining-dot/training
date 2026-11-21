@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="cftp-app-version" content="2026.11.20.1" />
 <link rel="preconnect" href="https://drive.google.com" crossorigin>
 <link rel="preconnect" href="https://docs.google.com" crossorigin>
 <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
@@ -36,6 +35,14 @@ small,.muted{color:var(--muted)}
 .btn-primary:hover{background:#095a46;border-color:#095a46}
 .btn-danger{background:#fff;border-color:#e8c4bf;color:var(--bad)}
 .btn-sm{padding:.34rem .6rem;font-size:.78rem;border-radius:8px}
+/* Participant Theory Assessment: clear, consistently horizontal action buttons */
+.grading-actions{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center;justify-content:flex-start;gap:7px;min-width:max-content;white-space:nowrap}
+.grading-actions .btn{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;gap:5px;min-height:34px;padding:7px 10px;font-size:.76rem;font-weight:750;white-space:nowrap;line-height:1.15}
+.grading-actions .grading-answer{background:#e8f1ff;border:1px solid #b9d0f5;color:#174a8b}
+.grading-actions .grading-fullmark{background:#e8f7ef;border:1px solid #b7e2c9;color:#17633c}
+.grading-actions .grading-retest{min-width:40px;padding:7px 9px}
+.grading-actions-cell{min-width:320px;width:320px}
+@media(max-width:760px){.grading-actions-cell{min-width:320px}.grading-actions{gap:6px}.grading-actions .btn{padding:7px 8px;font-size:.72rem}}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-block{width:100%;padding:.9rem;font-size:1rem;font-weight:700}
 .iconbtn{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
@@ -851,6 +858,42 @@ html, body {
 .pm-post-gallery-empty{grid-column:1/-1;padding:35px 12px;text-align:center;color:#657b74}
 @media(max-width:600px){.pm-post-gallery-backdrop{padding:8px}.pm-post-gallery-dialog{max-height:96vh;border-radius:10px}.pm-post-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:9px}.pm-post-gallery-item img{height:170px}}
 
+
+
+/* CFTP SCREEN-FIT ENHANCEMENTS — UI ONLY; preserve existing page and data behaviour */
+.cftp-final-bell{position:relative;min-width:42px;min-height:38px;justify-content:center}
+.cftp-final-bell.has-pending{box-shadow:0 0 0 2px rgba(192,57,43,.12);border-color:#d94b42!important}
+.cftp-final-bell.has-pending::after{content:"";position:absolute;inset:-3px;border:2px solid rgba(217,75,66,.35);border-radius:10px;animation:cftpBellPulse 1.8s ease-out infinite;pointer-events:none}
+@keyframes cftpBellPulse{0%{transform:scale(.94);opacity:.9}100%{transform:scale(1.22);opacity:0}}
+html,body,#app,.shell,.admin-shell,.main,#view{box-sizing:border-box;max-width:100%;min-width:0}
+.main{flex:1 1 0%;min-width:0}
+#view{width:100%;min-width:0;overflow-wrap:anywhere}
+#view img,#view video,#view iframe{max-width:100%}
+#view .card,#view .stat,#view .module-card,#view .spider-module{min-width:0;max-width:100%}
+#view .grid,#view .grid2,#view .grid-2,#view .grid-3,#view .grid-4{min-width:0}
+#view .table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+#view table{max-width:100%}
+#modalRoot .modal,#modalRoot2 .modal{width:min(1100px,calc(100vw - 28px));max-width:calc(100vw - 28px);max-height:calc(100dvh - 28px);overflow-y:auto;overscroll-behavior:contain}
+#modalRoot .modal-backdrop,#modalRoot2 .modal-backdrop{padding:14px;overflow-y:auto;align-items:flex-start}
+@media screen and (min-width:901px){
+  .shell>.main,.admin-shell>.main{min-width:0;width:auto}
+  #view{padding-left:clamp(16px,2vw,30px);padding-right:clamp(16px,2vw,30px)}
+}
+@media screen and (max-width:900px){
+  .main{width:100%!important;min-width:0!important}
+  #view{width:100%!important;padding-left:clamp(12px,3vw,20px)!important;padding-right:clamp(12px,3vw,20px)!important}
+  #view .grid,#view .grid2,#view .grid-2,#view .grid-3,#view .grid-4{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))!important}
+  #modalRoot .modal,#modalRoot2 .modal{width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px)}
+  #modalRoot .modal-backdrop,#modalRoot2 .modal-backdrop{padding:10px}
+}
+@media (prefers-reduced-motion:reduce){.cftp-final-bell.has-pending::after{animation:none}}
+
+
+/* SAFE ADD-ON: distinguish Final Exam notifications by recipient role */
+.cftp-trainer-question-bell{border-color:#e4b85e;background:#fff8e8;color:#805400}
+.cftp-trainer-question-bell.has-pending{background:#fff0c7;border-color:#d99b22;color:#704500}
+.cftp-participant-reminder-bell{border-color:#9bc6ed;background:#eff7ff;color:#17558a}
+.cftp-participant-reminder-bell.has-pending{background:#dceeff;border-color:#4c98d5;color:#124c7c}
 </style>
 <script>tailwind.config = {corePlugins:{preflight:false}};</script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -1024,10 +1067,6 @@ const DRIVE_API_URL = 'https://script.google.com/macros/s/AKfycbzwuWLsDVDCN20VkU
 const DRIVE_API_KEY = '';
 const DRIVE_TIMEOUT_MS = 120000; // Allow time for Apps Script lock contention under concurrent use.
 
-// Front-end build identity only. This does not alter database keys or backend data.
-const CFTP_APP_VERSION = '2026.11.20.1';
-const CFTP_BUILD_ID = 'cftp-20261120-activityfeed-stable-session-01';
-
 /* =========================================================
    ADMIN BACKUP & RESTORE — UI ADD-ON
    ========================================================= */
@@ -1163,7 +1202,7 @@ async function programMemoryAPI(action, data, timeoutMs) {
 const MERGEABLE_COLLECTIONS = [
   'users','modules','activities','enrollments','attempts','attendance','practical',
   'audit','questionBank','rubrics','timetables','certificates','finalExams',
-  'feAttempts','fePractical','retests','retestRequests','pendingApprovals','companies'
+  'feAttempts','fePractical','retests','retestRequests','pendingApprovals','companies','quizReminders'
 ];
 
 function cloneDB(db) { return JSON.parse(JSON.stringify(db)); }
@@ -2021,14 +2060,14 @@ const I18N = {
 
     nav_modules_all: 'Semua Modul',
     nav_programs: 'Program Latihan', nav_activities: 'Aktiviti', nav_activities_own: 'Aktiviti Saya',
-    nav_grading: 'Participant Quiz Assessment', nav_participant_assessment: 'Participant Practical Assessment', nav_attendance: 'Attendance', nav_rubrik: 'Rubrik', nav_bank: 'Bank Soalan', nav_users: 'Pengguna',
+    nav_grading: 'Participant Theory Assessment', nav_participant_assessment: 'Participant Practical Assessment', nav_attendance: 'Attendance', nav_rubrik: 'Rubrik', nav_bank: 'Bank Soalan', nav_users: 'Pengguna',
     nav_audit: 'Audit Trail', nav_reports: 'Laporan PDF', nav_sijil: 'Sijil', nav_final: 'Peperiksaan Akhir',
     nav_profile: 'Profil Saya', nav_approvals: 'Kelulusan', nav_portal: 'Portal Fasilitator',
     title_sijil: 'Pengurusan Sijil', title_final: 'Peperiksaan Akhir', title_profile: 'Profil Saya',
     title_dashboard: 'Dashboard', title_modules: 'Pengurusan Modul', title_modules_all: 'Semua Modul',
     title_module: 'Butiran Modul',
     title_programs: 'Program Latihan', title_activities: 'Pengurusan Aktiviti', title_activities_mine: 'Aktiviti Saya',
-    title_activity: 'Butiran Aktiviti', title_grading: 'Participant Quiz Assessment', title_participant_assessment: 'Participant Practical Assessment', title_attendance: 'Attendance', title_rubrik: 'Rubrik',
+    title_activity: 'Butiran Aktiviti', title_grading: 'Participant Theory Assessment', title_participant_assessment: 'Participant Practical Assessment', title_attendance: 'Attendance', title_rubrik: 'Rubrik',
     title_bank: 'Bank Soalan', title_users: 'Pengguna', title_audit: 'Audit Trail', title_reports: 'Laporan PDF',
     title_approvals: 'Kelulusan Fasilitator', title_portal: 'Portal Fasilitator',
     role_admin: 'Pentadbir', role_trainer: 'Jurulatih', role_participant: 'Peserta', role_vip: 'VIP Syarikat',
@@ -2540,7 +2579,7 @@ const I18N = {
 
     nav_modules_all: 'All Modules',
     nav_programs: 'Training Programme', nav_activities: 'Activities', nav_activities_own: 'My Activities',
-    nav_grading: 'Participant Quiz Assessment', nav_participant_assessment: 'Participant Practical Assessment', nav_attendance: 'Attendance', nav_rubrik: 'Rubrics', nav_bank: 'Question Bank', nav_users: 'Users',
+    nav_grading: 'Participant Theory Assessment', nav_participant_assessment: 'Participant Practical Assessment', nav_attendance: 'Attendance', nav_rubrik: 'Rubrics', nav_bank: 'Question Bank', nav_users: 'Users',
     nav_practical_evaluation: 'Practical Test Evaluation', title_practical_evaluation: 'Practical Test Evaluation',
     nav_practical_evaluation: 'Practical Test Evaluation', title_practical_evaluation: 'Practical Test Evaluation',
     nav_audit: 'Audit Trail', nav_reports: 'PDF Reports', nav_sijil: 'Certificates', nav_final: 'Final Exam',
@@ -2549,7 +2588,7 @@ const I18N = {
     title_dashboard: 'Dashboard', title_modules: 'Module Management', title_modules_all: 'All Modules',
     title_module: 'Module Details',
     title_programs: 'Training Programme', title_activities: 'Activity Management',
-    title_activities_mine: 'My Activities', title_activity: 'Activity Details', title_grading: 'Participant Quiz Assessment', title_participant_assessment: 'Participant Practical Assessment', title_attendance: 'Attendance',
+    title_activities_mine: 'My Activities', title_activity: 'Activity Details', title_grading: 'Participant Theory Assessment', title_participant_assessment: 'Participant Practical Assessment', title_attendance: 'Attendance',
     title_rubrik: 'Rubrics', title_bank: 'Question Bank', title_users: 'Users',
     title_audit: 'Audit Trail', title_reports: 'PDF Reports',
     title_approvals: 'Facilitator Approvals', title_portal: 'Facilitator Portal',
@@ -5249,6 +5288,7 @@ function navItemsBase() {
       { v:'participant-timetable', label:currentLang === 'en' ? 'Timetable' : 'Jadual Waktu', icon:'🗓️' },
       { v:'modules', label:t('nav_modules'), icon:'📦' },
       { v:'activities', label:t('nav_activities'), icon:'📋' },
+      { v:'final', label:t('nav_final') + (pendingFinalQuestionTasksForTrainer().length ? ` (${pendingFinalQuestionTasksForTrainer().length})` : ''), icon:'🎓' },
       { v:'grading', label:t('nav_grading'), icon:'✅' },
       { v:'participant-assessment', label:t('nav_participant_assessment'), icon:'📊' },
       { v:'attendance', label:t('nav_attendance'), icon:'☑️' },
@@ -5415,7 +5455,9 @@ function shell() {
       <header class="topbar">
         <h1>${esc(titleFor(state.view))}</h1>
         <div class="tb-right">
-          ${['trainer','facilitator'].includes(u.role) ? (() => { const n = pendingFinalQuestionTasksForTrainer().length; return `<button class="btn btn-sm ${n ? 'btn-primary' : ''}" data-act="open-final-question-bell" title="${currentLang === 'en' ? 'Final test questions requiring submission' : 'Soalan final test yang perlu dihantar'}" aria-label="Final test notifications">🔔${n ? ` <span class="badge bad">${n}</span>` : ''}</button>`; })() : ''}
+          ${['trainer','facilitator'].includes(u.role) ? (() => { const tasks = pendingFinalQuestionTasksForTrainer(); const n = tasks.length; const remaining = tasks.reduce((sum, task) => sum + Number(task.remaining || 0), 0); return `<button class="btn btn-sm cftp-final-bell cftp-trainer-question-bell ${n ? 'has-pending btn-primary' : ''}" data-act="open-final-question-bell" title="${currentLang === 'en' ? (n ? `${n} module(s) need questions · ${remaining} question(s) remaining` : 'Trainer: no pending question submissions') : (n ? `${n} modul memerlukan soalan · ${remaining} soalan belum dihantar` : 'Trainer: tiada soalan tertunggak')}" aria-label="${currentLang === 'en' ? 'Trainer: submit Final Exam questions' : 'Trainer: hantar soalan Final Exam'}">🧑‍🏫🔔${n ? ` <span class="badge bad">${n}</span>` : ''}</button>`; })() : ''}
+          ${['trainer','facilitator'].includes(u.role) ? (() => { const tasks = pendingModuleAssessmentTasksForTrainer(u.id); const n = tasks.length; return `<button class="btn btn-sm cftp-final-bell cftp-trainer-question-bell ${n ? 'has-pending btn-primary' : ''}" data-act="open-module-assessment-bell" title="${currentLang === 'en' ? `${n} module(s) have no assessment yet` : `${n} modul belum mempunyai assessment`}" aria-label="${currentLang === 'en' ? 'Reminders for modules without assessment' : 'Peringatan modul yang belum mempunyai assessment'}">📝🔔${n ? ` <span class="badge bad">${n}</span>` : ''}</button>`; })() : ''}
+          ${u.role === 'participant' ? (() => { const n = participantPendingFinalReminderCount(u.id); return `<button class="btn btn-sm cftp-final-bell cftp-participant-reminder-bell ${n ? 'has-pending btn-primary' : ''}" data-act="nav" data-view="final" title="${currentLang === 'en' ? (n ? `${n} Final Exam reminder(s): please answer the exam` : 'Participant: no pending Final Exam reminders') : (n ? `${n} peringatan Final Exam: sila jawab peperiksaan` : 'Peserta: tiada peringatan Final Exam tertunggak')}" aria-label="${currentLang === 'en' ? 'Participant: reminders to answer Final Exam' : 'Peserta: peringatan untuk menjawab Final Exam'}">📝🔔${n ? ` <span class="badge bad">${n}</span>` : ''}</button>`; })() : ''}
           <label class="module-filter-top" style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted,#667085)">📦 <span>${currentLang === 'en' ? 'Module' : 'Modul'}</span><select class="select" style="max-width:190px;min-width:120px;padding:.38rem .5rem" aria-label="${currentLang === 'en' ? 'Filter all tabs by module' : 'Tapis semua tab mengikut modul'}" onchange="window.globalModuleFilter=this.value;render()"><option value="all">${currentLang === 'en' ? 'All modules' : 'Semua modul'}</option>${availableModulesForFilter().map(m=>`<option value="${esc(m.id)}" ${String(window.globalModuleFilter||'all')===String(m.id)?'selected':''}>${tce(m.name)}</option>`).join('')}</select></label>
           <button class="btn btn-sm btn-primary" id="syncAllNowBtn" data-act="sync-all-now" title="${currentLang === 'en' ? 'Check Google Drive and Google Sheets, then upload pending changes' : 'Semak Google Drive dan Google Sheets, kemudian muat naik perubahan'}">☁️ ${currentLang === 'en' ? 'Check & Sync' : 'Semak & Sync'}</button>
           ${u.role === 'admin' ? `<button class="btn btn-sm" data-act="print-system-book" title="${currentLang === 'en' ? 'Print all system information as a book' : 'Cetak semua maklumat sistem sebagai buku'}">📚 ${currentLang === 'en' ? 'PRINT FULL REPORT' : 'CETAK LAPORAN PENUH'}</button>` : ''}
@@ -7665,7 +7707,7 @@ function modulesView() {
         ${(isVip || isReadOnlyStaff) ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
       </div>
     </div>
-    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card" data-act="open-module" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc((currentLang === 'en' ? 'Open module: ' : 'Buka modul: ') + m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${esc(m.id)}">${t('btn_open')}</button>${(isAdmin || (isReadOnlyStaff && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)))) ? `<button class="btn btn-sm" data-act="edit-module" data-id="${esc(m.id)}">✏️</button>` : ''}${isAdmin ? `<button class="btn btn-sm" data-act="toggle-publish-module" data-id="${esc(m.id)}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${esc(m.id)}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
+    ${mods.length ? `<div class="module-grid">${mods.map(m => { const modActs = moduleActivitiesList(m.id); const assessmentStatus = moduleAssessmentReadiness(m.id); const enr = enrolledParticipants(m.id).length; const d = modActs.filter(a => !a.published).length; const mats = (m.materials||[]).length; const tt = moduleTimetable(m.id).length; const feNum = moduleFinalExams(m.id).length; const isFac = !isAdmin && !isVip && moduleHasFacilitator(m, state.user.id) && !moduleHasTrainer(m, state.user.id); return `<div class="module-card" data-act="open-module" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc((currentLang === 'en' ? 'Open module: ' : 'Buka modul: ') + m.name)}"><div class="m-head"><div class="m-title">${tce(m.name)} ${isFac ? `<span class="facilitator-tag">🧑‍🏫 ${t('lbl_facilitator')}</span>` : ''}</div>${m.published ? `<span class="badge ok">${t('lbl_active')}</span>` : `<span class="badge draft">${t('lbl_draft')}</span>`}</div>${m.startDate ? `<div style="font-size:.78rem;color:var(--brand);font-weight:600">📅 ${t('module_start_date')}: ${fmtDate(m.startDate)}</div>` : ''}<div class="m-desc">${tce(m.description || '')}</div><div style="font-size:.78rem;color:var(--muted)">${trainerFacilitatorLine(m)}</div><div class="m-stats"><div><strong>${modActs.length}</strong><span>${t('lbl_activities')}</span></div><div><strong>${enr}</strong><span>${t('lbl_participants')}</span></div><div><strong>${mats}</strong><span>${t('lbl_materials')}</span></div><div><strong>${tt}</strong><span>📅</span></div><div><strong>${feNum}</strong><span>🎓</span></div>${d ? `<div><strong style="color:var(--warn)">${d}</strong><span>${t('lbl_draft')}</span></div>` : ''}</div><div class="toolbar"><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${esc(m.id)}">${t('btn_open')}</button>${(isAdmin || (isReadOnlyStaff && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id)))) ? `<button class="btn btn-sm" data-act="edit-module" data-id="${esc(m.id)}">✏️</button>` : ''}${isAdmin ? `<button class="btn btn-sm cftp-module-assessment-bell ${assessmentStatus.ready ? 'btn-success' : ''}" data-act="request-module-assessment" data-mid="${esc(m.id)}" title="${assessmentStatus.ready ? (currentLang === 'en' ? 'This module already has an assessment' : 'Modul ini sudah mempunyai assessment') : (currentLang === 'en' ? 'Remind assigned trainer: this module has no assessment yet' : 'Ingatkan trainer: modul ini belum mempunyai assessment')}" ${assessmentStatus.ready ? 'disabled' : ''}>${assessmentStatus.ready ? '✓ ' + (currentLang === 'en' ? 'Has Assessment' : 'Ada Assessment') : '🔔 ' + (currentLang === 'en' ? 'Remind' : 'Ingatkan')}</button><button class="btn btn-sm" data-act="toggle-publish-module" data-id="${esc(m.id)}">${m.published ? t('modules_actions_toggle_off') : t('modules_actions_toggle')}</button><button class="btn btn-sm btn-danger" data-act="delete-module" data-id="${esc(m.id)}">🗑️</button>` : ''}</div></div>`; }).join('')}</div>` : `<div class="empty">${t('msg_no_module')}</div>`}
   </div>`;
 }
 
@@ -7684,7 +7726,13 @@ function materialsLibraryView() {
     mods = myModules();
   }
   const q = (window.materialLibraryQuery || '').toLowerCase().trim();
-  const rows = mods.map(m => ({...m, materials:(m.materials || []).map(mat=>({...mat, moduleId:m.id, moduleName:m.name}))}))
+  const rows = mods.map(m => ({...m, materials:(m.materials || []).slice().sort((a,b) => {
+      const hasOrder = (m.materials || []).some(x => x.sortOrder !== undefined && x.sortOrder !== null && x.sortOrder !== '');
+      if (hasOrder) return Number(a.sortOrder ?? 999999) - Number(b.sortOrder ?? 999999);
+      const ap = (a.type === 'powerpoint' || /\.(ppt|pptx)$/i.test(a.name || a.originalName || '')) ? 1 : 0;
+      const bp = (b.type === 'powerpoint' || /\.(ppt|pptx)$/i.test(b.name || b.originalName || '')) ? 1 : 0;
+      return bp - ap || new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
+    }).map(mat=>({...mat, moduleId:m.id, moduleName:m.name}))}))
     .map(m => ({...m, materials:m.materials.filter(mat => !q || [mat.name,mat.originalName,mat.description,m.name].some(v=>String(v||'').toLowerCase().includes(q)))}))
     .filter(m => m.materials.length);
   const total = rows.reduce((n,m)=>n+m.materials.length,0);
@@ -7710,10 +7758,35 @@ function materialsLibraryView() {
 }
 
 function renderMaterialsSection(m, canEdit) {
-  const mats = m.materials || [];
+  const sourceMaterials = (m.materials || []).slice();
+  const hasManualOrder = sourceMaterials.some(x => Number.isFinite(Number(x.sortOrder)) && x.sortOrder !== null && x.sortOrder !== '');
+  const mats = sourceMaterials.sort((a,b) => hasManualOrder
+    ? (Number(a.sortOrder ?? 999999) - Number(b.sortOrder ?? 999999)) || new Date(a.uploadedAt || 0) - new Date(b.uploadedAt || 0)
+    : (() => { const ap = (a.type === 'powerpoint' || /\.(ppt|pptx)$/i.test(a.name || a.originalName || '')) ? 1 : 0; const bp = (b.type === 'powerpoint' || /\.(ppt|pptx)$/i.test(b.name || b.originalName || '')) ? 1 : 0; return bp - ap || new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0); })());
   const refreshLabel = currentLang === 'en' ? '🔄 Check Google Drive' : '🔄 Semak Google Drive';
   const emptyText = canEdit ? t('mat_no_materials_admin') : t('mat_no_materials_trainer');
-  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}<section id="materialUploadProgress" class="material-upload-progress" aria-live="polite" style="margin-top:12px"><div id="materialUploadProgressItem" class="transfer-item" style="display:none"><div class="transfer-head"><span>⬆️ ${currentLang === 'en' ? 'Upload status' : 'Status muat naik'}</span><span id="materialUploadProgressPct">0%</span></div><div class="transfer-track"><div id="materialUploadProgressBar" class="transfer-fill"></div></div><div id="materialUploadProgressDetail" class="transfer-sub"></div></div></section></div>`;
+  return `<div class="card"><div class="card-head"><div><h2>📎 ${t('mat_title')} (${mats.length})</h2><small class="muted">${t('mat_sub')}</small></div><div class="toolbar"><button class="btn btn-sm" data-act="refresh-module-materials" data-mid="${esc(m.id)}">${refreshLabel}</button>${canEdit ? `<button class="btn btn-sm btn-primary" data-act="upload-material" data-mid="${m.id}">${t('mat_upload')}</button>` : ''}</div></div><p class="muted" style="font-size:.78rem;margin-top:-8px">${t('mat_drive_note')}</p>${mats.length ? `<div class="material-list">${mats.map(mat => `<div class="material-item"><div class="mat-icon">${fileIcon(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}</div><div class="mat-body"><div class="mat-name">${tce(mat.name || mat.originalName || 'Untitled file')}</div><div class="mat-meta">${fileTypeLabel(mat.type || fileTypeFromName(mat.name || mat.originalName || ''))}${mat.size ? ' · ' + formatFileSize(mat.size) : ''}${mat.uploadedAt ? ' · ' + fmtDate(mat.uploadedAt) : ''}${mat.uploadedBy ? ' · ' + tce(userName(mat.uploadedBy)) : ''}${mat.fileId ? ' · ☁️ Google Drive' : ''}</div>${mat.description ? `<div class="mat-desc">${tce(mat.description)}</div>` : ''}</div><div class="toolbar"><button class="btn btn-sm" data-act="view-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_view')}">👁️</button><button class="btn btn-sm" data-act="download-material" data-mid="${m.id}" data-matid="${mat.id}" title="${t('btn_download')}">⬇️</button>${canEdit ? `<button class="btn btn-sm" data-act="move-material" data-mid="${esc(m.id)}" data-matid="${esc(mat.id)}" data-dir="up" title="${currentLang === 'en' ? 'Move up' : 'Naikkan'}" ${mats.indexOf(mat) === 0 ? 'disabled' : ''}>⬆️</button><button class="btn btn-sm" data-act="move-material" data-mid="${esc(m.id)}" data-matid="${esc(mat.id)}" data-dir="down" title="${currentLang === 'en' ? 'Move down' : 'Turunkan'}" ${mats.indexOf(mat) === mats.length - 1 ? 'disabled' : ''}>⬇️</button><button class="btn btn-sm btn-danger" data-act="delete-material" data-mid="${esc(m.id)}" data-matid="${esc(mat.id)}" title="${t('btn_delete')}">🗑️</button>` : ''}</div></div>`).join('')}</div>` : `<div class="empty">${emptyText}<p class="muted" style="margin-top:8px">${currentLang === 'en' ? 'Click “Check Google Drive” to load existing files from the module folder.' : 'Klik “Semak Google Drive” untuk memaparkan fail sedia ada dalam folder modul.'}</p></div>`}<section id="materialUploadProgress" class="material-upload-progress" aria-live="polite" style="margin-top:12px"><div id="materialUploadProgressItem" class="transfer-item" style="display:none"><div class="transfer-head"><span>⬆️ ${currentLang === 'en' ? 'Upload status' : 'Status muat naik'}</span><span id="materialUploadProgressPct">0%</span></div><div class="transfer-track"><div id="materialUploadProgressBar" class="transfer-fill"></div></div><div id="materialUploadProgressDetail" class="transfer-sub"></div></div></section></div>`;
+}
+
+function moveModuleMaterial(mid, matid, direction) {
+  const m = getModule(mid);
+  if (!m || !['admin','trainer','facilitator'].includes(state.user?.role) || !canTrainerAccessModule(mid)) { toast(t('msg_no_access'), 'bad'); return; }
+  if (!Array.isArray(m.materials)) return;
+  const current = m.materials.slice();
+  const hasManualOrder = current.some(x => Number.isFinite(Number(x.sortOrder)) && x.sortOrder !== null && x.sortOrder !== '');
+  const ordered = current.sort((a,b) => hasManualOrder
+    ? Number(a.sortOrder ?? 999999) - Number(b.sortOrder ?? 999999)
+    : (() => { const ap=(a.type==='powerpoint'||/\.(ppt|pptx)$/i.test(a.name||a.originalName||''))?1:0; const bp=(b.type==='powerpoint'||/\.(ppt|pptx)$/i.test(b.name||b.originalName||''))?1:0; return bp-ap || new Date(b.uploadedAt||0)-new Date(a.uploadedAt||0); })());
+  const index = ordered.findIndex(x => String(x.id) === String(matid));
+  const next = index + (direction === 'up' ? -1 : 1);
+  if (index < 0 || next < 0 || next >= ordered.length) return;
+  [ordered[index], ordered[next]] = [ordered[next], ordered[index]];
+  ordered.forEach((item, i) => { item.sortOrder = i; });
+  // Keep the module array in the chosen order; the existing material records and Drive IDs remain unchanged.
+  m.materials = ordered;
+  m.updatedAt = nowISO();
+  saveDB(); logAudit('Reorder Module Material','Modul',mid,`${matid} -> position ${next + 1}`);
+  render();
 }
 
 /** Pull existing materials from Drive into the module record, so old Drive files
@@ -8047,6 +8120,53 @@ function deleteTimetableEntry(tid) {
 /* =========================================================
    FINAL EXAM
    ========================================================= */
+function moduleAssessmentReadiness(moduleId) {
+  // A module is considered to have an assessment when it contains at least
+  // one assessment activity OR at least one Final Exam linked to the module.
+  // The reminder is not checking Quiz and Practical separately.
+  const activities = moduleActivitiesList(moduleId);
+  const finalExams = moduleFinalExams(moduleId);
+  const assessmentCount = activities.length + finalExams.length;
+  return { count: assessmentCount, ready: assessmentCount > 0 };
+}
+function pendingModuleAssessmentTasksForTrainer(userId) {
+  if (!userId) return [];
+  return (DB.modules || []).filter(m =>
+    (moduleHasTrainer(m, userId) || moduleHasFacilitator(m, userId)) &&
+    !moduleAssessmentReadiness(m.id).ready &&
+    (DB.quizReminders || []).some(r => r.type === 'module-assessment-request' && String(r.moduleId) === String(m.id) && String(r.recipientId) === String(userId))
+  ).map(m => ({ module:m, readiness:moduleAssessmentReadiness(m.id) }));
+}
+function requestModuleAssessmentSetup(moduleId) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
+  const m = getModule(moduleId);
+  if (!m) { toast(t('msg_not_found'), 'bad'); return; }
+  const readiness = moduleAssessmentReadiness(moduleId);
+  if (readiness.ready) { toast(currentLang === 'en' ? 'This module already has an assessment. No reminder is needed.' : 'Modul ini sudah mempunyai assessment. Tiada peringatan diperlukan.'); return; }
+  if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
+  const recipients = [...new Set([...moduleTrainerIds(m), ...moduleFacilitatorIds(m)].map(String))];
+  if (!recipients.length) { toast(currentLang === 'en' ? 'No trainer or facilitator is assigned to this module.' : 'Tiada trainer atau fasilitator ditugaskan kepada modul ini.', 'warn'); return; }
+  let sent = 0;
+  recipients.forEach(recipientId => {
+    const message = currentLang === 'en'
+      ? `This module does not have any assessment yet. Please create at least one assessment for module: ${m.name}.`
+      : `Modul ini masih belum mempunyai sebarang assessment. Sila sediakan sekurang-kurangnya satu assessment untuk modul: ${m.name}.`;
+    const existing = DB.quizReminders.find(r => r.type === 'module-assessment-request' && String(r.moduleId) === String(moduleId) && String(r.recipientId) === recipientId);
+    if (existing) Object.assign(existing, { senderId:state.user.id, message, createdAt:nowISO(), readAt:null });
+    else DB.quizReminders.push({ id:uid('mareq'), type:'module-assessment-request', moduleId:m.id, recipientId, senderId:state.user.id, message, createdAt:nowISO(), readAt:null });
+    sent++;
+  });
+  saveDB(); logAudit('Request Missing Module Assessment','Modul',m.id,`${sent} recipient(s); no assessment exists`);
+  toast(currentLang === 'en' ? `Missing-assessment reminder sent to ${sent} assigned trainer/facilitator(s).` : `Peringatan modul belum mempunyai assessment dihantar kepada ${sent} trainer/fasilitator.`, 'ok');
+  render();
+}
+function openModuleAssessmentBell() {
+  if (!state.user || !['trainer','facilitator'].includes(state.user.role)) return;
+  const tasks = pendingModuleAssessmentTasksForTrainer(state.user.id);
+  openModal(`<div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Modules Without Assessment' : 'Modul Belum Mempunyai Assessment'}</h2><p class="muted" style="margin:0">${currentLang === 'en' ? 'Please create at least one assessment for each listed module.' : 'Sila sediakan sekurang-kurangnya satu assessment bagi setiap modul yang disenaraikan.'}</p></div><button class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button></div>
+    ${tasks.length ? tasks.map(({module}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(module.name)}</div><div class="pq-meta">⚠️ ${currentLang === 'en' ? 'No assessment has been created for this module yet.' : 'Modul ini masih belum mempunyai assessment.'}</div></div><button class="btn btn-primary btn-sm" data-act="open-module" data-id="${esc(module.id)}">${currentLang === 'en' ? 'Open Module' : 'Buka Modul'} →</button></div>`).join('') : `<div class="empty">✓ ${currentLang === 'en' ? 'All assigned modules with reminders now have at least one assessment, or no reminder is pending.' : 'Semua modul yang mempunyai peringatan kini telah mempunyai sekurang-kurangnya satu assessment, atau tiada peringatan tertunggak.'}</div>`}`, 'modal-lg');
+}
+
 function pendingFinalQuestionTasksForTrainer() {
   if (!state.user || !['trainer','facilitator'].includes(state.user.role)) return [];
   const tasks = [];
@@ -8056,16 +8176,41 @@ function pendingFinalQuestionTasksForTrainer() {
       const assigned = m && (moduleHasTrainer(m, state.user.id) || moduleHasFacilitator(m, state.user.id));
       const target = Number(mc.questionCount || 0);
       const count = (mc.questions || []).length;
-      if (assigned && target > count) tasks.push({ fe, mc, m, remaining: target - count });
+      const requested = (DB.quizReminders || []).some(r => r.type === 'final-question-request' && String(r.finalId) === String(fe.id) && String(r.moduleId) === String(mc.moduleId) && String(r.recipientId) === String(state.user.id));
+      if (assigned && requested && target > count) tasks.push({ fe, mc, m, remaining: target - count });
     });
   });
   return tasks;
+}
+
+function requestFinalExamQuestions(feid) {
+  if (!state.user || state.user.role !== 'admin') { toast(t('msg_no_access'), 'bad'); return; }
+  const fe = getFinalExam(feid);
+  if (!fe || fe.type !== 'theory') return;
+  if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
+  let sent = 0;
+  (fe.moduleConfigs || []).forEach(mc => {
+    const m = getModule(mc.moduleId);
+    if (!m || Number(mc.questionCount || 0) <= (mc.questions || []).length) return;
+    const recipients = [...new Set([...moduleTrainerIds(m), ...moduleFacilitatorIds(m)].map(String))];
+    recipients.forEach(recipientId => {
+      const existing = DB.quizReminders.find(r => r.type === 'final-question-request' && String(r.finalId) === String(fe.id) && String(r.moduleId) === String(mc.moduleId) && String(r.recipientId) === recipientId);
+      const message = currentLang === 'en' ? 'Please enter the required Final Exam questions for your assigned module.' : 'Sila masukkan soalan Final Exam yang diperlukan bagi modul yang ditugaskan kepada anda.';
+      if (existing) { existing.senderId = state.user.id; existing.message = message; existing.createdAt = new Date().toISOString(); existing.readAt = null; }
+      else DB.quizReminders.push({ id:uid('freq'), type:'final-question-request', finalId:fe.id, moduleId:mc.moduleId, recipientId, senderId:state.user.id, message, createdAt:new Date().toISOString(), readAt:null });
+      sent++;
+    });
+  });
+  if (!sent) { toast(currentLang === 'en' ? 'No outstanding questions or assigned trainers were found.' : 'Tiada soalan tertunggak atau trainer yang ditugaskan ditemui.'); return; }
+  saveDB(); logAudit('Request Final Exam Questions','Peperiksaan',fe.id,`${sent} trainer/facilitator request(s)`);
+  toast(currentLang === 'en' ? `Question request sent to ${sent} trainer/facilitator recipient(s).` : `Permintaan memasukkan soalan dihantar kepada ${sent} trainer/fasilitator.`, 'ok');
+  render();
 }
 function openFinalQuestionBell() {
   if (!state.user || !['trainer','facilitator'].includes(state.user.role)) return;
   const tasks = pendingFinalQuestionTasksForTrainer();
   openModal(`<div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Final Test Question Submission' : 'Penghantaran Soalan Final Test'}</h2><p class="muted" style="margin:0">${currentLang === 'en' ? 'Submit the required questions for your assigned modules.' : 'Sila hantar soalan yang diperlukan bagi modul yang ditugaskan kepada anda.'}</p></div><button class="btn btn-sm" data-act="close-modal">${t('btn_close')}</button></div>
-    ${tasks.length ? tasks.map(({fe,mc,m,remaining}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · ${remaining} ${currentLang === 'en' ? 'more required' : 'lagi diperlukan'}</div></div><button class="btn btn-primary btn-sm" data-act="bell-submit-final-questions" data-feid="${esc(fe.id)}" data-mid="${esc(mc.moduleId)}">${currentLang === 'en' ? 'Submit Questions' : 'Hantar Soalan'} →</button></div>`).join('') : `<div class="empty">✓ ${currentLang === 'en' ? 'No pending final test question submissions.' : 'Tiada penghantaran soalan final test yang tertunggak.'}</div>`}`, 'modal-lg');
+    ${tasks.length ? tasks.map(({fe,mc,m,remaining}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · <strong>${remaining} ${currentLang === 'en' ? 'more required' : 'lagi diperlukan'}</strong></div></div><button class="btn btn-primary btn-sm" data-act="bell-submit-final-questions" data-feid="${esc(fe.id)}" data-mid="${esc(mc.moduleId)}">${currentLang === 'en' ? 'Submit Questions' : 'Hantar Soalan'} →</button></div>`).join('') : `<div class="empty">✓ ${currentLang === 'en' ? 'No pending final test question submissions.' : 'Tiada penghantaran soalan final test yang tertunggak.'}</div>`}`, 'modal-lg');
 }
 function normalizeQuestionText(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -8105,8 +8250,64 @@ function quizOptionLabel(q, index) {
     ? (index === 0 ? (currentLang === 'en' ? 'True' : 'Betul') : (currentLang === 'en' ? 'False' : 'Salah'))
     : `${'ABCD'[index]}. ${tce((q.options || [])[index] || '')}`;
 }
+function finalExamPendingParticipants(fe) {
+  if (!fe) return [];
+  const mids = feModuleIds(fe).filter(mid => state.user?.role === 'admin' || canTrainerAccessModule(mid));
+  return allParticipants().filter(person => mids.some(mid => isEnrolled(mid, person.id)) &&
+    (fe.type === 'theory' ? !feAttemptFor(fe.id, person.id) : !fePracticalFor(fe.id, person.id)));
+}
+function sendFinalExamReminder(feid) {
+  const fe = getFinalExam(feid);
+  if (!fe || !['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
+  if (state.user.role !== 'admin' && !feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) { toast(t('msg_no_access'),'bad'); return; }
+  const pending = finalExamPendingParticipants(fe);
+  if (!pending.length) { toast(currentLang === 'en' ? 'All enrolled participants have completed this Final Exam.' : 'Semua peserta berdaftar telah melengkapkan Final Exam ini.','ok'); return; }
+  const message = currentLang === 'en' ? 'Please complete the Final Exam.' : 'Sila lengkapkan Final Exam.';
+  if (!confirm((currentLang === 'en' ? 'Send a Final Exam reminder to ' : 'Hantar peringatan Final Exam kepada ') + pending.length + (currentLang === 'en' ? ' participant(s) who have not completed it?' : ' peserta yang belum melengkapkannya?'))) return;
+  if (!Array.isArray(DB.quizReminders)) DB.quizReminders = [];
+  const now = nowISO();
+  pending.forEach(person => {
+    const existing = DB.quizReminders.find(item => item.type === 'final' && String(item.finalId) === String(fe.id) && String(item.participantId) === String(person.id));
+    if (existing) Object.assign(existing, { senderId:state.user.id, message, createdAt:now, readAt:null });
+    else DB.quizReminders.push({ id:uid('frem'), type:'final', finalId:fe.id, moduleId:feModuleIds(fe).find(mid => isEnrolled(mid, person.id)) || null, participantId:person.id, senderId:state.user.id, message, createdAt:now, readAt:null });
+  });
+  saveDB();
+  forceSaveNow().then(saved => {
+    if (!saved || !saved.ok) { toast(currentLang === 'en' ? 'Reminder could not be synced. Please retry Sync.' : 'Peringatan belum berjaya disegerakkan. Sila cuba Sync semula.','bad'); return; }
+    logAudit('Send Final Exam Reminder','Peperiksaan',fe.id,`${pending.length} participant(s) reminded`);
+    toast(currentLang === 'en' ? `Reminder sent to ${pending.length} participant(s).` : `Peringatan dihantar kepada ${pending.length} peserta.`,'ok');
+    render();
+  });
+}
+function participantPendingFinalReminderCount(participantId) {
+  return (DB.quizReminders || []).filter(item =>
+    item.type === 'final' &&
+    String(item.participantId) === String(participantId) &&
+    getFinalExam(item.finalId) &&
+    (() => { const fe = getFinalExam(item.finalId); return fe && (fe.type === 'theory' ? !feAttemptFor(fe.id, participantId) : !fePracticalFor(fe.id, participantId)); })()
+  ).length;
+}
+function finalExamReminderMarkup(participantId) {
+  const reminders = (DB.quizReminders || []).filter(item => item.type === 'final' && String(item.participantId) === String(participantId) && getFinalExam(item.finalId))
+    .filter(item => { const fe = getFinalExam(item.finalId); return fe && (fe.type === 'theory' ? !feAttemptFor(fe.id, participantId) : !fePracticalFor(fe.id, participantId)); })
+    .sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  if (!reminders.length) return '';
+  return `<div class="card" style="border-color:#f0d98a;background:#fffdf5;margin-bottom:16px"><div class="card-head"><h2>📝🔔 ${currentLang === 'en' ? 'Participant Reminder — Please Answer Final Exam' : 'Peringatan Peserta — Sila Jawab Final Exam'}</h2><span class="badge warn">${reminders.length}</span></div>${reminders.map(item => { const fe=getFinalExam(item.finalId); return `<div class="pending-quiz-card"><div><div class="pq-title">🎓 ${tce(fe.title)}</div><div class="pq-meta">${tce(feModulesLabel(fe))} · ${currentLang === 'en' ? 'Reminder from' : 'Peringatan daripada'} ${tce(userName(item.senderId))} · ${fmtDateTime(item.createdAt)}</div><div class="pq-meta">${tce(item.message || '')}</div></div><button class="btn btn-primary btn-sm" data-act="open-final-tab" data-id="${esc(fe.id)}">${currentLang === 'en' ? 'Open Final Exam' : 'Buka Final Exam'} →</button></div>`; }).join('')}</div>`;
+}
+
 function finalExamsView() {
   if (state.user.role === 'participant') return participantFinalView();
+  // Trainer/Facilitator reminder is deliberately placed INSIDE the Final Exam page,
+  // not only in the global top bar, so it remains visible when they open this section.
+  if (['trainer','facilitator'].includes(state.user.role)) {
+    const tasks = pendingFinalQuestionTasksForTrainer();
+    const remaining = tasks.reduce((sum, task) => sum + Number(task.remaining || 0), 0);
+    return `<div class="card" style="border:1px solid ${tasks.length ? '#e7b84b' : 'var(--line)'};background:${tasks.length ? '#fffaf0' : 'var(--card)'}">
+      <div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Final Exam Question Reminder' : 'Peringatan Soalan Final Exam'}</h2><small class="muted">${currentLang === 'en' ? 'Please complete and submit the required questions for your assigned modules.' : 'Sila lengkapkan dan hantar soalan yang diperlukan bagi modul yang ditugaskan kepada anda.'}</small></div>
+      <button class="btn ${tasks.length ? 'btn-primary' : ''} cftp-final-bell ${tasks.length ? 'has-pending' : ''}" data-act="open-final-question-bell" aria-label="Trainer: submit Final Exam questions">🧑‍🏫🔔 ${tasks.length ? `<span class="badge bad">${tasks.length}</span>` : ''}</button></div>
+      ${tasks.length ? `<p style="margin:0 0 10px;font-weight:600;color:#9a5b00">${tasks.length} ${currentLang === 'en' ? 'module(s) pending' : 'modul belum selesai'} · ${remaining} ${currentLang === 'en' ? 'question(s) remaining' : 'soalan perlu dimasukkan'}</p>${tasks.map(({fe,mc,m,remaining:rem}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">🎓 ${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · <strong>${rem} ${currentLang === 'en' ? 'remaining' : 'belum dimasukkan'}</strong></div></div><button class="btn btn-primary btn-sm" data-act="bell-submit-final-questions" data-feid="${esc(fe.id)}" data-mid="${esc(mc.moduleId)}">${currentLang === 'en' ? 'Add Questions' : 'Masukkan Soalan'} →</button></div>`).join('')}` : `<div class="empty">✓ ${currentLang === 'en' ? 'All required Final Exam questions have been submitted.' : 'Semua soalan Final Exam yang diperlukan telah dihantar.'}</div>`}
+    </div>`;
+  }
   if (state.user.role !== 'admin') return `<div class="card"><div class="empty">${t('msg_no_access')}</div></div>`;
   const isAdmin = true;
   const isVip = state.user.role === 'vip';
@@ -8122,7 +8323,14 @@ function finalExamsView() {
     const pending = mine.filter(mc => !mc.submitted && (mc.questionCount||0) > 0).length;
     return { count, target, pending, modules: mine.length };
   };
-  return `<div class="card">
+  const allPendingQuestionTasks = (DB.finalExams || []).filter(fe => fe.type === 'theory').flatMap(fe => (fe.moduleConfigs || []).flatMap(mc => {
+    const m = getModule(mc.moduleId); const target = Number(mc.questionCount || 0); const count = (mc.questions || []).length;
+    if (!m || target <= count) return [];
+    const assignedNames = [...moduleTrainerIds(m), ...moduleFacilitatorIds(m)].map(userName).filter(Boolean);
+    return [{fe, mc, m, remaining:target-count, assignedNames}];
+  }));
+  const allPendingQuestionCount = allPendingQuestionTasks.reduce((sum, task) => sum + task.remaining, 0);
+  return `${allPendingQuestionTasks.length ? `<div class="card" style="border:1px solid #e7b84b;background:#fffaf0;margin-bottom:14px"><div class="card-head"><div><h2>🔔 ${currentLang === 'en' ? 'Trainer Final Exam Question Reminders' : 'Peringatan Soalan Final Exam untuk Trainer'}</h2><small class="muted">${currentLang === 'en' ? 'Modules with questions still outstanding.' : 'Modul yang masih belum melengkapkan soalan.'}</small></div><span class="badge bad">${allPendingQuestionTasks.length}</span></div><p style="margin:0 0 10px;font-weight:600;color:#9a5b00">${allPendingQuestionCount} ${currentLang === 'en' ? 'question(s) still required' : 'soalan masih diperlukan'}</p>${allPendingQuestionTasks.map(({fe,mc,m,remaining,assignedNames}) => `<div class="pending-quiz-card"><div style="flex:1;min-width:200px"><div class="pq-title">🎓 ${tce(fe.title)} · ${tce(m.name)}</div><div class="pq-meta">${(mc.questions||[]).length}/${mc.questionCount} ${t('lbl_questions')} · ${currentLang === 'en' ? 'Assigned to' : 'Ditugaskan kepada'}: ${tce(assignedNames.join(', ') || '—')} · ${remaining} ${currentLang === 'en' ? 'remaining' : 'belum dimasukkan'}</div></div></div>`).join('')}</div>` : ''}<div class="card">
     <div class="card-head">
       <div><h2>🎓 ${t('fe_title')}</h2><small class="muted">${t('fe_sub')}</small></div>
       <div class="toolbar">
@@ -8159,8 +8367,10 @@ function finalExamsView() {
           ${isVip ? `<button class="btn btn-sm btn-primary" data-act="vip-final-scores" data-id="${fe.id}">${t('vip_view_scores')}</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm" data-act="edit-final-exam" data-id="${fe.id}">✏️</button>` : ''}
           ${!isVip && fe.type === 'theory' && (isAdmin || (myProg && myProg.modules > 0)) ? `<button class="btn btn-sm ${(!isAdmin && myPending > 0) ? 'btn-primary' : ''}" data-act="fe-questions-overview" data-id="${fe.id}" title="${t('fe_questions')}">🗂️ ${isAdmin ? feTotalQuestions(fe) + '/' + feTotalExpected(fe) : (myProg ? myProg.count + '/' + myProg.target : '—')}${(!isAdmin && myPending > 0) ? ' 📝' : ''}</button>` : ''}
+          ${isAdmin && fe.type === 'theory' && (fe.moduleConfigs || []).some(mc => Number(mc.questionCount || 0) > (mc.questions || []).length) ? `<button class="btn btn-sm btn-primary" data-act="request-final-questions" data-id="${esc(fe.id)}" title="${currentLang === 'en' ? 'Request assigned trainers/facilitators to enter the required questions' : 'Minta trainer/fasilitator yang ditugaskan memasukkan soalan'}">📨 ${currentLang === 'en' ? 'Request Trainer Questions' : 'Minta Trainer Masukkan Soalan'}</button>` : ''}
+          ${!isVip && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `<button class="btn btn-sm ${finalExamPendingParticipants(fe).length ? 'btn-primary' : ''}" data-act="send-final-exam-reminder" data-id="${fe.id}" title="${currentLang === 'en' ? 'Remind participants who have not completed this Final Exam' : 'Ingatkan peserta yang belum melengkapkan Final Exam'}">🔔 ${finalExamPendingParticipants(fe).length}</button>` : ''}
           ${!isVip && fe.type === 'theory' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `${feTotalQuestions(fe) > 0 ? `<button class="btn btn-sm" data-act="fe-print-theory" data-id="${fe.id}">🖨️ ${currentLang==='en'?'Print Questions':'Cetak Soalan'}</button>` : ''}<button class="btn btn-sm" data-act="fe-theory-marks" data-id="${fe.id}">✍️ ${currentLang==='en'?'Enter Marks':'Masuk Markah'}</button>` : ''}
-          ${!isVip && fe.type === 'practical' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `<button class="btn btn-sm" data-act="fe-marks-template" data-id="${fe.id}">📥 ${currentLang==='en'?'Excel Template':'Template Excel'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${fe.id}">📤 ${currentLang==='en'?'Upload Marks':'Upload Markah'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${fe.id}">🖨️ ${currentLang==='en'?'Print Rubrics':'Cetak Rubrik'}</button><button class="btn btn-sm" data-act="fe-practical-participants" data-id="${fe.id}">✍️ ${currentLang==='en'?'Enter Marks':'Masuk Markah'}</button>` : ''}
+          ${!isVip && fe.type === 'practical' && (isAdmin || feModuleIds(fe).some(mid => canTrainerAccessModule(mid))) ? `<button class="btn btn-sm" data-act="fe-marks-template" data-id="${fe.id}" title="${currentLang==='en'?'Download all enrolled participants with saved practical marks pre-filled; edit and upload back to this exam':'Muat turun semua peserta dengan markah praktikal sedia ada; edit dan muat naik semula ke peperiksaan ini'}">📥 ${currentLang==='en'?'Download / Update Marks':'Muat Turun / Kemaskini Markah'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${fe.id}">📤 ${currentLang==='en'?'Upload Marks':'Upload Markah'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${fe.id}">🖨️ ${currentLang==='en'?'Print Rubrics':'Cetak Rubrik'}</button><button class="btn btn-sm" data-act="fe-practical-participants" data-id="${fe.id}">✍️ ${currentLang==='en'?'Enter Marks':'Masuk Markah'}</button>` : ''}
           ${!isVip && fe.published && fe.type === 'theory' && feTotalQuestions(fe) > 0 ? `<button class="btn btn-sm" data-act="open-final-tab" data-id="${fe.id}" title="${t('quiz_preview')}">👁️</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm ${fe.published ? '' : 'btn-primary'}" data-act="toggle-final-publish" data-id="${fe.id}">${fe.published ? t('fe_unpublish') : '✅ ' + t('fe_publish')}</button><button class="btn btn-sm btn-danger" data-act="delete-final-exam" data-id="${fe.id}">🗑️</button>` : ''}
         </div></td>
@@ -8188,7 +8398,7 @@ function openVipFinalScoresModal(feid) {
 function participantFinalView() {
   const me = state.user;
   const exams = participantFinalExams(me.id);
-  return `<div class="card"><div class="card-head"><h2>🎓 ${t('fe_title')}</h2><span class="muted">${exams.length}</span></div>${exams.length ? exams.map(fe => {
+  return `${finalExamReminderMarkup(me.id)}<div class="card"><div class="card-head"><h2>🎓 ${t('fe_title')}</h2><span class="muted">${exams.length}</span></div>${exams.length ? exams.map(fe => {
     const w = feWindowStatus(fe);
     const attempt = fe.type === 'theory' ? feAttemptFor(fe.id, me.id) : null;
     const prac = fe.type === 'practical' ? fePracticalFor(fe.id, me.id) : null;
@@ -8474,11 +8684,11 @@ function downloadFinalPracticalMarksTemplate(feid) {
     const {fe,rb,criteria,participants}=finalPracticalContext(feid);
     const headers=['Participant ID','Participant Name','Organisation',...criteria.map(c=>String(c.name||'Criterion').trim()),'Remarks'];
     const rows=participants.map(p=>{const pr=fePracticalFor(feid,p.id);return [p.id,p.name||'',p.org||'',...criteria.map((c,i)=>pr?.scores?.[i]??''),pr?.remarks||''];});
-    const ws=XLSX.utils.aoa_to_sheet([[`Final Exam: ${fe.title}`],[`Modules: ${feModulesLabel(fe)}`],[`Rubric: ${rb.name}`],['Instruction: Enter only valid marks shown in the rubric. Do not edit Participant ID or criterion headers.'],[],headers,...rows]);
+    const ws=XLSX.utils.aoa_to_sheet([[`Final Exam: ${fe.title}`],[`Modules: ${feModulesLabel(fe)}`],[`Rubric: ${rb.name}`],['Instruction: Existing saved marks are pre-filled. Edit only the criterion marks/Remarks. Do not edit Participant ID or criterion headers. Upload this same workbook back to this Final Exam to update marks.'],[],headers,...rows]);
     ws['!cols']=[{wch:24},{wch:30},{wch:24},...criteria.map(()=>({wch:22})),{wch:36}];
     ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:5,c:0},e:{r:5+rows.length,c:headers.length-1}})}; ws['!freeze']={xSplit:3,ySplit:6};
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Final Exam Marks');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FIELD','INSTRUCTION'],['Participant ID','Unique participant key; do not edit.'],['Criterion columns','Enter a numeric mark that matches one of the rubric performance-level marks.'],['Remarks','Optional feedback.'],['Upload','Upload this completed .xlsx to the same Final Exam. Invalid or duplicate rows cancel the import.']]),'Instructions');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['FIELD','INSTRUCTION'],['Participant ID','Unique participant key; do not edit.'],['Criterion columns','Enter a numeric mark that matches one of the rubric performance-level marks.'],['Remarks','Optional feedback.'],['Existing marks','Saved marks are included in the downloaded workbook where available.'],['Upload','Upload this completed .xlsx back to the SAME Final Exam. Matching participant records will be updated; invalid or duplicate rows cancel the import.']]),'Instructions');
     XLSX.writeFile(wb,`Final_Exam_Marks_${String(fe.title||'Exam').replace(/[^a-z0-9_-]/gi,'_')}.xlsx`);
     toast(currentLang==='en'?'Final exam Excel template downloaded.':'Template Excel peperiksaan akhir dimuat turun.');
   } catch(e){toast('⚠️ '+e.message,'bad');}
@@ -8747,7 +8957,7 @@ function openFinalAssessModal(feid) {
   const fe = getFinalExam(feid); if (!fe) return;
   const examMids = feModuleIds(fe);
   const parts = DB.users.filter(u => u.role === 'participant' && u.status === 'approved' && examMids.some(mid => isEnrolled(mid, u.id)));
-  openModal2(`<h2>📏 ${t('fe_assess')}</h2><p class="muted">${tce(fe.title)} — ${tce(feModulesLabel(fe))}</p><div class="toolbar" style="margin:10px 0"><button class="btn btn-sm" data-act="fe-marks-template" data-id="${feid}">📥 ${currentLang==='en'?'Download Excel Template':'Muat Turun Template Excel'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${feid}">📤 ${currentLang==='en'?'Upload Excel Marks':'Upload Markah Excel'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${feid}">🖨️ ${currentLang==='en'?'Print Rubrics for Participants':'Cetak Rubrik Peserta'}</button></div>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(u => { const pr = fePracticalFor(feid, u.id); const pa = hasPendingApprovalFor('final-practical', feid, u.id); return `<tr><td>${tce(u.name)}</td><td>${pr ? '<strong>' + Math.round(pr.total) + '%</strong>' : '—'}${pa ? ` <span class="pending-badge-pulse">⏳</span>` : ''}</td><td><button class="btn btn-sm" data-act="fe-practical-form" data-feid="${feid}" data-pid="${u.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('fe_assess')}</button><button class="btn btn-sm" data-act="fe-print-rubric-one" data-feid="${feid}" data-pid="${u.id}" title="${currentLang==='en'?'Print participant rubric':'Cetak rubrik peserta'}">🖨️</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('grad_no_participants')}</div>`}<div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`);
+  openModal2(`<h2>📏 ${t('fe_assess')}</h2><p class="muted">${tce(fe.title)} — ${tce(feModulesLabel(fe))}</p><div class="toolbar" style="margin:10px 0"><button class="btn btn-sm" data-act="fe-marks-template" data-id="${feid}" title="${currentLang==='en'?'Includes marks already saved for every participant in the selected Final Exam':'Termasuk markah sedia ada bagi semua peserta dalam Final Exam yang dipilih'}">📥 ${currentLang==='en'?'Download / Update Marks':'Muat Turun / Kemaskini Markah'}</button><button class="btn btn-sm" data-act="fe-marks-upload" data-id="${feid}">📤 ${currentLang==='en'?'Upload Excel Marks':'Upload Markah Excel'}</button><button class="btn btn-sm" data-act="fe-print-rubric-all" data-id="${feid}">🖨️ ${currentLang==='en'?'Print Rubrics for Participants':'Cetak Rubrik Peserta'}</button></div>${parts.length ? `<div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${t('lbl_score')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(u => { const pr = fePracticalFor(feid, u.id); const pa = hasPendingApprovalFor('final-practical', feid, u.id); return `<tr><td>${tce(u.name)}</td><td>${pr ? '<strong>' + Math.round(pr.total) + '%</strong>' : '—'}${pa ? ` <span class="pending-badge-pulse">⏳</span>` : ''}</td><td><button class="btn btn-sm" data-act="fe-practical-form" data-feid="${feid}" data-pid="${u.id}">${pr ? '✏️ ' + t('btn_edit') : '📏 ' + t('fe_assess')}</button><button class="btn btn-sm" data-act="fe-print-rubric-one" data-feid="${feid}" data-pid="${u.id}" title="${currentLang==='en'?'Print participant rubric':'Cetak rubrik peserta'}">🖨️</button></td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty">${t('grad_no_participants')}</div>`}<div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`);
 }
 
 function openFinalPracticalForm(feid, pid) {
@@ -9027,43 +9237,154 @@ async function sendQuizReminder(activityId) {
   render();
 }
 
+function exportAllModuleMarksToExcel() {
+  if (!['admin','trainer','facilitator'].includes(state.user?.role)) { toast(t('msg_no_access'),'bad'); return; }
+  if (!ensureXLSX()) return;
+  const modules = sortModules(DB.modules || []).filter(m => state.user.role === 'admin' || canTrainerAccessModule(m.id));
+  if (!modules.length) { toast(currentLang === 'en' ? 'No accessible modules found.' : 'Tiada modul yang boleh diakses.','warn'); return; }
+
+  const en = currentLang === 'en';
+  const headers = [
+    en?'Participant ID':'ID Peserta', en?'Participant Name':'Nama Peserta',
+    en?'Company':'Syarikat', en?'Assessment Type':'Jenis Penilaian',
+    en?'Assessment / Activity':'Penilaian / Aktiviti', en?'Date':'Tarikh',
+    en?'Attempt':'Percubaan', en?'Raw Mark':'Markah Asal',
+    en?'Total Marks':'Jumlah Markah', en?'Percentage (%)':'Peratus (%)',
+    en?'Remarks':'Catatan', en?'Recorded At':'Tarikh Direkod'
+  ];
+  const wb = XLSX.utils.book_new();
+  const summaryRows = [[en?'Module':'Modul',en?'Recorded Marks':'Rekod Markah',en?'Participants with Marks':'Peserta Bermarkah']];
+  let totalRows = 0;
+
+  modules.forEach(mod => {
+    const rows = [headers];
+    const people = allParticipants().filter(p => isEnrolled(mod.id,p.id));
+    const participantIdsWithMarks = new Set();
+    const addRow = (pid, person, type, title, date, attemptNo, raw, total, pct, remarks, recordedAt) => {
+      rows.push([pid,person.name||'',person.org||'',type,title||'',date||'',attemptNo??'',raw??'',total??'',pct??'',remarks||'',recordedAt||'']);
+      participantIdsWithMarks.add(String(pid));
+    };
+
+    people.forEach(person => {
+      // Activity quiz: export every saved attempt, not only the best attempt shown in the assessment screen.
+      (DB.activities || []).filter(a => String(a.moduleId)===String(mod.id) && !isPracticalActivityMethod(a.method)).forEach(a => {
+        const attempts = (DB.attempts || []).filter(x => String(x.activityId)===String(a.id) && String(x.participantId)===String(person.id))
+          .sort((x,y)=>new Date(x.at||0)-new Date(y.at||0));
+        attempts.forEach((att,i) => {
+          const raw=Number(att.score), total=Number(att.total);
+          const pct=Number.isFinite(raw)&&Number.isFinite(total)&&total>0?Math.round(raw/total*100):'';
+          const note=[att.manualEntry?(en?'Manually entered answers':'Jawapan dimasukkan secara manual'):'',att.manualNotes||''].filter(Boolean).join(' | ');
+          addRow(person.id,person,en?'Activity Quiz':'Kuiz Aktiviti',a.title,a.date,i+1,att.score,att.total,pct,note,att.at||'');
+        });
+      });
+
+      // Activity practical: export each saved practical record for this participant/module.
+      (DB.activities || []).filter(a => String(a.moduleId)===String(mod.id) && isPracticalActivityMethod(a.method)).forEach(a => {
+        (DB.practical || []).filter(x => String(x.activityId)===String(a.id) && String(x.participantId)===String(person.id)).forEach((pr,i) => {
+          const pct=Number.isFinite(Number(pr.total))?Math.round(Number(pr.total)*10)/10:'';
+          addRow(person.id,person,en?'Activity Practical':'Praktikal Aktiviti',a.title,a.date,i+1,pr.total,100,pct,pr.remarks||'',pr.at||'');
+        });
+      });
+
+      // Final Exam theory: preserve every recorded attempt. Auto-marked multi-module exams are split by module question ownership.
+      (DB.finalExams || []).filter(fe => fe.type==='theory' && feModuleIds(fe).some(mid=>String(mid)===String(mod.id))).forEach(fe => {
+        const attempts=(DB.feAttempts||[]).filter(x=>String(x.finalId)===String(fe.id)&&String(x.participantId)===String(person.id))
+          .sort((x,y)=>new Date(x.at||0)-new Date(y.at||0));
+        attempts.forEach((att,i) => {
+          let raw=Number(att.score), total=Number(att.total), note=att.manualNotes||'';
+          if (!att.manualEntry && Array.isArray(att.answers)) {
+            const allQ=feQuestionsAll(fe);
+            const indexes=allQ.map((q,qi)=>String(q.moduleId)===String(mod.id)?qi:-1).filter(qi=>qi>=0);
+            if (indexes.length) {
+              total=indexes.length;
+              raw=indexes.reduce((sum,qi)=>sum+(Number(att.answers[qi])===Number(allQ[qi].answer)?1:0),0);
+            }
+          } else if (att.manualEntry && feModuleIds(fe).length>1) {
+            note=[note,en?'Combined multi-module Final Exam mark; same overall mark shown under each included module.':'Markah keseluruhan Final Exam berbilang modul; markah sama dipaparkan di bawah setiap modul terlibat.'].filter(Boolean).join(' | ');
+          }
+          if (total>0 || att.manualEntry) {
+            const pct=total>0?Math.round(raw/total*100):'';
+            addRow(person.id,person,en?'Final Exam - Theory':'Peperiksaan Akhir - Teori',fe.title,att.at||'',i+1,raw,total,pct,note,att.at||'');
+          }
+        });
+      });
+
+      // Final Exam practical marks.
+      (DB.finalExams || []).filter(fe => fe.type==='practical' && feModuleIds(fe).some(mid=>String(mid)===String(mod.id))).forEach(fe => {
+        (DB.fePractical||[]).filter(x=>String(x.finalId)===String(fe.id)&&String(x.participantId)===String(person.id)).forEach((pr,i) => {
+          const note=[pr.remarks||'',feModuleIds(fe).length>1?(en?'Combined multi-module Final Exam practical mark; same overall mark shown under each included module.':'Markah praktikal Final Exam berbilang modul; markah sama dipaparkan di bawah setiap modul terlibat.'):''].filter(Boolean).join(' | ');
+          addRow(person.id,person,en?'Final Exam - Practical':'Peperiksaan Akhir - Praktikal',fe.title,pr.at||'',i+1,pr.total,100,Number.isFinite(Number(pr.total))?Math.round(Number(pr.total)*10)/10:'',note,pr.at||'');
+        });
+      });
+    });
+
+    const count=rows.length-1;
+    totalRows+=count;
+    summaryRows.push([mod.name||'',count,participantIdsWithMarks.size]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:18},{wch:28},{wch:24},{wch:25},{wch:36},{wch:18},{wch:12},{wch:14},{wch:14},{wch:14},{wch:48},{wch:22}];
+    if(rows.length>1) ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:headers.length-1}})};
+    ws['!freeze']={xSplit:2,ySplit:1};
+    const base=(mod.name||'Module').replace(/[\\/?*\[\]:]/g,' ').trim().slice(0,31)||'Module';
+    let sheetName=base,n=2; while(wb.SheetNames.includes(sheetName)) sheetName=(base.slice(0,27)+'_'+n++).slice(0,31);
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  });
+
+  const summary=XLSX.utils.aoa_to_sheet(summaryRows);
+  summary['!cols']=[{wch:36},{wch:20},{wch:24}];
+  let summaryName=en?'Summary':'Ringkasan';
+  if (wb.SheetNames.includes(summaryName)) summaryName=en?'Overview':'Gambaran';
+  XLSX.utils.book_append_sheet(wb,summary,summaryName,0);
+  const stamp=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`CFTP_All_Module_Marks_${stamp}.xlsx`);
+  toast(en?`Exported ${totalRows} saved mark record(s) across ${modules.length} module(s).`:`${totalRows} rekod markah tersimpan berjaya dieksport bagi ${modules.length} modul.`,'ok');
+}
 function activitiesView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
   const isFac = state.user.role === 'facilitator';
   // Staff visibility is global; write access is still restricted to assigned modules.
-  const acts = (isAdmin || isVip || ['trainer','facilitator'].includes(state.user.role)) ? sortActs(DB.activities) : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
+  const acts = (isAdmin || isVip || ['trainer','facilitator'].includes(state.user.role))
+    ? sortActs(DB.activities)
+    : sortActs(DB.activities.filter(a => canTrainerAccessActivity(a.id)));
   const drafts = acts.filter(a => !a.published).length;
   // Match Trainer activity authoring access for assigned Facilitator modules.
   const canCreate = isAdmin || state.user.role === 'trainer' || state.user.role === 'facilitator';
-  return `<div class="card">
-    <div class="card-head">
-      <div><h2>${isVip ? t('nav_activities') : (isAdmin ? t('nav_activities') : (isFac ? t('nav_activities') : t('title_activities_mine')))}</h2>${isVip ? `<small class="muted">${t('vip_read_only')}</small>` : ''}</div>
-      <div class="toolbar">
-        ${canCreate ? `<button class="btn btn-primary" data-act="new-activity">➕ ${t('lbl_activity')}</button>` : ''}
-        <button class="btn" data-act="nav" data-view="modules">📦 ${t('lbl_module')}</button>
-        ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
-      </div>
-    </div>
-    ${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}
-    ${acts.length ? (() => {
-      const hasQuiz = acts.some(a => !isPracticalActivityMethod(a.method));
-      const hasPractical = acts.some(a => isPracticalActivityMethod(a.method));
-      return `<div class="table-wrap"><table><thead><tr>
-      <th>${t('lbl_title')}</th><th>${t('lbl_module')}</th><th>${t('lbl_trainer')}</th><th>${t('lbl_date')}</th>
-      ${hasQuiz ? `<th>${t('lbl_quiz')}</th>` : ''}${hasPractical ? `<th>${t('lbl_rubric')}</th>` : ''}<th>${t('lbl_status')}</th>
+
+  // Group activities by their owning module so users do not have to scan one long combined list.
+  const moduleGroups = [];
+  const grouped = new Map();
+  acts.forEach(a => {
+    const key = String(a.moduleId || '__no_module__');
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(a);
+  });
+  const moduleOrder = (DB.modules || []).map(m => String(m.id));
+  const groupKeys = Array.from(grouped.keys()).sort((a,b) => {
+    if (a === '__no_module__') return 1;
+    if (b === '__no_module__') return -1;
+    const ia = moduleOrder.indexOf(a), ib = moduleOrder.indexOf(b);
+    if (ia < 0 && ib < 0) return moduleName(a).localeCompare(moduleName(b));
+    if (ia < 0) return 1;
+    if (ib < 0) return -1;
+    return ia - ib;
+  });
+  groupKeys.forEach(key => moduleGroups.push({ key, name: key === '__no_module__' ? (currentLang === 'en' ? 'Unassigned Module' : 'Modul Belum Ditetapkan') : moduleName(key), activities: grouped.get(key) }));
+
+  const renderActivityTable = groupActs => {
+    const hasQuiz = groupActs.some(a => !isPracticalActivityMethod(a.method));
+    return `<div class="table-wrap"><table><thead><tr>
+      <th>${t('lbl_title')}</th><th>${t('lbl_trainer')}</th><th>${t('lbl_date')}</th>
+      ${hasQuiz ? `<th>${t('lbl_quiz')}</th>` : ''}<th>${t('lbl_status')}</th>
       <th style="width:340px">${t('lbl_actions')}</th>
-    </tr></thead><tbody>${acts.map(a => {
+    </tr></thead><tbody>${groupActs.map(a => {
       const practical = isPracticalActivityMethod(a.method);
-      const rb = practical ? getRubric(a) : null;
       const shownTitle = practical && /^Practical Assessment Rubric:\s*/i.test(a.title || '') ? 'Practical Assessment' : a.title;
       return `<tr>
         <td><strong>${tce(shownTitle)}</strong></td>
-        <td><small class="muted">${tce(moduleName(a.moduleId))}</small></td>
         <td>${tce(userName(a.trainerId))}</td>
         <td>${fmtDate(a.date)}</td>
         ${hasQuiz ? `<td>${!practical ? `<span class="badge info">${(a.quiz||[]).length}</span>${a.quizDuration ? ` <small class="muted">⏱️${a.quizDuration}m</small>` : ''}` : '—'}</td>` : ''}
-        ${hasPractical ? `<td>${practical ? (rb ? `<span class="badge ${rb.approvalStatus === 'approved' ? 'ok' : 'warn'}">${tce(rb.name)}${rb.approvalStatus !== 'approved' ? ' ⏳' : ''}</span>` : `<span class="badge warn">${t('act_rubric_none')}</span>`) : '—'}</td>` : ''}
         <td>${a.published ? `<span class="badge ok">${t('lbl_published')}</span>` : `<span class="badge warn">⚠️ ${currentLang === 'en' ? 'Draft / Unpublished' : 'Draf / Tidak Diterbitkan'}</span>`}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm" data-act="open-activity" data-id="${a.id}">${t('btn_view')}</button>
@@ -9078,10 +9399,29 @@ function activitiesView() {
         </div></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
-    })() : `<div class="empty">${t('msg_no_activity')}</div>`}
+  };
+
+  return `<div class="card">
+    <div class="card-head">
+      <div><h2>${isVip ? t('nav_activities') : (isAdmin ? t('nav_activities') : (isFac ? t('nav_activities') : t('title_activities_mine')))}</h2>${isVip ? `<small class="muted">${t('vip_read_only')}</small>` : ''}</div>
+      <div class="toolbar">
+        ${canCreate ? `<button class="btn btn-primary" data-act="new-activity">➕ ${t('lbl_activity')}</button>` : ''}
+        <button class="btn" data-act="nav" data-view="modules">📦 ${t('lbl_module')}</button>
+        ${['admin','trainer','facilitator'].includes(state.user.role) ? `<button class="btn btn-primary" data-act="export-module-marks">📊 ${currentLang === 'en' ? 'Download All Module Marks' : 'Muat Turun Semua Markah Modul'}</button>` : ''}
+        ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
+      </div>
+    </div>
+    ${drafts && canCreate ? `<div class="info-box warn" style="margin-bottom:14px"><h4>⚠️ ${t('msg_draft_warn', drafts)}</h4><p style="margin:4px 0 0">${t('msg_draft_hint')}</p></div>` : ''}
+    ${moduleGroups.length ? `<div class="activity-module-groups" style="display:grid;gap:14px">${moduleGroups.map((group,index) => `
+      <details class="card activity-module-group" ${index===0 ? 'open' : ''} style="margin:0;padding:0;overflow:hidden">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:var(--surface-2,rgba(127,127,127,.08))">
+          <span style="font-weight:700">📦 ${tce(group.name)}</span>
+          <span class="badge info">${group.activities.length} ${currentLang === 'en' ? 'activity(ies)' : 'aktiviti'}</span>
+        </summary>
+        <div style="padding:14px">${renderActivityTable(group.activities)}</div>
+      </details>`).join('')}</div>` : `<div class="empty">${t('msg_no_activity')}</div>`}
   </div>`;
 }
-
 
 /* =========================================================
    SAFE ADD-ON: ACTIVITY DUPLICATION & DUPLICATE-PUBLISH GUARD
@@ -9467,7 +9807,10 @@ function openActivityForm(act, presetModuleId) {
   openModal(`<h2>${isEdit ? t('act_edit') : t('act_new')}</h2>
     <form data-form="activity" data-id="${isEdit ? a.id : ''}">
       <div class="field"><label>${t('lbl_module')} *</label><select class="select" name="moduleId" id="activityModuleSelect" required>${avail.map(m => `<option value="${m.id}" ${preMod === m.id ? 'selected' : ''}>${tce(m.name)}${m.published ? '' : ' (' + t('lbl_draft') + ')'}</option>`).join('')}</select></div>
-      <div class="grid2"><div class="field"><label>${t('lbl_title')} *</label><input class="input" name="title" required value="${esc(a.title)}" /></div><div class="field"><label>${t('lbl_date')} *</label><input class="input" type="date" name="date" required value="${esc(a.date)}" /></div><div class="field"><label>${t('form_duration')} *</label><input class="input" type="number" min="0.5" step="0.5" name="duration" required value="${a.duration}" /></div><div class="field"><label>${t('lbl_method')} *</label><select class="select" name="method" id="activityMethod" data-change="activity-method" required><option value="Quiz" ${!isPractical ? 'selected' : ''}>${t('method_quiz')}</option><option value="Practical Test" ${isPractical ? 'selected' : ''}>${t('method_practical')}</option></select><small class="muted">${t('method_choose_hint')}</small></div></div>
+      <div class="grid2"><div class="field"><label>${t('lbl_title')} *</label><input class="input" name="title" required value="${esc(a.title)}" /></div><div class="field"><label>${t('lbl_method')} *</label><select class="select" name="method" id="activityMethod" data-change="activity-method" required><option value="Quiz" ${!isPractical ? 'selected' : ''}>${t('method_quiz')}</option><option value="Practical Test" ${isPractical ? 'selected' : ''}>${t('method_practical')}</option></select><small class="muted">${t('method_choose_hint')}</small></div></div>
+      <!-- Retain legacy activity metadata without showing duplicate date/duration inputs. Actual scheduling is controlled below. -->
+      <input type="hidden" name="date" value="${esc(a.date || todayISO())}" />
+      <input type="hidden" name="duration" value="${Number(a.duration) > 0 ? Number(a.duration) : 2}" />
       <div class="field" id="rubricTemplateField" style="display:${isPractical ? 'block' : 'none'};background:#f7fbf9;border:1px solid var(--line);border-radius:10px;padding:12px"><label>📏 ${t('lbl_rubric')} <small class="muted" style="font-weight:400">(${t('form_rubric_hint')})</small></label><select class="select" name="rubricId"><option value="">${t('form_no_rubric')}</option>${rubrics.map(rb => `<option value="${rb.id}" ${a.rubricId === rb.id ? 'selected' : ''}>${tce(rb.name)}</option>`).join('')}</select></div>
       <div class="card" style="box-shadow:none;margin:12px 0;padding:14px">
         <h3>🕒 ${t('schedule_title')}</h3>
@@ -9825,10 +10168,33 @@ async function handleUploadMaterial(form) {
 function viewMaterial(mid, matid) {
   const mat = findMaterial(mid, matid);
   if (!mat) { toast(t('msg_not_found'), 'bad'); return; }
+  const filename = mat.originalName || mat.name || '';
+  const type = String(mat.type || fileTypeFromName(filename)).toLowerCase();
+
+  // PowerPoint files in Module Learning Materials are previewed inside CFTP.
+  // Prefer the Drive file ID so Google Drive can render PPT/PPTX in an iframe.
+  if (type === 'powerpoint' || type === 'ppt' || type === 'pptx') {
+    let driveId = String(mat.fileId || '').trim();
+    if (!driveId) {
+      const candidates = [mat.previewUrl, mat.viewUrl, mat.webViewLink, mat.url, mat.downloadUrl, mat.webContentLink].filter(Boolean);
+      for (const candidate of candidates) {
+        const match = String(candidate).match(/(?:\/file\/d\/|[?&]id=)([a-zA-Z0-9_-]{10,})/);
+        if (match) { driveId = match[1]; break; }
+      }
+    }
+    const previewUrl = driveId
+      ? 'https://drive.google.com/file/d/' + encodeURIComponent(driveId) + '/preview'
+      : String(mat.previewUrl || mat.viewUrl || mat.webViewLink || '');
+    const safePreviewUrl = previewUrl && /^https:\/\//i.test(previewUrl) ? previewUrl : '';
+    const fallbackUrl = mat.viewUrl || mat.webViewLink || mat.downloadUrl || '';
+    openModal(`<div class="card-head" style="position:sticky;top:-22px;background:#fff;z-index:2;padding:4px 0 12px;margin-bottom:10px"><div style="min-width:0"><h2 style="margin:0">📊 ${tce(filename || 'PowerPoint')}</h2><small class="muted">${currentLang === 'en' ? 'PowerPoint preview' : 'Paparan PowerPoint'}</small></div><button type="button" class="btn btn-sm" data-act="close-modal">✕ ${currentLang === 'en' ? 'Close' : 'Tutup'}</button></div>${safePreviewUrl ? `<div style="width:100%;height:min(72vh,760px);min-height:420px;background:#f2f4f6;border:1px solid var(--line);border-radius:10px;overflow:hidden"><iframe src="${esc(safePreviewUrl)}" title="${esc(filename || 'PowerPoint preview')}" style="width:100%;height:100%;border:0" allow="fullscreen" allowfullscreen loading="lazy"></iframe></div><p class="muted" style="font-size:.8rem;margin:9px 0 0">${currentLang === 'en' ? 'If the preview is blocked by Google Drive permissions, open the file or download it.' : 'Jika paparan disekat oleh kebenaran Google Drive, buka fail atau muat turun.'}</p>` : `<div class="empty">${currentLang === 'en' ? 'An embedded preview link is not available for this file.' : 'Pautan paparan dalam sistem tidak tersedia untuk fail ini.'}${fallbackUrl ? ` <a href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${currentLang === 'en' ? 'Open file' : 'Buka fail'}</a>` : ''}</div>`}${fallbackUrl ? `<div class="modal-actions"><a class="btn" href="${esc(fallbackUrl)}" target="_blank" rel="noopener">↗ ${currentLang === 'en' ? 'Open file' : 'Buka fail'}</a><button type="button" class="btn btn-primary" data-act="close-modal">${currentLang === 'en' ? 'Done' : 'Selesai'}</button></div>` : ''}`, 'modal-xl');
+    return;
+  }
+
   if (mat.fileId) { const url = mat.previewUrl || ('https://drive.google.com/file/d/' + mat.fileId + '/preview'); const w = window.open(url, '_blank'); if (!w) toast('⚠️ ' + t('mat_popup_blocked'), 'bad'); return; }
   try {
-    if (mat.type === 'pdf' || mat.type === 'image') { const blob = base64ToBlob(mat.dataUrl); const url = URL.createObjectURL(blob); const w = window.open(url, '_blank'); if (!w) { URL.revokeObjectURL(url); toast('⚠️ ' + t('mat_popup_blocked'), 'bad'); return; } setTimeout(() => URL.revokeObjectURL(url), 60000); }
-    else if (mat.type === 'word' || mat.type === 'powerpoint' || mat.type === 'excel') { downloadMaterial(mid, matid); toast(t('mat_word_hint'), 'ok'); }
+    if (type === 'pdf' || type === 'image') { const blob = base64ToBlob(mat.dataUrl); const url = URL.createObjectURL(blob); const w = window.open(url, '_blank'); if (!w) { URL.revokeObjectURL(url); toast('⚠️ ' + t('mat_popup_blocked'), 'bad'); return; } setTimeout(() => URL.revokeObjectURL(url), 60000); }
+    else if (type === 'word' || type === 'excel') { downloadMaterial(mid, matid); toast(t('mat_word_hint'), 'ok'); }
     else downloadMaterial(mid, matid);
   } catch(e) { console.error(e); toast(t('mat_view_fail'), 'bad'); }
 }
@@ -9992,6 +10358,11 @@ function participantAssessmentView() {
   const practicalActs = sortActs(DB.activities.filter(a => isPracticalActivityMethod(a.method) && (state.user.role === 'admin' || canTrainerAccessActivity(a.id))));
   return `<div class="card">
     <div class="card-head"><h2>📊 ${t('title_participant_assessment')}</h2></div>
+    <div class="toolbar" style="margin:0 0 12px">
+      <button class="btn btn-sm" data-act="excel-practical-all-download">📥 ${currentLang === 'ms' ? 'Muat Turun Semua Markah Praktikal (Excel)' : 'Download All Practical Marks (Excel)'}</button>
+      <button class="btn btn-sm btn-primary" data-act="excel-practical-all-upload">📤 ${currentLang === 'ms' ? 'Upload Semula Semua Markah Praktikal' : 'Re-upload All Practical Marks'}</button>
+    </div>
+    <p class="muted" style="font-size:.85rem">${currentLang === 'ms' ? 'Eksport merangkumi semua aktiviti Practical Assessment yang mempunyai rubrik diluluskan dalam modul yang boleh diakses. Fail Excel yang sama boleh dilengkapkan dan dimuat naik semula.' : 'Export includes all Practical Assessment activities with approved rubrics in modules you can access. Complete the workbook and upload the same Excel file again.'}</p>
     <p class="muted" style="font-size:.85rem">${t('rb_grading_hint')}</p>
     ${practicalActs.length ? practicalActs.map(a => {
       const rb = getRubric(a);
@@ -10259,14 +10630,14 @@ async function handleManualQuizAnswers(form) {
 function gradingView() {
   const isAdmin = state.user.role === 'admin';
   const isVip = state.user.role === 'vip';
-  // Participant Quiz Assessment is reserved for quiz activities only.
+  // Participant Theory Assessment is reserved for theory/quiz activities only.
   const quizActs = (DB.activities || []).filter(a =>
     !isPracticalActivityMethod(a.method) && Array.isArray(a.quiz) && a.quiz.length > 0
   );
   const acts = (isAdmin || isVip)
     ? sortActs(quizActs)
     : sortActs(quizActs.filter(a => canTrainerAccessActivity(a.id)));
-  if (!acts.length) return `<div class="card"><div class="empty">${t('msg_no_activity')}</div></div>`;
+  if (!acts.length) return `<div class="card"><div class="card-head"><h2>${t('title_grading')}</h2></div><div class="empty">${t('msg_no_activity')}</div></div>`;
   const selId = state.params.gradingActivity && acts.find(a => a.id === state.params.gradingActivity) ? state.params.gradingActivity : acts[0].id;
   const act = getActivity(selId);
   const isPractical = isPracticalActivityMethod(act.method);
@@ -10279,6 +10650,7 @@ function gradingView() {
       <div><h2>${t('title_grading')}</h2><small class="muted">${isPractical ? t('act_practical_eval') : t('method_quiz')}</small>${isVip ? `<br><small class="muted">${t('vip_read_only')}</small>` : ''}</div>
       <div class="toolbar">
         <select class="select" style="max-width:340px" data-change="grading-activity">${acts.map(a => `<option value="${a.id}" ${a.id === selId ? 'selected' : ''}>${tce(a.title)}${a.published ? '' : ' ⚠️'}</option>`).join('')}</select>
+        ${['admin','trainer','facilitator'].includes(state.user.role) ? `<button class="btn btn-sm" data-act="excel-theory-all-download" title="${currentLang==='en'?'Download all theory assessment marks only':'Muat turun markah Theory Assessment sahaja'}">📥 ${currentLang==='en'?'Download All Theory Marks':'Muat Turun Semua Markah Teori'}</button><button class="btn btn-primary btn-sm" data-act="excel-theory-all-upload" title="${currentLang==='en'?'Upload the completed theory marks workbook':'Muat naik semula fail markah teori'}">📤 ${currentLang==='en'?'Upload All Theory Marks':'Upload Semua Markah Teori'}</button>` : ''}
         ${!isVip && ['admin','trainer','facilitator'].includes(state.user.role) && isPractical ? `<select class="select" style="max-width:240px" data-change="grading-rubric" data-aid="${act.id}" title="${esc(t('grading_rubric'))}"><option value="">— ${t('grading_choose_rubric')} —</option>${(DB.rubrics||[]).filter(r => r.approvalStatus === 'approved').sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(r => `<option value="${r.id}" ${act.rubricId === r.id ? 'selected' : ''}>${tce(r.name)}</option>`).join('')}</select>` : ''}
         ${!isVip && !isPractical ? `<button class="btn btn-sm" data-act="edit-quiz-builder" data-id="${act.id}">🗂️ ${t('qb_title')}</button><button class="btn btn-sm" data-act="quiz-marks-template" data-id="${act.id}">📥 ${currentLang==='en'?'Download Marks Template':'Muat Turun Template Markah'}</button><button class="btn btn-sm" data-act="quiz-marks-upload" data-id="${act.id}">📤 ${currentLang==='en'?'Upload Marks':'Upload Markah'}</button>` : ''}
         ${isVip ? `<span class="badge info">${t('vip_read_only')}</span>` : ''}
@@ -10287,26 +10659,25 @@ function gradingView() {
     ${!act.published && !isVip ? `<div class="info-box warn"><h4>⚠️ ${t('lbl_draft')}</h4><p>${t('msg_draft_hint')} <button class="btn btn-sm btn-primary" data-act="toggle-publish" data-id="${act.id}" style="margin-left:6px">${t('btn_publish')}</button></p></div>` : ''}
     ${isPractical && !rubric.length ? `<div class="info-box warn"><h4>⚠️ ${t('act_rubric_none')}</h4><p style="margin:4px 0 0">${t('grad_no_rubric')} ${!isVip ? `<span>${t('act_rubric_none_hint')}</span>` : ''}</p></div>` : ''}
     <div class="table-wrap"><table><thead><tr>
-      <th>${t('grad_participant')}</th><th>${t('grad_attendance')}</th>${isPractical ? `<th>${t('grad_practical')}</th>` : `<th>${t('grad_quiz')}</th>`}
-      <th>${t('grad_score')}</th><th>${t('grad_status')}</th>${!isVip ? `<th style="width:150px">${t('lbl_actions')}</th>` : ''}
+      <th>${t('grad_participant')}</th>${isPractical ? `<th>${t('grad_practical')}</th>` : `<th>${t('grad_quiz')}</th>`}
+      <th>${t('grad_score')}</th><th>${t('grad_status')}</th>${!isVip ? `<th class="grading-actions-cell">${t('lbl_actions')}</th>` : ''}
     </tr></thead><tbody>${parts.map(p => {
       const s = scoreFor(act, p.id);
       const retestPending = hasPendingRetest(act.id, p.id);
       const attemptCount = getAttemptCount(act.id, p.id);
       const pendingPa = isPractical && hasPendingApprovalFor('practical', act.id, p.id);
-      const attCell = isVip ? (s.attendance ? (s.attendance.status === 'Hadir' || s.attendance.status === 'Present' ? '✓ ' + t('grad_attendance_mark') : '✗ ' + t('grad_attendance_absent')) : '—') : `<select class="select" style="min-width:130px;padding:.3rem .45rem;font-size:.8rem" data-change="attendance" data-aid="${act.id}" data-pid="${p.id}"><option value="" ${!s.attendance ? 'selected' : ''}>${t('grad_attendance_none')}</option><option value="Hadir" ${s.attendance && (s.attendance.status === 'Hadir' || s.attendance.status === 'Present') ? 'selected' : ''}>${t('grad_attendance_mark')}</option><option value="Tidak Hadir" ${s.attendance && (s.attendance.status === 'Tidak Hadir' || s.attendance.status === 'Absent') ? 'selected' : ''}>${t('grad_attendance_absent')}</option></select>`;
       const assessmentCell = isPractical
         ? `${s.practical ? `<strong>${Number(s.practical.total).toFixed(1)}%</strong>` : '—'}${pendingPa ? ` <span class="pending-badge-pulse" title="${esc(t('pa_pending'))}">⏳</span>` : ''}`
         : `${s.quizPct !== null ? `${s.attempt.score}/${s.attempt.total} <small class="muted">(${s.quizPct}%)</small>` : '—'}${retestPending ? ` <span class="badge info" title="${esc(t('retest_pending_badge'))}">🔄</span>` : ''}${attemptCount > 1 ? `<br><small class="muted">${t('retest_attempt_count', attemptCount)}</small>` : ''}`;
       const overall = isPractical ? (s.practical ? Number(s.practical.total) : null) : s.quizPct;
       const actions = isPractical
         ? `<button class="btn btn-sm ${s.practical ? 'btn-primary' : ''}" data-act="practical-form" data-aid="${act.id}" data-pid="${p.id}" ${!rubric.length ? 'disabled title="' + esc(t('act_rubric_none')) + '"' : ''}>${s.practical ? '✏️ ' + t('btn_edit') : '📏 ' + t('grad_practical_form')}</button>`
-        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm" data-act="manual-quiz-answers" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter answers from printed quiz':'Masukkan jawapan daripada kuiz bercetak'}">📝 ${currentLang==='en'?'Enter Answers':'Masuk Jawapan'}</button><button class="btn btn-sm" data-act="manual-quiz-total" data-aid="${act.id}" data-pid="${p.id}">✍️ ${currentLang==='en'?'Enter Total Mark':'Masuk Jumlah Markah'}</button><button class="btn btn-sm ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
+        : `${(act.quiz && act.quiz.length) ? `<button class="btn btn-sm grading-answer" data-act="manual-quiz-answers" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter answers from printed quiz':'Masukkan jawapan daripada kuiz bercetak'}">📝 ${currentLang==='en'?'Enter Answer':'Masuk Jawapan'}</button><button class="btn btn-sm grading-fullmark" data-act="manual-quiz-total" data-aid="${act.id}" data-pid="${p.id}" title="${currentLang==='en'?'Enter the participant’s score and full marks':'Masukkan markah peserta dan markah penuh'}">✍️ ${currentLang==='en'?'Enter Full Mark':'Masuk Markah Penuh'}</button><button class="btn btn-sm grading-retest ${retestPending ? 'btn-primary' : ''}" data-act="retest-modal" data-aid="${act.id}" data-pid="${p.id}" title="${esc(t('retest_title'))}">🔄${retestPending ? '⏳' : ''}</button>` : ''}`;
       return `<tr>
-        <td><strong>${tce(p.name)}</strong></td><td>${attCell}</td><td>${assessmentCell}</td>
+        <td><strong>${tce(p.name)}</strong></td><td>${assessmentCell}</td>
         <td><strong>${overall !== null && overall !== undefined ? Number(overall).toFixed(1).replace(/\.0$/, '') + '%' : '—'}</strong></td>
         <td>${badgeStatus(overall)}</td>
-        ${!isVip ? `<td><div class="toolbar" style="flex-wrap:nowrap;gap:4px">${actions}</div></td>` : ''}
+        ${!isVip ? `<td class="grading-actions-cell"><div class="grading-actions">${actions}</div></td>` : ''}
       </tr>`;
     }).join('')}</tbody></table></div>
     ${isPractical && rubric.length ? `<p class="muted" style="font-size:.8rem;margin-top:10px">${t('pf_save_direct')} — ${t('grad_practical_form')}. ${t('pf_saved')}</p>` : ''}
@@ -10357,6 +10728,149 @@ function printPracticalRubric(aid,pid) {
   try { printHTML(practicalRubricPrintHTML(aid,pid||null)); }
   catch(e) { toast('⚠️ '+(e.message||'Gagal menyediakan rubrik.'),'bad'); }
 }
+/* =========================================================
+   ALL PRACTICAL ASSESSMENT MARKS — MULTI-ACTIVITY WORKBOOK
+   One worksheet per practical activity; same workbook supports re-import.
+   ========================================================= */
+function accessiblePracticalAssessmentActivities() {
+  if (!['admin','trainer','facilitator'].includes(state.user?.role)) throw new Error(t('msg_no_access'));
+  return sortActs((DB.activities || []).filter(a =>
+    isPracticalActivityMethod(a.method) &&
+    (state.user.role === 'admin' || canTrainerAccessActivity(a.id)) &&
+    (() => { const rb=getRubric(a); return !!rb && rb.approvalStatus==='approved' && getRubricCriteria(a).length>0; })()
+  ));
+}
+function downloadAllPracticalMarksExcel() {
+  try {
+    if (!ensureXLSX()) return;
+    const activities=accessiblePracticalAssessmentActivities();
+    if (!activities.length) { toast(currentLang==='ms'?'Tiada aktiviti Practical Assessment dengan rubrik diluluskan untuk dieksport.':'No accessible Practical Assessment activities with approved rubrics were found.','warn'); return; }
+    const wb=XLSX.utils.book_new(), en=currentLang==='en';
+    const summary=[[en?'Activity ID':'ID Aktiviti',en?'Activity':'Aktiviti',en?'Module':'Modul',en?'Rubric':'Rubrik',en?'Participants':'Peserta',en?'Saved Marks':'Markah Disimpan']];
+    let totalParticipants=0,totalMarks=0;
+    activities.forEach((act,index)=>{
+      const rb=getRubric(act),criteria=getRubricCriteria(act);
+      const participants=enrolledParticipants(act.moduleId).map(x=>x.user).filter(Boolean).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+      const headers=['Participant ID','Participant Name','Organisation',...criteria.map(c=>String(c.name||'Criterion').trim()),'Remarks'];
+      const rows=participants.map(person=>{
+        const pr=getPractical(act.id,person.id);
+        if(pr) totalMarks++;
+        return [person.id,person.name||'',person.org||'',...criteria.map((c,i)=>pr?.scores?.[i]??''),pr?.remarks||''];
+      });
+      totalParticipants+=participants.length;
+      const data=[
+        [`Activity ID: ${act.id}`],
+        [`Module ID: ${act.moduleId}`],
+        [`Activity: ${act.title||''}`],
+        [`Module: ${moduleName(act.moduleId)}`],
+        [`Rubric ID: ${rb.id}`],
+        [`Rubric: ${rb.name||''}`],
+        [en?'Instruction: Keep the Activity ID, Participant IDs and criterion headers unchanged. Enter valid rubric marks only. Existing saved marks are prefilled. Upload this same workbook to update the records.':'Arahan: Jangan ubah Activity ID, Participant ID dan tajuk kriteria. Masukkan markah sah mengikut rubrik sahaja. Markah sedia ada telah diisi. Muat naik fail yang sama untuk mengemas kini rekod.'],
+        [],
+        headers,
+        ...rows
+      ];
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      ws['!cols']=[{wch:24},{wch:30},{wch:24},...criteria.map(()=>({wch:22})),{wch:36}];
+      ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:8,c:0},e:{r:8+rows.length,c:headers.length-1}})};
+      ws['!freeze']={xSplit:3,ySplit:9};
+      const base=`PA_${String(index+1).padStart(2,'0')}_${String(act.id).replace(/[^a-z0-9]/gi,'').slice(-10)}`.slice(0,31);
+      let sheetName=base,n=2; while(wb.SheetNames.includes(sheetName)) sheetName=(base.slice(0,27)+'_'+n++).slice(0,31);
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+      summary.push([act.id,act.title||'',moduleName(act.moduleId),rb.name||'',participants.length,participants.filter(p=>!!getPractical(act.id,p.id)).length]);
+    });
+    const sumWs=XLSX.utils.aoa_to_sheet(summary); sumWs['!cols']=[{wch:24},{wch:36},{wch:28},{wch:30},{wch:14},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,sumWs,en?'Summary':'Ringkasan',0);
+    const guide=[
+      ['FIELD','INSTRUCTION'],
+      ['Worksheets','Each PA_ worksheet represents one Practical Assessment activity.'],
+      ['Activity ID / Module ID / Rubric ID','System identifiers. Do not edit.'],
+      ['Participant ID','Unique participant key. Do not edit or delete.'],
+      ['Participant Name / Organisation','Reference information only.'],
+      ['Criterion columns','Enter a numeric mark exactly matching one of the performance-level marks in that activity rubric.'],
+      ['Remarks','Optional trainer/facilitator feedback.'],
+      ['Existing marks','Previously saved marks are prefilled. Edit the marks/remarks that need updating.'],
+      ['Upload','Upload this same .xlsx using Upload All Practical Marks. Import is matched by Activity ID and Participant ID. Invalid rows are rejected; incomplete rows are skipped.']
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(guide),en?'Instructions':'Arahan');
+    XLSX.writeFile(wb,`CFTP_All_Practical_Assessment_Marks_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast(en?`Downloaded ${activities.length} practical activities and ${totalParticipants} participant rows (${totalMarks} saved marks).`:`Berjaya memuat turun ${activities.length} aktiviti praktikal, ${totalParticipants} baris peserta (${totalMarks} markah tersimpan).`,'ok');
+  } catch(e) { toast('⚠️ '+(e.message||'Excel export failed.'),'bad'); }
+}
+async function importAllPracticalMarksExcel(file) {
+  try {
+    if (!ensureXLSX()) return;
+    const wb=await readExcelFile(file);
+    const accessible=new Map(accessiblePracticalAssessmentActivities().map(a=>[String(a.id),a]));
+    const parsedAll=[],errors=[]; let skipped=0,processedSheets=0;
+    wb.SheetNames.forEach(sheetName=>{
+      if (/^(summary|ringkasan|instructions|arahan)$/i.test(sheetName)) return;
+      const ws=wb.Sheets[sheetName]; if(!ws) return;
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+      const activityLine=data.find(r=>/^activity id\s*:/i.test(String(r[0]||'').trim()));
+      if(!activityLine) return;
+      const aid=String(activityLine[0]).replace(/^activity id\s*:/i,'').trim();
+      const act=accessible.get(aid);
+      if(!act){errors.push(`${sheetName}: Activity ID ${aid} is not accessible or no longer exists.`);return;}
+      const ctx=practicalAssessmentContext(aid);
+      const headerRow=data.findIndex(r=>String(r[0]||'').trim().toLowerCase()==='participant id');
+      if(headerRow<0){errors.push(`${sheetName}: Participant ID header not found.`);return;}
+      const headers=data[headerRow].map(v=>String(v||'').trim());
+      const idCol=headers.findIndex(h=>h.toLowerCase()==='participant id');
+      const remarksCol=headers.findIndex(h=>h.toLowerCase()==='remarks');
+      const criterionCols=ctx.criteria.map(c=>headers.findIndex(h=>h===String(c.name||'').trim()));
+      if(criterionCols.some(i=>i<0)){errors.push(`${sheetName}: Criterion columns do not match the current approved rubric.`);return;}
+      const allowed=new Map(ctx.participants.map(p=>[String(p.id),p])),seen=new Set();
+      for(let ri=headerRow+1;ri<data.length;ri++){
+        const row=data[ri]||[],pid=String(row[idCol]||'').trim();
+        if(!pid) continue;
+        if(!allowed.has(pid)){errors.push(`${sheetName}, row ${ri+1}: Participant ID ${pid} is not enrolled in this activity.`);continue;}
+        if(seen.has(pid)){errors.push(`${sheetName}, row ${ri+1}: Duplicate Participant ID ${pid}.`);continue;}
+        seen.add(pid);
+        const scores=[];
+        ctx.criteria.forEach((c,ci)=>{
+          const raw=row[criterionCols[ci]];
+          if(raw===''||raw===null||raw===undefined){scores.push(null);return;}
+          const mark=Number(raw),valid=(c.levels||[]).some(l=>Number(l.mark)===mark);
+          if(!Number.isFinite(mark)||!valid){errors.push(`${sheetName}, row ${ri+1}: ${c.name} mark "${raw}" is not a valid rubric mark.`);scores.push(null);}
+          else scores.push(mark);
+        });
+        if(scores.some(v=>v===null)){skipped++;continue;}
+        let weighted=0,totalWeight=0;
+        ctx.criteria.forEach((c,i)=>{const max=Math.max(...(c.levels||[]).map(l=>Number(l.mark)||0));totalWeight+=Number(c.weight)||0;weighted+=max>0?(scores[i]/max)*(Number(c.weight)||0):0;});
+        const total=totalWeight>0?(weighted/totalWeight)*100:0;
+        parsedAll.push({aid,act,pid,scores,total,remarks:remarksCol>=0?String(row[remarksCol]||'').trim():''});
+      }
+      processedSheets++;
+    });
+    if(errors.length){throw new Error(`Import cancelled: ${errors.length} issue(s) found. No marks were saved.\n${errors.slice(0,10).join('\n')}${errors.length>10?'\n…and more issues.':''}`);}
+    if(!processedSheets||!parsedAll.length) throw new Error('No valid practical assessment mark rows were found in this workbook.');
+    // Apply only after every worksheet has passed validation, preventing partial workbook imports.
+    parsedAll.forEach(item=>{
+      const aid=item.aid,act=item.act;
+      const shouldSubmit=state.user.role==='facilitator'||(state.user.role!=='admin'&&isFacilitatorOf(act.moduleId,state.user.id));
+      const payload={scores:item.scores,total:item.total,remarks:item.remarks};
+      if(shouldSubmit){
+        if(!Array.isArray(DB.pendingApprovals)) DB.pendingApprovals=[];
+        let pa=DB.pendingApprovals.find(x=>x.type==='practical'&&String(x.activityId)===String(aid)&&String(x.participantId)===String(item.pid)&&x.status==='pending');
+        if(pa){pa.data=payload;pa.submittedAt=nowISO();}
+        else DB.pendingApprovals.push({id:uid('pa'),type:'practical',moduleId:act.moduleId,activityId:aid,participantId:item.pid,data:payload,submittedBy:state.user.id,submittedAt:nowISO(),status:'pending',reviewedBy:null,reviewedAt:null,reviewRemarks:''});
+      } else {
+        let rec=DB.practical.find(x=>String(x.activityId)===String(aid)&&String(x.participantId)===String(item.pid));
+        if(rec){rec.scores=item.scores;rec.total=item.total;rec.remarks=item.remarks;rec.by=state.user.id;rec.at=nowISO();}
+        else DB.practical.push({id:uid('pr'),activityId:aid,participantId:item.pid,scores:item.scores,total:item.total,remarks:item.remarks,by:state.user.id,at:nowISO()});
+        if(Array.isArray(DB.pendingApprovals)) DB.pendingApprovals=DB.pendingApprovals.filter(x=>!(x.type==='practical'&&String(x.activityId)===String(aid)&&String(x.participantId)===String(item.pid)&&x.status==='pending'));
+      }
+      logAudit(shouldSubmit?'Bulk Practical Submitted (Pending Approval)':'Bulk Practical Marks Import','Penilaian',`${aid}:${item.pid}`,`${userName(item.pid)}: ${item.total.toFixed(1)}%`);
+    });
+    saveDB();
+    const saved=await forceSaveNow();
+    if(!saved||!saved.ok){toast(currentLang==='ms'?'Markah diproses tetapi penyegerakan belum berjaya. Sila Sync semula.':'Marks processed but sync has not completed. Please retry Sync.','warn');}
+    else toast((currentLang==='ms'?`${parsedAll.length} rekod markah praktikal berjaya dikemas kini.`:`${parsedAll.length} practical mark records imported successfully.`)+(skipped?` ${skipped} incomplete row(s) skipped.`:'') ,'ok');
+    render();
+  } catch(e) { toast('⚠️ '+(e.message||'Practical marks import failed.'),'bad'); }
+}
+
 function downloadPracticalMarksTemplate(aid) {
   try {
     if (!ensureXLSX()) return;
@@ -10687,18 +11201,19 @@ function reportsView() {
     allowedModules = sortModules(DB.modules);
     spiderParticipants = parts;
   } else if (role === 'trainer' || role === 'facilitator') {
-    allowedModules = myModules();
-    const ids = new Set();
-    allowedModules.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id)));
-    spiderParticipants = parts.filter(p => ids.has(p.id));
+    // User-requested reviewer scope: trainers and facilitators can review
+    // spider-web assessment records across every module and all participants.
+    // This is read-only; no assessment or enrolment records are changed.
+    allowedModules = sortModules(DB.modules);
+    spiderParticipants = parts.slice();
   }
-  const overallScopeParticipants = role === 'admin' ? parts : spiderParticipants;
+  const overallScopeParticipants = (role === 'admin' || role === 'trainer' || role === 'facilitator') ? parts : spiderParticipants;
   const overallCard = !isParticipant && ['admin','trainer','facilitator'].includes(role) ? `<div class="card overall-spider-card"><div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Overall Spider Web — All Modules & Participants' : 'Spider Web Keseluruhan — Semua Modul & Peserta'}</h2><span class="pill">${overallScopeParticipants.length} ${currentLang === 'en' ? 'participants' : 'peserta'}</span></div><p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'Combines all training days/modules into one cohort-level spider web. Each axis represents a module and shows the average Practical Assessment rubric score for assessed participants.' : 'Menggabungkan semua hari/modul latihan dalam satu Spider Web keseluruhan. Setiap paksi mewakili satu modul dan menunjukkan purata skor rubrik Penilaian Praktikal bagi peserta yang telah dinilai.'}</p>${renderOverallSpider(allowedModules, overallScopeParticipants)}<div class="toolbar" style="margin-top:12px"><button class="btn btn-primary" data-act="spider-print-overall">📄 ${currentLang === 'en' ? 'Print Overall Spider Web PDF' : 'Cetak PDF Spider Web Keseluruhan'}</button></div></div>` : '';
   const spiderCard = !isParticipant && ['admin','trainer','facilitator'].includes(role) ? `<div class="card spider-review-card">
     <div class="card-head"><h2>🕸️ ${currentLang === 'en' ? 'Student Spider Web Assessment' : 'Spider Web Penilaian Pelajar'}</h2><span class="pill">${spiderParticipants.length} ${currentLang === 'en' ? 'students' : 'pelajar'}</span></div>
-    <p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'Select a student to review Practical Assessment performance by rubric criterion. Trainers and facilitators can only access students enrolled in their assigned modules.' : 'Pilih pelajar untuk melihat prestasi Practical Assessment mengikut kriteria rubrik. Jurulatih dan fasilitator hanya boleh melihat pelajar yang berdaftar dalam modul di bawah tugasan mereka.'}</p>
+    <p class="muted" style="margin:0 0 12px">${currentLang === 'en' ? 'Select a student to review Practical Assessment performance by rubric criterion. Trainers and facilitators can review students across all training modules.' : 'Pilih pelajar untuk melihat prestasi Practical Assessment mengikut kriteria rubrik. Jurulatih dan fasilitator boleh melihat pelajar bagi semua modul latihan.'}</p>
     <div class="toolbar"><select class="select" id="spiderReviewParticipant" style="max-width:420px">${spiderParticipants.map(p => `<option value="${p.id}">${tce(p.name)}${p.org ? ' — ' + tce(p.org) : ''}</option>`).join('')}</select><button class="btn btn-primary" data-act="spider-review-selected">${currentLang === 'en' ? 'View Spider Web' : 'Lihat Spider Web'}</button><button class="btn" data-act="spider-print-review-selected">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>
-    ${spiderParticipants.length ? '' : `<div class="empty">${currentLang === 'en' ? 'No students are enrolled in your assigned modules.' : 'Tiada pelajar berdaftar dalam modul yang ditugaskan.'}</div>`}
+    ${spiderParticipants.length ? '' : `<div class="empty">${currentLang === 'en' ? 'No approved students are available.' : 'Tiada pelajar yang diluluskan tersedia.'}</div>`}
   </div>` : '';
   if (isParticipant) {
     return `<div class="card"><div class="card-head"><h2>${t('rep_title')}</h2></div><button class="btn btn-primary" data-act="report-individual" data-pid="${state.user.id}">${t('rep_generate')}</button></div>`;
@@ -11855,6 +12370,9 @@ document.addEventListener('click', async (e) => {
     case 'switch-login': state.loginMode = 'login'; render(); break;
     case 'logout': try { sessionStorage.removeItem('cftp_program_memory_token'); } catch (_) {} handleLogoutClick(); break;
     case 'open-final-question-bell': openFinalQuestionBell(); break;
+    case 'open-module-assessment-bell': openModuleAssessmentBell(); break;
+    case 'request-module-assessment': requestModuleAssessmentSetup(tgt.dataset.mid); break;
+    case 'request-final-questions': requestFinalExamQuestions(tgt.dataset.id); break;
     case 'bell-submit-final-questions': {
       const feid = tgt.dataset.feid, mid = tgt.dataset.mid;
       const m = getModule(mid);
@@ -11945,6 +12463,8 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'send-quiz-reminder': await sendQuizReminder(id); break;
+    case 'send-final-exam-reminder': sendFinalExamReminder(id); break;
+    case 'export-module-marks': exportAllModuleMarksToExcel(); break;
     case 'open-activity': state.params = { activityId: id }; state.view = 'activity'; render(); break;
     case 'open-module': state.params = { moduleId: id }; state.view = 'module'; render(); refreshModuleMaterialsFromDrive(id, true, { persist: state.user.role === 'admin' }); break;
     case 'participant-timetable-detail': showParticipantTimetableDetail(id, tgt.dataset.kind); break;
@@ -12034,9 +12554,9 @@ document.addEventListener('click', async (e) => {
     }
     case 'spider-print-self': { const pid = state.user.id; printHTML(spiderReportHTML(pid, participantModules(pid))); break; }
     case 'spider-print-overall': { const role = state.user.role; if (!['admin','trainer','facilitator'].includes(role)) { toast(t('msg_no_access'), 'bad'); break; } const mods = role === 'admin' ? sortModules(DB.modules) : myModules(); const ids = new Set(); mods.forEach(m => enrolledParticipants(m.id).forEach(x => ids.add(x.user.id))); const ps = allParticipants().filter(p => ids.has(p.id)); printHTML(overallSpiderReportHTML(mods, ps)); break; }
-    case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(person.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
-    case 'spider-print-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
-    case 'spider-print-review': { const pid = tgt.dataset.pid; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = role === 'admin' ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
+    case 'spider-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = (role === 'admin' || role === 'trainer' || role === 'facilitator') ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } const mods = participantModules(pid).filter(m => permitted.some(x => x.id === m.id)); const body = `<div class="spider-review-modal">${renderParticipantAssessmentSpider(pid, mods)}</div>`; openModal(`<h2>🕸️ ${tce(person.name || '')}</h2>${body}<div class="tab-actions"><button class="btn btn-primary" data-act="spider-print-review" data-pid="${esc(pid)}">📄 ${currentLang === 'en' ? 'Print PDF' : 'Cetak PDF'}</button></div>`, 'modal-lg'); break; }
+    case 'spider-print-review-selected': { const sel = $('#spiderReviewParticipant'); if (!sel) break; const pid = sel.value; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = (role === 'admin' || role === 'trainer' || role === 'facilitator') ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
+    case 'spider-print-review': { const pid = tgt.dataset.pid; const role = state.user.role; const person = DB.users.find(u => u.id === pid && u.role === 'participant'); if (!person || (role === 'vip' && !sameCompany(person.org, state.user.org))) { toast(t('msg_no_access'), 'bad'); break; } const permitted = (role === 'admin' || role === 'trainer' || role === 'facilitator') ? sortModules(DB.modules) : role === 'vip' ? participantModules(pid) : myModules(); if (!['admin','trainer','facilitator','vip'].includes(role) || (role !== 'vip' && !participantModules(pid).some(m => permitted.some(x => x.id === m.id)))) { toast(t('msg_no_access'), 'bad'); break; } printHTML(spiderReportHTML(pid, permitted)); break; }
     case 'report-individual': { const pid = tgt.dataset.pid; printHTML(individualReportHTML(pid)); break; }
     case 'report-individual-selected': { const sel = $('#reportParticipant'); if (!sel) break; printHTML(individualReportHTML(sel.value)); break; }
     case 'report-program': { const org = state.user.role === 'vip' ? state.user.org : null; printHTML(programReportHTML(org)); break; }
@@ -12089,6 +12609,7 @@ document.addEventListener('click', async (e) => {
     case 'view-material': viewMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'download-material': downloadMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
     case 'delete-material': deleteMaterial(tgt.dataset.mid, tgt.dataset.matid); break;
+    case 'move-material': moveModuleMaterial(tgt.dataset.mid, tgt.dataset.matid, tgt.dataset.dir); break;
     case 'new-timetable': openTimetableForm(tgt.dataset.mid, null); break;
     case 'edit-timetable': { const e = DB.timetables.find(x => x.id === tgt.dataset.tid); if (e) openTimetableForm(e.moduleId, e.id); break; }
     case 'delete-timetable': deleteTimetableEntry(tgt.dataset.tid); break;
@@ -12165,6 +12686,8 @@ document.addEventListener('click', async (e) => {
     case 'print-rubric-one': printPracticalRubric(tgt.dataset.aid, tgt.dataset.pid); break;
     case 'excel-practical-download': downloadPracticalMarksTemplate(tgt.dataset.aid); break;
     case 'excel-practical-upload': { const aid=tgt.dataset.aid; pickExcelFile('.xlsx,.xls', (f) => importPracticalMarksExcel(f, aid)); break; }
+    case 'excel-practical-all-download': downloadAllPracticalMarksExcel(); break;
+    case 'excel-practical-all-upload': pickExcelFile('.xlsx,.xls', (f) => importAllPracticalMarksExcel(f)); break;
     case 'excel-timetable-download': downloadTimetableTemplate(tgt.dataset.mid); break;
     case 'excel-timetable-upload': { const mid = tgt.dataset.mid; pickExcelFile('.xlsx,.xls', (f) => importTimetableExcel(f, mid)); break; }
   }
@@ -12517,6 +13040,123 @@ function saveManualQuizTotal(aid,pid,score,total) {
   logAudit('Enter Manual Quiz Total','Penilaian',`${aid}:${pid}`,`${score}/${total}`);
   saveAssessmentToGoogleSheets('Quiz total mark saved to Google Sheets.');
 }
+/* =========================================================
+   ALL THEORY ASSESSMENT MARKS — MULTI-ACTIVITY WORKBOOK
+   Export/import is deliberately restricted to quiz/theory activities.
+   ========================================================= */
+function accessibleTheoryAssessmentActivities() {
+  if (!['admin','trainer','facilitator'].includes(state.user?.role)) throw new Error(t('msg_no_access'));
+  return sortActs((DB.activities || []).filter(a =>
+    !isPracticalActivityMethod(a.method) &&
+    Array.isArray(a.quiz) && a.quiz.length > 0 &&
+    (state.user.role === 'admin' || canTrainerAccessActivity(a.id))
+  ));
+}
+function downloadAllTheoryMarksExcel() {
+  try {
+    if (!ensureXLSX()) return;
+    const activities=accessibleTheoryAssessmentActivities();
+    if (!activities.length) {
+      toast(currentLang==='en'?'No accessible theory assessment activities were found.':'Tiada aktiviti Theory Assessment yang boleh diakses.','warn');
+      return;
+    }
+    const wb=XLSX.utils.book_new(), en=currentLang==='en';
+    const summary=[[en?'Activity ID':'ID Aktiviti',en?'Activity':'Aktiviti',en?'Module':'Modul',en?'Participants':'Peserta',en?'Recorded Marks':'Markah Direkod']];
+    activities.forEach((act,index)=>{
+      const participants=enrolledParticipants(act.moduleId).map(x=>x.user).filter(Boolean)
+        .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+      const rows=participants.map(person=>{
+        const mark=getAttempt(act.id,person.id);
+        return [person.id,person.name||'',person.org||'',mark?.score??'',mark?.total??(act.quiz||[]).length,''];
+      });
+      summary.push([act.id,act.title||'',moduleName(act.moduleId),participants.length,
+        participants.filter(p=>!!getAttempt(act.id,p.id)).length]);
+      const data=[
+        [`Activity ID: ${act.id}`],
+        [`Module ID: ${act.moduleId}`],
+        [`Activity: ${act.title||''}`],
+        [`Module: ${moduleName(act.moduleId)}`],
+        [en?'Instruction: Keep Activity ID and Participant IDs unchanged. Enter Score and Total Marks only. Existing best/current saved marks are prefilled. Upload this same workbook to update records.':'Arahan: Jangan ubah Activity ID dan Participant ID. Masukkan Score dan Total Marks sahaja. Markah terbaik/terkini yang tersimpan telah diisi. Muat naik fail yang sama untuk mengemas kini rekod.'],
+        [],
+        ['Participant ID','Participant Name','Organisation','Score','Total Marks','Remarks'],
+        ...rows
+      ];
+      const ws=XLSX.utils.aoa_to_sheet(data);
+      ws['!cols']=[{wch:25},{wch:30},{wch:25},{wch:14},{wch:16},{wch:35}];
+      ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:6,c:0},e:{r:6+rows.length,c:5}})};
+      ws['!freeze']={xSplit:3,ySplit:7};
+      const base=`TH_${String(index+1).padStart(2,'0')}_${String(act.id).replace(/[^a-z0-9]/gi,'').slice(-10)}`.slice(0,31);
+      let sheetName=base,n=2;
+      while(wb.SheetNames.includes(sheetName)) sheetName=(base.slice(0,27)+'_'+n++).slice(0,31);
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+    });
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summary),'Summary');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+      ['FIELD','INSTRUCTION'],
+      ['Worksheets','Each TH_ worksheet represents one theory/quiz assessment activity. Practical assessments are not included.'],
+      ['Activity ID / Module ID','System identifiers. Do not edit.'],
+      ['Participant ID','Unique participant key. Do not edit.'],
+      ['Score','Marks obtained by the participant.'],
+      ['Total Marks','Maximum possible marks; must be greater than zero.'],
+      ['Existing marks','The current mark selected by the system is prefilled. Editing and re-uploading creates/updates a manual mark record for that participant and activity.'],
+      ['Upload','Upload this same .xlsx using Upload All Theory Marks. Records are matched by Activity ID and Participant ID.']
+    ]),'Instructions');
+    XLSX.writeFile(wb,`CFTP_All_Theory_Assessment_Marks_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast(en?`Downloaded marks for ${activities.length} theory activities.`:`Markah bagi ${activities.length} aktiviti teori berjaya dimuat turun.`,'ok');
+  } catch(e) { toast('⚠️ '+(e.message||'Theory marks export failed.'),'bad'); }
+}
+async function importAllTheoryMarksExcel(file) {
+  try {
+    if (!ensureXLSX()) return;
+    const wb=await readExcelFile(file);
+    const accessible=new Map(accessibleTheoryAssessmentActivities().map(a=>[String(a.id),a]));
+    const parsed=[],errors=[]; let processedSheets=0;
+    wb.SheetNames.forEach(sheetName=>{
+      if (/^(summary|instructions)$/i.test(sheetName)) return;
+      const ws=wb.Sheets[sheetName]; if(!ws) return;
+      const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+      const activityLine=data.find(r=>/^activity id\s*:/i.test(String(r[0]||'').trim()));
+      if(!activityLine) return;
+      const aid=String(activityLine[0]).replace(/^activity id\s*:/i,'').trim();
+      const act=accessible.get(aid);
+      if(!act){errors.push(`${sheetName}: Activity ID ${aid} is not an accessible theory activity.`);return;}
+      const headerRow=data.findIndex(r=>String(r[0]||'').trim().toLowerCase()==='participant id');
+      if(headerRow<0){errors.push(`${sheetName}: Participant ID header not found.`);return;}
+      const h=data[headerRow].map(v=>String(v||'').trim().toLowerCase());
+      const idc=h.indexOf('participant id'),sc=h.indexOf('score'),tc=h.indexOf('total marks');
+      if(idc<0||sc<0||tc<0){errors.push(`${sheetName}: Participant ID, Score and Total Marks columns are required.`);return;}
+      const allowed=new Set(enrolledParticipants(act.moduleId).map(x=>String(x.user?.id||'')));
+      const seen=new Set();
+      for(let ri=headerRow+1;ri<data.length;ri++){
+        const row=data[ri]||[],pid=String(row[idc]||'').trim();
+        if(!pid) continue;
+        if(!allowed.has(pid)){errors.push(`${sheetName}, row ${ri+1}: Participant is not enrolled in this activity.`);continue;}
+        if(seen.has(pid)){errors.push(`${sheetName}, row ${ri+1}: Duplicate Participant ID.`);continue;}
+        seen.add(pid);
+        if(row[sc]===''||row[tc]===''){continue;}
+        const score=Number(row[sc]),total=Number(row[tc]);
+        if(!Number.isFinite(score)||!Number.isFinite(total)||total<=0||score<0||score>total){
+          errors.push(`${sheetName}, row ${ri+1}: Invalid Score or Total Marks.`);continue;
+        }
+        parsed.push({aid,pid,score,total});
+      }
+      processedSheets++;
+    });
+    if(errors.length) throw new Error(`Import cancelled: ${errors.length} issue(s) found. No marks were saved.\n${errors.slice(0,10).join('\n')}${errors.length>10?'\n…and more issues.':''}`);
+    if(!processedSheets||!parsed.length) throw new Error('No valid theory assessment mark rows were found.');
+    if(!confirm(`Import/update ${parsed.length} theory assessment mark(s)? This will set them as manual marks for the matching activity and participant.`)) return;
+    parsed.forEach(x=>{
+      const old=DB.attempts.find(a=>a.activityId===x.aid&&a.participantId===x.pid&&a.manual===true);
+      const rec={id:old?.id||uid('att'),activityId:x.aid,participantId:x.pid,score:x.score,total:x.total,manual:true,at:nowISO(),enteredBy:state.user.id,source:'excel-bulk-upload'};
+      if(old) Object.assign(old,rec); else DB.attempts.push(rec);
+      logAudit('Bulk Theory Marks Import','Penilaian',`${x.aid}:${x.pid}`,`${x.score}/${x.total}`);
+    });
+    saveAssessmentToGoogleSheets(currentLang==='en'?'All theory assessment marks uploaded and saved to Google Sheets.':'Semua markah Theory Assessment dimuat naik dan disimpan ke Google Sheets.');
+    toast(currentLang==='en'?`${parsed.length} theory mark record(s) imported.`:`${parsed.length} rekod markah teori berjaya diimport.`,'ok');
+    render();
+  } catch(e) { toast('⚠️ '+(e.message||'Theory marks import failed.'),'bad'); }
+}
+
 function downloadQuizMarksTemplate(aid) {
   if(!ensureXLSX())return;
   const act=getActivity(aid);if(!act||!canTrainerAccessActivity(aid)){toast(t('msg_no_access'),'bad');return;}
@@ -12563,114 +13203,11 @@ document.addEventListener('click',e=>{
   if(b.dataset.act==='manual-quiz-total')openManualQuizTotalModal(b.dataset.aid,b.dataset.pid);
   if(b.dataset.act==='quiz-marks-template')downloadQuizMarksTemplate(b.dataset.id);
   if(b.dataset.act==='quiz-marks-upload'){const aid=b.dataset.id;pickExcelFile('.xlsx,.xls',f=>importQuizMarksTemplate(f,aid));}
+  if(b.dataset.act==='excel-theory-all-download')downloadAllTheoryMarksExcel();
+  if(b.dataset.act==='excel-theory-all-upload')pickExcelFile('.xlsx,.xls',f=>importAllTheoryMarksExcel(f));
 });
 
 
-/* =========================================================
-   SAFE APP VERSION CHECK — additive, data-preserving
-   Requires version.json next to this HTML file.
-   Never clears localStorage, changes database keys, or logs the user out.
-   ========================================================= */
-let cftpVersionCheckInFlight = false;
-let cftpUpdateTarget = null;
-let cftpUpdateNoticeShown = false;
-let cftpUpdateReloadStarted = false;
-
-function cftpHasUnsafeUpdateActivity() {
-  if (isStandaloneQuizAttemptActive() || isSystemInfoVideoSessionActive()) return true;
-  if (programMemoryUploadInFlight || cftpModuleMaterialUploadCount > 0) return true;
-  if (Array.isArray(systemInfoPendingUploads) && systemInfoPendingUploads.length) return true;
-  if (document.querySelector('.modal-backdrop, .sync-overlay')) return true;
-  const active = document.activeElement;
-  if (active && active.isConnected && (active.matches('input,textarea,select,[contenteditable="true"]'))) return true;
-  return false;
-}
-
-function cftpCurrentHasPendingChanges() {
-  try {
-    return pendingSaveSince > 0 || saveInFlight || !!saveTimer || savePending ||
-      !isDiffEmpty(computeDiff(lastSyncedSnapshot, DB));
-  } catch (_) { return true; }
-}
-
-function cftpReloadForLatestVersion(targetVersion, targetBuild) {
-  if (cftpUpdateReloadStarted) return;
-  cftpUpdateReloadStarted = true;
-  const nextUrl = new URL(window.location.href);
-  nextUrl.searchParams.set('__cftp_update', String(targetBuild || targetVersion || Date.now()));
-  // localStorage/sessionStorage are intentionally left untouched: the same user
-  // session and local cache are restored by fastBoot() after the page reloads.
-  window.location.replace(nextUrl.toString());
-}
-
-async function applyCftpUpdateWhenSafe() {
-  if (!cftpUpdateTarget || cftpUpdateReloadStarted || cftpHasUnsafeUpdateActivity()) return;
-  if (cftpCurrentHasPendingChanges()) {
-    try {
-      const saved = await forceSaveNow();
-      if (!saved || !saved.ok || cftpCurrentHasPendingChanges()) {
-        if (!cftpUpdateNoticeShown) {
-          cftpUpdateNoticeShown = true;
-          toast(programMemoryText(
-            'Versi baharu tersedia. Data yang belum berjaya disimpan dikekalkan; sistem akan cuba kemas kini semula selepas sync berjaya.',
-            'A new version is available. Unsaved data is being protected; the update will retry after sync succeeds.'
-          ), 'warn');
-        }
-        return;
-      }
-    } catch (err) {
-      console.warn('[version] Update postponed because a save did not complete:', err);
-      return;
-    }
-  }
-  if (cftpHasUnsafeUpdateActivity()) return;
-  cftpReloadForLatestVersion(cftpUpdateTarget.version, cftpUpdateTarget.build);
-}
-
-async function checkCftpLatestVersion() {
-  if (cftpVersionCheckInFlight || cftpUpdateReloadStarted || !navigator.onLine) return;
-  cftpVersionCheckInFlight = true;
-  try {
-    const versionUrl = new URL('./version.json', window.location.href);
-    versionUrl.searchParams.set('_', String(Date.now()));
-    const response = await fetch(versionUrl.toString(), { cache:'no-store', credentials:'same-origin' });
-    if (!response.ok) return;
-    const remote = await response.json();
-    const remoteVersion = String(remote && remote.version || '').trim();
-    const remoteBuild = String(remote && remote.build || '').trim();
-    if (!remoteVersion) return;
-    if (remoteVersion === CFTP_APP_VERSION && (!remoteBuild || remoteBuild === CFTP_BUILD_ID)) {
-      cftpUpdateTarget = null;
-      cftpUpdateNoticeShown = false;
-      return;
-    }
-    cftpUpdateTarget = { version:remoteVersion, build:remoteBuild };
-    if (!cftpUpdateNoticeShown) {
-      cftpUpdateNoticeShown = true;
-      toast(programMemoryText(
-        'Versi sistem yang lebih terkini dikesan. Sistem akan dikemas kini secara automatik selepas aktiviti semasa selesai.',
-        'A newer system version was detected. The page will update automatically after the current activity finishes.'
-      ), 'ok');
-    }
-    await applyCftpUpdateWhenSafe();
-  } catch (err) {
-    // A missing/unavailable version.json must never affect login or stored data.
-    console.warn('[version] Version check skipped:', err && err.message || err);
-  } finally {
-    cftpVersionCheckInFlight = false;
-  }
-}
-
-// Check once shortly after boot, then periodically. Also retry when the user
-// finishes an edit/upload and when the tab becomes visible again.
-setTimeout(checkCftpLatestVersion, 12000);
-setInterval(checkCftpLatestVersion, 60000);
-document.addEventListener('focusout', () => {
-  if (cftpUpdateTarget) setTimeout(applyCftpUpdateWhenSafe, 1200);
-});
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && cftpUpdateTarget) checkCftpLatestVersion();
-});
 
 </script>
 
@@ -12780,5 +13317,108 @@ body.standalone-mode .standalone-card {
 .memory-upload-progress[data-status="complete"] .memory-upload-dots{display:none}
 @media(max-width:600px){#transferActivityFeedUpload{min-width:100%}.memory-upload-visual{align-items:flex-start;gap:10px}.memory-upload-picture{width:52px;height:52px;flex-basis:52px;font-size:26px}}
 </style>
+
+<style id="cftp-safe-enhancements-20261121">
+/* Four-digit notification counts stay horizontal and fit their badge. */
+.tab-unread-badge{
+  flex:0 0 auto;white-space:nowrap;word-break:keep-all;writing-mode:horizontal-tb;
+  min-width:19px;max-width:48px;padding:0 4px;font-variant-numeric:tabular-nums;
+  font-size:clamp(.52rem,.68rem, .68rem);letter-spacing:-.035em;line-height:1;
+}
+.tab-unread-badge[data-digits="4"],.tab-unread-badge[data-digits="5"]{font-size:.53rem;letter-spacing:-.055em;padding-left:3px;padding-right:3px;min-width:29px}
+.cftp-ppt-preview{width:100%;height:min(76vh,820px);min-height:480px;border:1px solid var(--line);border-radius:9px;background:#f7faf8}
+.cftp-dashboard-performance{margin-top:18px}
+.cftp-dashboard-performance .table-wrap{margin-top:12px}
+.cftp-dashboard-performance .perf-score{font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
+@media(max-width:520px){.cftp-ppt-preview{height:68vh;min-height:360px}}
+</style>
+<script id="cftp-safe-enhancements-20261121">
+(function(){
+  'use strict';
+  const en = () => currentLang === 'en';
+  const isPpt = mat => !!mat && (mat.type === 'powerpoint' || /\.(ppt|pptx)$/i.test(String(mat.name || mat.originalName || '')));
+  const escapeHtml = value => (typeof esc === 'function' ? esc(String(value == null ? '' : value)) : String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
+  // Render four-digit notification counts with a compact font size.
+  const badgeObserver = new MutationObserver(() => {
+    document.querySelectorAll('.tab-unread-badge').forEach(el => {
+      const digits = String(el.textContent || '').length;
+      el.dataset.digits = String(digits);
+      el.style.fontSize = digits >= 4 ? '.53rem' : '';
+      el.style.writingMode = 'horizontal-tb';
+      el.style.whiteSpace = 'nowrap';
+      el.style.flexShrink = '0';
+    });
+  });
+  badgeObserver.observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+
+  // PowerPoint: keep the file inside the system in a readable slide preview.
+  // Google Drive's native preview is used so the original stored file is untouched.
+  const originalViewMaterial = viewMaterial;
+  viewMaterial = function(mid, matid){
+    const mat = findMaterial(mid, matid);
+    if (!mat) return originalViewMaterial(mid, matid);
+    if (isPpt(mat)) {
+      let preview = mat.previewUrl || '';
+      if (!preview && mat.fileId) preview = 'https://drive.google.com/file/d/' + encodeURIComponent(String(mat.fileId)) + '/preview';
+      if (!preview && mat.viewUrl) preview = mat.viewUrl;
+      if (!preview && mat.url) preview = mat.url;
+      if (!preview) {
+        toast(en()
+          ? 'This PowerPoint has no online preview link. Please download it to read the slides.'
+          : 'PowerPoint ini tiada pautan pratonton dalam talian. Sila muat turun untuk membaca slaid.','warn');
+        return originalViewMaterial(mid, matid);
+      }
+      const title = escapeHtml(mat.name || mat.originalName || 'PowerPoint');
+      const note = en()
+        ? 'PowerPoint slide preview. Use the viewer controls to move through the slides and read the contents.'
+        : 'Pratonton slaid PowerPoint. Gunakan kawalan paparan untuk membaca kandungan dan bergerak antara slaid.';
+      openModal(
+        '<div class="card-head"><div><h2>📊 ' + title + '</h2><small class="muted">' + note + '</small></div><button type="button" class="btn btn-sm" data-act="close-modal">' + (en()?'Close':'Tutup') + '</button></div>' +
+        '<iframe class="cftp-ppt-preview" src="' + escapeHtml(preview) + '" title="' + title + '" allow="autoplay" loading="eager"></iframe>' +
+        '<div class="toolbar" style="justify-content:flex-end;margin-top:10px"><a class="btn btn-sm" href="' + escapeHtml(preview) + '" target="_blank" rel="noopener">' + (en()?'Open full viewer':'Buka paparan penuh') + '</a>' +
+        (mat.downloadUrl ? '<a class="btn btn-sm btn-primary" href="' + escapeHtml(mat.downloadUrl) + '" target="_blank" rel="noopener">' + (en()?'Download PowerPoint':'Muat turun PowerPoint') + '</a>' : '') +
+        '</div>','modal-xl'
+      );
+      return;
+    }
+    return originalViewMaterial(mid, matid);
+  };
+
+  // Add an all-module performance overview to staff dashboards without changing
+  // existing dashboard calculations or any stored records.
+  const originalDashboardView = dashboardView;
+  dashboardView = function(){
+    const base = originalDashboardView();
+    if (!state.user || !['admin','trainer','facilitator'].includes(state.user.role)) return base;
+    const modules = sortModules(DB.modules || []);
+    const participants = allParticipants();
+    const rows = overallSpiderDataset(modules, participants);
+    if (!rows.length) return base + '<section class="card cftp-dashboard-performance"><div class="card-head"><h2>📈 ' +
+      (en()?'Performance Analysis — All Modules':'Analisis Prestasi — Semua Modul') +
+      '</h2></div><p class="muted">' + (en()?'No published assessments are available yet.':'Tiada penilaian diterbitkan buat masa ini.') + '</p></section>';
+    const assessed = rows.filter(r => r.value !== null);
+    const overall = assessed.length ? assessed.reduce((sum,r)=>sum+r.value,0)/assessed.length : null;
+    const tableRows = rows.map(r => '<tr><td>' + escapeHtml(r.name) + '</td><td>' + r.enrolled + '</td><td>' + r.assessed +
+      '</td><td class="perf-score">' + (r.value === null ? '—' : r.value.toFixed(1)+'%') + '</td></tr>').join('');
+    return base +
+      '<section class="card cftp-dashboard-performance"><div class="card-head"><div><h2>📈 ' +
+      (en()?'Performance Analysis — All Modules':'Analisis Prestasi — Semua Modul') +
+      '</h2><small class="muted">' + (en()?'A consolidated view of assessment performance across every training module.':'Paparan gabungan prestasi penilaian merentas semua modul latihan.') +
+      '</small></div><span class="pill">' + modules.length + ' ' + (en()?'modules':'modul') + '</span></div>' +
+      '<div class="grid grid-4"><div class="stat"><div class="label">' + (en()?'Modules analysed':'Modul dianalisis') + '</div><div class="value">' + rows.length +
+      '</div></div><div class="stat"><div class="label">' + (en()?'Participants assessed':'Peserta dinilai') + '</div><div class="value">' +
+      new Set(rows.flatMap(r => (r.participants || []).map(p=>p.id))).size +
+      '</div></div><div class="stat"><div class="label">' + (en()?'Overall module average':'Purata keseluruhan modul') + '</div><div class="value">' +
+      (overall === null ? '—' : overall.toFixed(1)+'%') + '</div></div><div class="stat"><div class="label">' + (en()?'Modules with results':'Modul mempunyai keputusan') + '</div><div class="value">' +
+      assessed.length + '</div></div></div>' +
+      '<div class="overall-spider-chart" style="margin-top:14px">' + renderOverallSpider(modules,participants) + '</div>' +
+      '<div class="table-wrap"><table><thead><tr><th>' + (en()?'Module':'Modul') + '</th><th>' + (en()?'Enrolled':'Berdaftar') +
+      '</th><th>' + (en()?'Assessed':'Dinilai') + '</th><th>' + (en()?'Average score':'Purata skor') +
+      '</th></tr></thead><tbody>' + tableRows + '</tbody></table></div></section>';
+  };
+})();
+</script>
+
 </body>
 </html>
