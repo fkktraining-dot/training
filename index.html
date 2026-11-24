@@ -4663,9 +4663,10 @@ function renderFinalTheoryTab(fe, pid) {
   const w = feWindowStatus(fe);
   if (w.state === 'not-open') { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><div class="quiz-header"><div class="logo">CF</div><div><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))}</p></div></div><div class="info-box warn"><h4>🕐 ${t('fe_status_not_open')}</h4><p style="margin:0">${t('fe_not_open_notice', fmtDT(fe.openAt))}</p>${fe.duration ? `<p style="margin:6px 0 0">${t('fe_duration')}: <strong>${fe.duration} ${t('lbl_minutes')}</strong></p>` : ''}</div><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
   if (w.state === 'closed') { app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card"><div class="info-box warn"><h4>🔒 ${t('fe_status_closed')}</h4><p style="margin:0">${t('fe_closed_notice', fe.closeAt ? fmtDT(fe.closeAt) : '—')}</p></div><div class="tab-actions"><button class="btn" onclick="window.close()">${t('btn_close_tab')}</button></div></div></div>`; return; }
-  // Final Exam uses its own renderer; initialise a safe draft map so the
-  // standalone tab never references an undeclared activity-quiz variable.
-  const savedDraft = {};
+  // Restore participant answers before rendering. Keep a durable local copy
+  // so refreshes, accidental navigation and temporary network loss do not
+  // clear answers while the Final Exam is in progress.
+  const savedDraft = readFinalExamDraft(fe.id, pid);
   const hasTimer = feHasTimer(fe);
   const durationMs = hasTimer ? (Number(fe.duration) * 60 * 1000) : 0;
   let remainingMs = 0;
@@ -4679,11 +4680,80 @@ function renderFinalTheoryTab(fe, pid) {
   }
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${allQ.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
-    <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}</div>
+    <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}<small id="finalDraftStatus" style="display:block;margin-top:7px">💾 ${currentLang === 'en' ? 'Your answers are saved automatically on this device.' : 'Jawapan anda disimpan secara automatik pada peranti ini.'}</small></div>
     <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
   </div></div>`;
-  document.getElementById('standalone-final-form').addEventListener('submit', (e) => { e.preventDefault(); const form = e.target; const answers = allQ.map((q, qi) => { const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; }); submitFinalAttempt(fe, pid, answers, false); });
+  const finalForm = document.getElementById('standalone-final-form');
+  // Save every answer immediately on selection, not only when Submit is pressed.
+  finalForm.addEventListener('change', () => {
+    const answers = collectFinalExamAnswers_(finalForm, allQ.length);
+    saveFinalExamDraft(fe.id, pid, answers);
+    const status = document.getElementById('finalDraftStatus');
+    if (status) status.textContent = currentLang === 'en' ? '✓ Answers saved on this device' : '✓ Jawapan disimpan pada peranti ini';
+  });
+  // A second independent save path protects answers if the tab is closed,
+  // refreshed or moved to the background before the next normal save cycle.
+  const saveOnExit = () => {
+    if (document.getElementById('standalone-final-form') === finalForm) {
+      saveFinalExamDraft(fe.id, pid, collectFinalExamAnswers_(finalForm, allQ.length));
+    }
+  };
+  window.addEventListener('pagehide', saveOnExit, { once:true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveOnExit();
+  });
+  finalForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const submitBtn = finalForm.querySelector('button[type="submit"]');
+    if (submitBtn && submitBtn.disabled) return;
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
+    const answers = collectFinalExamAnswers_(finalForm, allQ.length);
+    saveFinalExamDraft(fe.id, pid, answers);
+    submitFinalAttempt(fe, pid, answers, false);
+  });
   if (hasTimer) startFinalTimer(fe, pid, remainingMs);
+}
+
+function finalExamDraftKey_(feid, pid) {
+  return `cftpmy_finaldraft_${String(feid)}_${String(pid)}`;
+}
+function collectFinalExamAnswers_(form, questionCount) {
+  const answers = {};
+  for (let qi = 0; qi < questionCount; qi++) {
+    const selected = form?.querySelector(`input[name="q${qi}"]:checked`);
+    if (selected) answers[qi] = Number(selected.value);
+  }
+  return answers;
+}
+function readFinalExamDraft(feid, pid) {
+  const key = finalExamDraftKey_(feid, pid);
+  // Prefer the durable localStorage copy, then fall back to the current tab session.
+  for (const store of [localStorage, sessionStorage]) {
+    try {
+      const raw = store.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch (err) { console.warn('[final exam draft] Could not read local draft:', err); }
+  }
+  return {};
+}
+function saveFinalExamDraft(feid, pid, answers) {
+  const key = finalExamDraftKey_(feid, pid);
+  const clean = {};
+  Object.keys(answers || {}).forEach(k => {
+    const index = Number(k), value = Number(answers[k]);
+    if (Number.isInteger(index) && index >= 0 && Number.isInteger(value) && value >= 0) clean[index] = value;
+  });
+  const payload = JSON.stringify(clean);
+  // Write both stores; either one may remain available if browser storage is restricted.
+  try { localStorage.setItem(key, payload); } catch (err) { console.warn('[final exam draft] localStorage save failed:', err); }
+  try { sessionStorage.setItem(key, payload); } catch (err) { console.warn('[final exam draft] sessionStorage save failed:', err); }
+}
+function clearFinalExamDraft(feid, pid) {
+  const key = finalExamDraftKey_(feid, pid);
+  try { localStorage.removeItem(key); } catch (_) {}
+  try { sessionStorage.removeItem(key); } catch (_) {}
 }
 
 function startFinalTimer(fe, pid, initialMs) {
@@ -4738,6 +4808,9 @@ async function submitFinalAttempt(fe, pid, answers, isAuto) {
   const auditRecord = { id: uid('au'), at: nowISO(), actorId: state.user ? state.user.id : 'system', actorName: state.user ? state.user.name : 'System', action: isAuto ? 'Submit Final (Auto)' : 'Submit Final', entity: 'Peperiksaan', entityId: `${fe.id}:${pid}`, details: `${userName(pid)} — ${score}/${allQ.length}` };
   DB.audit.push(auditRecord);
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch(e) {}
+  // The completed attempt is now recorded locally; remove only this participant's
+  // draft for this exam, without touching any other exam or user data.
+  clearFinalExamDraft(fe.id, pid);
   const pct = Math.round(score / allQ.length * 100);
   const baseMsg = isAuto ? t('fe_auto_submit') : t('fe_score_format', score, allQ.length, pct);
   stopQuizTimer();
@@ -4764,7 +4837,14 @@ async function submitFinalAttempt(fe, pid, answers, isAuto) {
 function autoSubmitFinal(fe, pid) {
   const allQ = feQuestionsAll(fe);
   const form = document.getElementById('standalone-final-form');
-  const answers = allQ.map((q, qi) => { if (!form) return -1; const sel = form.querySelector(`input[name="q${qi}"]:checked`); return sel ? Number(sel.value) : -1; });
+  const draft = readFinalExamDraft(fe.id, pid);
+  const answers = allQ.map((q, qi) => {
+    if (form) {
+      const sel = form.querySelector(`input[name="q${qi}"]:checked`);
+      if (sel) return Number(sel.value);
+    }
+    return Number.isInteger(Number(draft[qi])) ? Number(draft[qi]) : -1;
+  });
   submitFinalAttempt(fe, pid, answers, true);
 }
 
