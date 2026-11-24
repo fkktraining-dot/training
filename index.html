@@ -4133,7 +4133,7 @@ const feWindowStatus = (fe) => {
   return { state: 'open', open, close };
 };
 const feHasTimer = (fe) => !!(fe && fe.type === 'theory' && Number(fe.duration) > 0);
-const feAttemptFor = (feid, pid) => (DB.feAttempts || []).filter(x => x.finalId === feid && x.participantId === pid).sort((a, b) => new Date(b.at) - new Date(a.at))[0] || null;
+const feAttemptFor = (feid, pid) => (DB.feAttempts || []).filter(x => x.finalId === feid && x.participantId === pid && !x.superseded).sort((a, b) => new Date(b.at) - new Date(a.at))[0] || null;
 const fePracticalFor = (feid, pid) => (DB.fePractical || []).find(x => x.finalId === feid && x.participantId === pid) || null;
 const feStartKeyFor = (feid, pid) => FESTART_PREFIX + feid + '_' + pid;
 const upcomingFinalExamsFor = (pid, limit) => {
@@ -4681,15 +4681,47 @@ function renderFinalTheoryTab(fe, pid) {
   app.innerHTML = `<div class="standalone-wrap"><div class="standalone-card">
     <div class="quiz-header"><div class="logo">CF</div><div style="flex:1;min-width:220px"><h1>${tce(fe.title)}</h1><p class="muted" style="margin:0">${tce(feModulesLabel(fe))} · ${allQ.length} ${t('lbl_questions')} · ${tce(state.user.name)}</p></div>${hasTimer ? `<div class="quiz-timer" id="quizTimer"><span class="timer-label">${t('quiz_time')}</span><span class="timer-value" id="timerText">--:--</span></div>` : ''}</div>
     <div class="info-box ${hasTimer ? 'warn' : 'ok'}" style="margin-bottom:16px"><h4>${hasTimer ? '⏱️ ' + t('quiz_timed') : '📝 ' + t('quiz_ready')}</h4><p style="margin:0">${hasTimer ? t('fe_timed_body', fe.duration) : t('fe_ready_body')}</p>${fe.closeAt ? `<p style="margin:6px 0 0;font-size:.82rem">${t('quiz_close_hint', fmtDT(fe.closeAt))}</p>` : ''}<small id="finalDraftStatus" style="display:block;margin-top:7px">💾 ${currentLang === 'en' ? 'Your answers are saved automatically on this device.' : 'Jawapan anda disimpan secara automatik pada peranti ini.'}</small></div>
-    <form id="standalone-final-form">${allQ.map((q, qi) => `<div class="q"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} ${oi === 0 ? 'required' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}<div class="tab-actions"><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">${t('btn_submit')}</button></div></form>
+    <form id="standalone-final-form">
+      <div id="finalQuestionProgress" class="muted" style="display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;font-weight:600"><span>${currentLang === 'en' ? 'Question 1 of ' : 'Soalan 1 daripada '}${allQ.length}</span><span id="finalAnsweredCount">${Object.keys(savedDraft).length}/${allQ.length} ${currentLang === 'en' ? 'answered' : 'dijawab'}</span></div>
+      <div style="height:7px;background:#e8eee9;border-radius:99px;overflow:hidden;margin-bottom:16px"><div id="finalQuestionProgressBar" style="height:100%;width:${allQ.length ? (Object.keys(savedDraft).length/allQ.length*100) : 0}%;background:var(--primary,#0b6b53);transition:width .2s"></div></div>
+      <div id="finalQuestionStage">${allQ.map((q, qi) => `<div class="q final-one-question" data-question-index="${qi}" style="${qi === 0 ? '' : 'display:none'}"><p class="q-text">${qi+1}. ${tce(q.q)} <small class="muted">[${tce(moduleName(q.moduleId))}]</small></p>${q.options.map((o, oi) => `<label class="opt"><input type="radio" name="q${qi}" value="${oi}" ${Number(savedDraft[qi]) === oi ? 'checked' : ''} /><span><strong>${'ABCD'[oi]}.</strong> ${tce(o)}</span></label>`).join('')}</div>`).join('')}</div>
+      <div class="tab-actions" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="finalPreviousBtn" disabled>← ${currentLang === 'en' ? 'Previous' : 'Sebelumnya'}</button><button type="button" class="btn btn-primary" id="finalNextBtn">${currentLang === 'en' ? 'Next Question' : 'Soalan Seterusnya'} →</button><button type="button" class="btn" onclick="window.close()">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary" id="finalSubmitBtn" style="display:none">${t('btn_submit')}</button></div>
+    </form>
   </div></div>`;
   const finalForm = document.getElementById('standalone-final-form');
+  let currentQuestionIndex = 0;
+  const questionCards = Array.from(finalForm.querySelectorAll('.final-one-question'));
+  const previousBtn = document.getElementById('finalPreviousBtn');
+  const nextBtn = document.getElementById('finalNextBtn');
+  const submitBtn = document.getElementById('finalSubmitBtn');
+  const updateFinalQuestionView = () => {
+    questionCards.forEach((card, index) => { card.style.display = index === currentQuestionIndex ? '' : 'none'; });
+    const progress = document.querySelector('#finalQuestionProgress span:first-child');
+    const answered = Object.keys(collectFinalExamAnswers_(finalForm, allQ.length)).length;
+    const answeredLabel = document.getElementById('finalAnsweredCount');
+    const bar = document.getElementById('finalQuestionProgressBar');
+    if (progress) progress.textContent = `${currentLang === 'en' ? 'Question' : 'Soalan'} ${currentQuestionIndex + 1} ${currentLang === 'en' ? 'of' : 'daripada'} ${allQ.length}`;
+    if (answeredLabel) answeredLabel.textContent = `${answered}/${allQ.length} ${currentLang === 'en' ? 'answered' : 'dijawab'}`;
+    if (bar) bar.style.width = `${allQ.length ? answered / allQ.length * 100 : 0}%`;
+    if (previousBtn) previousBtn.disabled = currentQuestionIndex === 0;
+    if (nextBtn) nextBtn.style.display = currentQuestionIndex === allQ.length - 1 ? 'none' : '';
+    if (submitBtn) submitBtn.style.display = currentQuestionIndex === allQ.length - 1 ? '' : 'none';
+  };
+  previousBtn?.addEventListener('click', () => { if (currentQuestionIndex > 0) { currentQuestionIndex--; updateFinalQuestionView(); } });
+  nextBtn?.addEventListener('click', () => {
+    const selected = finalForm.querySelector(`input[name="q${currentQuestionIndex}"]:checked`);
+    if (!selected) { alert(currentLang === 'en' ? 'Please select an answer before moving to the next question.' : 'Sila pilih jawapan sebelum meneruskan ke soalan seterusnya.'); return; }
+    currentQuestionIndex = Math.min(currentQuestionIndex + 1, allQ.length - 1);
+    updateFinalQuestionView();
+  });
+  updateFinalQuestionView();
   // Save every answer immediately on selection, not only when Submit is pressed.
   finalForm.addEventListener('change', () => {
     const answers = collectFinalExamAnswers_(finalForm, allQ.length);
     saveFinalExamDraft(fe.id, pid, answers);
     const status = document.getElementById('finalDraftStatus');
     if (status) status.textContent = currentLang === 'en' ? '✓ Answers saved on this device' : '✓ Jawapan disimpan pada peranti ini';
+    updateFinalQuestionView();
   });
   // A second independent save path protects answers if the tab is closed,
   // refreshed or moved to the background before the next normal save cycle.
@@ -4704,10 +4736,16 @@ function renderFinalTheoryTab(fe, pid) {
   });
   finalForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const submitBtn = finalForm.querySelector('button[type="submit"]');
     if (submitBtn && submitBtn.disabled) return;
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
     const answers = collectFinalExamAnswers_(finalForm, allQ.length);
+    const missing = allQ.findIndex((_, index) => !Object.prototype.hasOwnProperty.call(answers, index));
+    if (missing !== -1) {
+      currentQuestionIndex = missing;
+      updateFinalQuestionView();
+      alert(currentLang === 'en' ? `Please answer Question ${missing + 1} before submitting.` : `Sila jawab Soalan ${missing + 1} sebelum menghantar.`);
+      return;
+    }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = currentLang === 'en' ? 'Submitting…' : 'Menghantar…'; }
     saveFinalExamDraft(fe.id, pid, answers);
     submitFinalAttempt(fe, pid, answers, false);
   });
@@ -9108,23 +9146,68 @@ function printFinalTheoryQuestions(feid) {
 function openFinalTheoryMarks(feid) {
   const fe=getFinalExam(feid); if(!fe || fe.type!=='theory')return;
   const mids=feModuleIds(fe); const parts=DB.users.filter(u=>u.role==='participant'&&u.status==='approved'&&mids.some(mid=>isEnrolled(mid,u.id)));
-  openModal2(`<h2>✍️ ${currentLang==='en'?'Final Theory Marks':'Markah Teori Peperiksaan Akhir'}</h2><p class="muted">${tce(fe.title)} · ${tce(feModulesLabel(fe))}</p><div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${currentLang==='en'?'Mark':'Markah'}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(p=>{const a=feAttemptFor(feid,p.id);return `<tr><td>${tce(p.name)}</td><td>${a?`<b>${Math.round(Number(a.score)/Math.max(1,Number(a.total))*100)}%</b>`:'—'}</td><td><button class="btn btn-sm btn-primary" data-act="fe-theory-mark-one" data-feid="${feid}" data-pid="${p.id}">✍️ ${currentLang==='en'?'Enter / Edit':'Masuk / Edit'}</button></td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`, 'modal-lg');
+  openModal2(`<h2>✍️ ${currentLang==='en'?'Final Theory Marks':'Markah Teori Peperiksaan Akhir'}</h2><p class="muted">${tce(fe.title)} · ${tce(feModulesLabel(fe))}</p><div class="info-box" style="margin:10px 0"><p style="margin:0">${currentLang==='en'?'Use the same participant actions as the Quiz grading tab: enter answers, enter full marks, or grant a retake while the exam is open.':'Gunakan tindakan peserta seperti dalam tab pemarkahan Quiz: masukkan jawapan, masukkan markah penuh atau benarkan retake ketika peperiksaan masih dibuka.'}</p></div><div class="table-wrap"><table><thead><tr><th>${t('grad_participant')}</th><th>${currentLang==='en'?'Mark':'Markah'}</th><th>${t('lbl_status')}</th><th>${t('lbl_actions')}</th></tr></thead><tbody>${parts.map(p=>{const a=feAttemptFor(feid,p.id);const pct=a?Math.round(Number(a.score)/Math.max(1,Number(a.total))*100):null;const w=feWindowStatus(fe);return `<tr><td><strong>${tce(p.name)}</strong><br><small class="muted">${tce(p.id)}</small></td><td>${a?`<b>${Number(a.score)}/${Number(a.total)} (${pct}%)</b>`:'—'}</td><td>${a?`<span class="badge ok">${currentLang==='en'?'Completed':'Selesai'}</span>`:`<span class="badge warn">${currentLang==='en'?'Not answered':'Belum dijawab'}</span>`}${a?.manualEntry?`<br><small class="muted">${currentLang==='en'?'Manually entered':'Dimasukkan manual'}</small>`:''}</td><td><div class="grading-actions"><button class="btn btn-sm grading-answer" data-act="fe-manual-answers" data-feid="${esc(feid)}" data-pid="${esc(p.id)}" title="${currentLang==='en'?'Enter participant answers':'Masukkan jawapan peserta'}">📝 ${currentLang==='en'?'Enter Answer':'Masuk Jawapan'}</button><button class="btn btn-sm grading-fullmark" data-act="fe-theory-mark-one" data-feid="${esc(feid)}" data-pid="${esc(p.id)}" title="${currentLang==='en'?'Enter score and total marks':'Masukkan markah diperoleh dan jumlah markah'}">✍️ ${currentLang==='en'?'Enter Full Mark':'Masuk Markah Penuh'}</button><button class="btn btn-sm grading-retest ${a?'':'disabled'}" data-act="fe-retest" data-feid="${esc(feid)}" data-pid="${esc(p.id)}" ${(!a||w.state!=='open')?'disabled title="'+(currentLang==='en'?'A completed attempt and an open exam are required':'Perlu ada percubaan selesai dan peperiksaan masih dibuka')+'"':''} title="${currentLang==='en'?'Allow participant to retake this Final Exam':'Benarkan peserta mengambil semula Final Exam'}">🔄 ${currentLang==='en'?'Retest':'Retest'}</button></div></td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="btn" data-act="close-modal2">${t('btn_close')}</button></div>`, 'modal-lg');
 }
+function openManualFinalAnswers(feid,pid) {
+  const fe=getFinalExam(feid),person=DB.users.find(u=>u.id===pid&&u.role==='participant');
+  if(!fe||fe.type!=='theory'||!person)return;
+  if(!['admin','trainer','facilitator'].includes(state.user.role)||(state.user.role!=='admin'&&!feModuleIds(fe).some(mid=>canTrainerAccessModule(mid)))){toast(t('msg_no_access'),'bad');return;}
+  const qs=feQuestionsAll(fe),latest=feAttemptFor(feid,pid),saved=latest?.answers||[];
+  openModal2(`<h2>📝 ${currentLang==='en'?'Enter Final Exam Answers':'Masukkan Jawapan Final Exam'}</h2><p class="muted"><b>${tce(person.name)}</b> · ${tce(fe.title)}</p><div class="info-box" style="margin:10px 0"><p style="margin:0">${currentLang==='en'?'Enter the participant’s selected answers. The system will calculate the mark using the saved answer key. Existing attempts are retained in the record.':'Masukkan jawapan yang dipilih peserta. Sistem akan mengira markah berdasarkan skema jawapan yang disimpan. Percubaan terdahulu akan dikekalkan dalam rekod.'}</p></div><form data-form="manual-final-answers" data-feid="${esc(feid)}" data-pid="${esc(pid)}"><div style="max-height:55vh;overflow:auto">${qs.map((q,i)=>`<div class="q" style="padding:12px;border-bottom:1px solid var(--line)"><p><b>${i+1}. ${tce(q.q)}</b> <small class="muted">[${tce(moduleName(q.moduleId||''))}]</small></p><div class="field"><label>${currentLang==='en'?'Participant answer':'Jawapan peserta'}</label><select class="select" name="q${i}"><option value="-1">— ${currentLang==='en'?'Not answered':'Tidak dijawab'} —</option>${(q.options||[]).map((o,j)=>`<option value="${j}" ${Number(saved[i])===j?'selected':''}>${'ABCD'[j]}. ${tce(o)}</option>`).join('')}</select></div></div>`).join('')}</div><div class="field" style="margin-top:12px"><label>${currentLang==='en'?'Notes (optional)':'Catatan (pilihan)'}</label><textarea class="textarea" name="manualNotes" placeholder="${currentLang==='en'?'e.g. Entered from printed answer sheet':'cth. Dimasukkan daripada kertas jawapan bercetak'}">${esc(latest?.manualNotes||'')}</textarea></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">💾 ${currentLang==='en'?'Save Answers & Score':'Simpan Jawapan & Markah'}</button></div></form>`, 'modal-lg');
+}
+async function handleManualFinalAnswers(form) {
+  const feid=form.dataset.feid,pid=form.dataset.pid,fe=getFinalExam(feid),person=DB.users.find(u=>u.id===pid&&u.role==='participant');
+  if(!fe||!person||fe.type!=='theory'||!['admin','trainer','facilitator'].includes(state.user.role)||(state.user.role!=='admin'&&!feModuleIds(fe).some(mid=>canTrainerAccessModule(mid)))){toast(t('msg_no_access'),'bad');return;}
+  const qs=feQuestionsAll(fe),answers=qs.map((q,i)=>{const el=form.querySelector(`[name="q${i}"]`);return el?Number(el.value):-1;});
+  const score=qs.reduce((n,q,i)=>n+(answers[i]===Number(q.answer)?1:0),0);
+  if(!Array.isArray(DB.feAttempts))DB.feAttempts=[];
+  const attempt={id:uid('fea'),finalId:feid,participantId:pid,answers,score,total:qs.length,at:nowISO(),auto:false,manualEntry:true,manualNotes:(form.manualNotes?.value||'').trim(),enteredBy:state.user.id,enteredByName:state.user.name,source:'manual-final-answer-entry'};
+  DB.feAttempts.push(attempt);
+  logAudit('Enter Final Exam Answers','Peperiksaan',`${feid}:${pid}`,`${person.name} — ${score}/${qs.length}`);
+  closeModal2();render();await saveCritical(currentLang==='en'?`Final Exam answers saved: ${score}/${qs.length}.`:`Jawapan Final Exam disimpan: ${score}/${qs.length}.`,'ok');
+}
+function grantFinalExamRetake(feid,pid) {
+  const fe=getFinalExam(feid),person=DB.users.find(u=>u.id===pid&&u.role==='participant');
+  if(!fe||!person||fe.type!=='theory')return;
+  if(!['admin','trainer','facilitator'].includes(state.user.role)||(state.user.role!=='admin'&&!feModuleIds(fe).some(mid=>canTrainerAccessModule(mid)))){toast(t('msg_no_access'),'bad');return;}
+  if(feWindowStatus(fe).state!=='open'){toast(currentLang==='en'?'Retake can only be granted while the Final Exam is open.':'Retake hanya boleh diberikan ketika Final Exam masih dibuka.','warn');return;}
+  const attempt=feAttemptFor(feid,pid);if(!attempt){toast(currentLang==='en'?'No completed attempt was found.':'Tiada percubaan selesai ditemui.','warn');return;}
+  if(!confirm(currentLang==='en'?`Allow ${person.name} to retake ${fe.title}? The previous attempt will remain in the history.`:`Benarkan ${person.name} mengambil semula ${fe.title}? Percubaan terdahulu akan kekal dalam sejarah.`))return;
+  attempt.superseded=true;attempt.supersededAt=nowISO();attempt.supersededBy=state.user.id;
+  try{localStorage.removeItem(feStartKeyFor(feid,pid));}catch(e){}
+  clearFinalExamDraft(feid,pid);
+  logAudit('Grant Final Exam Retake','Peperiksaan',`${feid}:${pid}`,`${person.name} — previous attempt retained`);
+  saveDB();closeModal2();render();saveCritical(currentLang==='en'?'Final Exam retake granted. The participant can open the exam again.':'Retake Final Exam telah dibenarkan. Peserta boleh membuka peperiksaan semula.','ok');
+}
+
 function openFinalTheoryMarkForm(feid,pid) {
   const fe=getFinalExam(feid),p=DB.users.find(x=>x.id===pid);if(!fe||!p)return;
-  const old=feAttemptFor(feid,pid), total=feQuestionsAll(fe).length||100;
-  const oldPct=old?Number(old.score)/Math.max(1,Number(old.total))*100:'';
-  openModal(`<h2>✍️ ${currentLang==='en'?'Enter Theory Mark':'Masukkan Markah Teori'}</h2><p><b>${tce(p.name)}</b> · ${tce(fe.title)}</p><form data-form="final-theory-mark" data-feid="${feid}" data-pid="${pid}"><div class="field"><label>${currentLang==='en'?'Mark (%)':'Markah (%)'} *</label><input class="input" type="number" name="mark" min="0" max="100" step="0.1" required value="${oldPct===''?'':oldPct.toFixed(1)}" placeholder="0 - 100"></div><div class="field"><label>${currentLang==='en'?'Trainer / Facilitator notes':'Catatan Jurulatih / Fasilitator'}</label><textarea class="textarea" name="notes">${esc(old?.manualNotes||'')}</textarea></div><div class="info-box"><p>${currentLang==='en'?'This is a manually entered percentage mark. It will be recorded as the participant’s final theory result.':'Markah peratus dimasukkan secara manual dan direkodkan sebagai keputusan teori peperiksaan akhir peserta.'}</p></div><div class="modal-actions"><button type="button" class="btn" data-act="close-modal">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">💾 ${t('btn_save')}</button></div></form>`);
+  // Match the Quiz tab: enter the score obtained and the total marks separately.
+  const old=feAttemptFor(feid,pid);
+  const prior=DB.feAttempts.find(x=>x.finalId===feid&&x.participantId===pid&&x.manualEntry===true);
+  const shown=prior||old;
+  const scoreValue=shown&&Number.isFinite(Number(shown.score))?Number(shown.score):'';
+  const totalValue=shown&&Number.isFinite(Number(shown.total))&&Number(shown.total)>0?Number(shown.total):(feQuestionsAll(fe).length||'');
+  openModal2(`<h2>✍️ ${currentLang==='en'?'Enter Total Final Exam Mark':'Masukkan Jumlah Markah Peperiksaan Akhir'}</h2><p class="muted"><b>${tce(p.name)}</b> · ${tce(fe.title)}</p>
+  <div class="info-box"><p style="margin:0">${currentLang==='en'?'Enter the score obtained and the total available marks, just like the Quiz tab. The participant’s original submitted answers are preserved.':'Masukkan markah diperoleh dan jumlah markah penuh seperti dalam tab Quiz. Jawapan asal peserta yang telah dihantar tidak akan dipadam.'}</p></div>
+  <form data-form="final-theory-mark" data-feid="${esc(feid)}" data-pid="${esc(pid)}">
+  <div class="grid2"><div class="field"><label>${currentLang==='en'?'Score obtained':'Markah diperoleh'} *</label><input class="input" name="score" type="number" min="0" step="0.01" required value="${scoreValue}"></div>
+  <div class="field"><label>${currentLang==='en'?'Total marks':'Jumlah markah penuh'} *</label><input class="input" name="total" type="number" min="0.01" step="0.01" required value="${totalValue}"></div></div>
+  <div class="field"><label>${currentLang==='en'?'Trainer / Facilitator notes':'Catatan Jurulatih / Fasilitator'}</label><textarea class="textarea" name="notes">${esc(prior?.manualNotes||'')}</textarea></div>
+  <div class="modal-actions"><button type="button" class="btn" data-act="close-modal2">${t('btn_cancel')}</button><button type="submit" class="btn btn-primary">☁️ ${currentLang==='en'?'Save Mark':'Simpan Markah'}</button></div></form>`);
 }
 function handleSaveFinalTheoryMark(form) {
   const feid=form.dataset.feid,pid=form.dataset.pid,fe=getFinalExam(feid);if(!fe)return;
-  const mark=Number(form.mark.value);if(!Number.isFinite(mark)||mark<0||mark>100){toast(currentLang==='en'?'Enter a mark from 0 to 100.':'Masukkan markah antara 0 hingga 100.','bad');return;}
+  const score=Number(form.score.value),total=Number(form.total.value);
+  if(!Number.isFinite(score)||!Number.isFinite(total)||total<=0||score<0||score>total){toast(currentLang==='en'?'Enter a valid score. The score must be between zero and the total marks.':'Masukkan markah yang sah. Markah diperoleh mestilah antara sifar hingga jumlah markah penuh.','bad');return;}
   if(!['admin','trainer','facilitator'].includes(state.user.role)||(state.user.role!=='admin'&&!feModuleIds(fe).some(mid=>canTrainerAccessModule(mid)))){toast(t('msg_no_access'),'bad');return;}
   if(!Array.isArray(DB.feAttempts))DB.feAttempts=[];
-  let rec=DB.feAttempts.find(x=>x.finalId===feid&&x.participantId===pid&&x.manualEntry);
-  const data={score:mark,total:100,answers:[],at:nowISO(),auto:false,manualEntry:true,manualNotes:(form.notes?.value||'').trim(),enteredBy:state.user.id,enteredByName:state.user.name,source:'manual-final-theory-mark'};
+  let rec=DB.feAttempts.find(x=>x.finalId===feid&&x.participantId===pid&&x.manualEntry===true);
+  const pct=score/total*100;
+  const data={score,total,answers:[],at:nowISO(),auto:false,manualEntry:true,manualNotes:(form.notes?.value||'').trim(),enteredBy:state.user.id,enteredByName:state.user.name,source:'manual-final-theory-mark'};
   if(rec)Object.assign(rec,data);else DB.feAttempts.push(Object.assign({id:uid('feat'),finalId:feid,participantId:pid},data));
-  saveDB();logAudit('Manual Final Theory Mark','Peperiksaan',`${feid}:${pid}`,`${userName(pid)}: ${mark}%`);closeModal();closeModal2();render();saveCritical(currentLang==='en'?`Final theory mark saved: ${mark}%.`:`Markah teori peperiksaan akhir disimpan: ${mark}%.`,'ok');
+  logAudit('Manual Final Theory Mark','Peperiksaan',`${feid}:${pid}`,`${userName(pid)}: ${score}/${total} (${pct.toFixed(1)}%)`);
+  closeModal2();render();saveAssessmentToGoogleSheets(currentLang==='en'?'Final exam mark saved to Google Sheets.':'Markah peperiksaan akhir disimpan ke Google Sheets.');
 }
 function openFinalPracticalParticipants(feid){
   const fe=getFinalExam(feid);if(!fe)return;const mids=feModuleIds(fe);const parts=DB.users.filter(u=>u.role==='participant'&&u.status==='approved'&&mids.some(mid=>isEnrolled(mid,u.id)));
@@ -12462,6 +12545,7 @@ document.addEventListener('submit', (e) => {
   else if (k === 'fe-bank-picker') handleFeBankPickerSubmit(form);
   else if (k === 'final-practical') handleSaveFinalPractical(form);
   else if (k === 'final-theory-mark') handleSaveFinalTheoryMark(form);
+  else if (k === 'manual-final-answers') handleManualFinalAnswers(form);
 });
 
 document.addEventListener('click', async (e) => {
@@ -12865,6 +12949,8 @@ document.addEventListener('click', async (e) => {
     case 'fe-print-theory': printFinalTheoryQuestions(id); break;
     case 'fe-theory-marks': openFinalTheoryMarks(id); break;
     case 'fe-theory-mark-one': closeModal2(); openFinalTheoryMarkForm(tgt.dataset.feid,tgt.dataset.pid); break;
+    case 'fe-manual-answers': closeModal2(); openManualFinalAnswers(tgt.dataset.feid,tgt.dataset.pid); break;
+    case 'fe-retest': grantFinalExamRetake(tgt.dataset.feid,tgt.dataset.pid); break;
     case 'fe-practical-participants': openFinalPracticalParticipants(id); break;
     case 'fe-marks-template': downloadFinalPracticalMarksTemplate(id); break;
     case 'fe-marks-upload': { const feid=id; pickExcelFile('.xlsx,.xls',(f)=>importFinalPracticalMarksExcel(f,feid)); break; }
